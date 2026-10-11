@@ -9,11 +9,16 @@
     "lint": "eslint",
     "extract:avif": "bash scripts/extract_webm_frames.sh",
     "to:avif": "node scripts/to-avif.mjs",
-    "frame:rive": "node scripts/rive-frame.mjs"
+    "frame:rive": "node scripts/rive-frame.mjs",
+    "test": "node --experimental-strip-types --test \"lib/**/*.test.ts\"",
+    "test:db": "supabase test db",
+    "db:reset": "supabase db reset"
   },
   "dependencies": {
     "@rive-app/canvas": "^2.31.0",
     "@rive-app/react-canvas": "^4.31.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -26,6 +31,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-use-measure": "^2.1.7",
+    "server-only": "^0.0.1",
     "swiper": "^12.0.2",
     "tailwind-merge": "^3.3.1",
     "zustand": "^5.0.11"
