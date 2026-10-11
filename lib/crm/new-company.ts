@@ -25,7 +25,7 @@ type Rows = {
     win_probability: number;
   };
   deal: { stage: string; value_minor: number; currency: string; status: "open" } | null;
-  activity: { kind: "manual"; summary: string; at: string };
+  activities: { kind: "manual"; summary: string; at: string }[];
 };
 
 export function newCompanyRows(input: NewCompanyInput, ctx: Context): Rows | { ok: false; error: string } {
@@ -50,6 +50,9 @@ export function newCompanyRows(input: NewCompanyInput, ctx: Context): Rows | { o
       win_probability: win,
     },
     deal: value > 0 ? { stage: input.stage, value_minor: value, currency: "NGN", status: "open" } : null,
-    activity: { kind: "manual", summary: input.interactionType.trim() || "Added by hand", at: `${date}T12:00:00.000Z` },
+    activities: [
+      { kind: "manual", summary: input.interactionType.trim() || "Interaction", at: `${date}T12:00:00.000Z` },
+      { kind: "manual", summary: "Added by hand", at: `${ctx.today}T12:00:00.000Z` },
+    ],
   };
 }

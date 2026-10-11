@@ -38,7 +38,7 @@ export function buildMutations(event: CrmEvent, rules: ProductRules): Mutation[]
   const externalId = account.id;
   const stage = rules.stageFor(event);
 
-  const company: CompanyMutation = { kind: "company", externalId, name: account.name };
+  const company: CompanyMutation = { kind: "company", externalId, name: account.name, sourceAt: event.occurred_at };
   if (stage !== undefined) {
     company.stage = stage;
     company.winProbability = rules.probability[stage] ?? 0;

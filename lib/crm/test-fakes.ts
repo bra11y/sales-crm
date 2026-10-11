@@ -3,7 +3,7 @@ import type { CrmEvent } from "./events.ts";
 
 export type FakeState = {
   events: Map<string, { id: number; status: string; error: string | null }>;
-  companies: Map<string, { id: string; name: string; stage?: string; segment?: string; winProbability?: number; pipelineValueMinor?: number }>;
+  companies: Map<string, { id: string; name: string; stage?: string; segment?: string; winProbability?: number; pipelineValueMinor?: number; stateAt?: string }>;
   contacts: Map<string, { name: string; email?: string }>;
   subscriptions: Map<string, { id: string; status: string; sourceAt: string; amountMinor: number }>;
   deals: Map<string, { status: string }>;
@@ -43,8 +43,14 @@ export function createFakeDb(): CrmDb & { state: FakeState } {
       const key = `${product}:${m.externalId}`;
       const existing = state.companies.get(key);
       const next = { ...existing, id: existing?.id ?? key, name: m.name };
-      for (const field of ["stage", "segment", "winProbability", "pipelineValueMinor"] as const) {
-        if (m[field] !== undefined) Object.assign(next, { [field]: m[field] });
+      const older = Boolean(m.sourceAt && existing?.stateAt && existing.stateAt > m.sourceAt);
+      const fields = ["stage", "segment", "winProbability", "pipelineValueMinor"] as const;
+      const changes = fields.some((field) => m[field] !== undefined);
+      if (!older && changes) {
+        for (const field of fields) {
+          if (m[field] !== undefined) Object.assign(next, { [field]: m[field] });
+        }
+        if (m.sourceAt) next.stateAt = m.sourceAt;
       }
       state.companies.set(key, next);
       return next.id;

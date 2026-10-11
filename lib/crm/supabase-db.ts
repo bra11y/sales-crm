@@ -73,25 +73,30 @@ export function supabaseCrmDb(db: SupabaseClient): CrmDb {
     },
 
     async upsertCompany(workspaceId, product, m) {
-      const row: Record<string, unknown> = {
-        workspace_id: workspaceId,
-        product,
-        external_id: m.externalId,
-        name: m.name,
-        updated_at: new Date().toISOString(),
-      };
-      if (m.stage !== undefined) row.stage = m.stage;
-      if (m.segment !== undefined) row.segment = m.segment;
-      if (m.winProbability !== undefined) row.win_probability = m.winProbability;
-      if (m.pipelineValueMinor !== undefined) row.pipeline_value_minor = m.pipelineValueMinor;
-      if (m.currency !== undefined) row.currency = m.currency;
       const { data, error } = await db
         .from("companies")
-        .upsert(row, { onConflict: "workspace_id,product,external_id" })
+        .upsert(
+          { workspace_id: workspaceId, product, external_id: m.externalId, name: m.name, updated_at: new Date().toISOString() },
+          { onConflict: "workspace_id,product,external_id" },
+        )
         .select("id")
         .single();
       fail("upsert company", error);
-      return data!.id as string;
+      const id = data!.id as string;
+
+      const state: Record<string, unknown> = {};
+      if (m.stage !== undefined) state.stage = m.stage;
+      if (m.segment !== undefined) state.segment = m.segment;
+      if (m.winProbability !== undefined) state.win_probability = m.winProbability;
+      if (m.pipelineValueMinor !== undefined) state.pipeline_value_minor = m.pipelineValueMinor;
+      if (m.currency !== undefined) state.currency = m.currency;
+      if (Object.keys(state).length === 0) return id;
+
+      let update = db.from("companies").update({ ...state, state_at: m.sourceAt ?? null }).eq("id", id);
+      if (m.sourceAt) update = update.or(`state_at.is.null,state_at.lte.${m.sourceAt}`);
+      const { error: stateError } = await update;
+      fail("update company state", stateError);
+      return id;
     },
 
     async upsertContact(workspaceId, companyId, m) {

@@ -31,7 +31,7 @@ export async function createCompany(
   }
 
   const extra = [
-    supabase.from("activities").insert({ workspace_id: 1, company_id: created.id, ...rows.activity }),
+    supabase.from("activities").insert(rows.activities.map((a) => ({ workspace_id: 1, company_id: created.id, ...a }))),
     ...(rows.deal ? [supabase.from("deals").insert({ workspace_id: 1, company_id: created.id, ...rows.deal })] : []),
   ];
   const results = await Promise.all(extra);

@@ -9,6 +9,7 @@ export type CompanyMutation = {
   winProbability?: number;
   pipelineValueMinor?: number;
   currency?: string;
+  sourceAt?: string;
 };
 
 export type ContactMutation = { kind: "contact"; externalId: string; name: string; email?: string; phone?: string };

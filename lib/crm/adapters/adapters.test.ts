@@ -31,7 +31,7 @@ test("a Washcare sign-up becomes a Trial company with a contact, a trialing subs
     }),
   );
   assert.deepEqual(m.map((x) => x.kind), ["company", "contact", "subscription", "deal", "activity"]);
-  assert.deepEqual(m[0], { kind: "company", externalId: "42", name: "Clean Lagos", stage: "Trial", segment: "Monthly", winProbability: 40, pipelineValueMinor: 0, currency: "NGN" });
+  assert.deepEqual(m[0], { kind: "company", externalId: "42", name: "Clean Lagos", stage: "Trial", segment: "Monthly", winProbability: 40, pipelineValueMinor: 0, currency: "NGN", sourceAt: at });
   assert.equal(m[3].kind === "deal" && m[3].status, "open");
   assert.equal(m[4].kind === "activity" && m[4].summary, "Signed up");
 });

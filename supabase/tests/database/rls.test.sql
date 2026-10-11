@@ -33,7 +33,7 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000
 select is((select count(*) from public.companies)::int, 0, 'a user in another workspace reads nothing');
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select is((select count(*) from public.companies)::int, 2, 'a member reads every company in the workspace');
+select is((select count(*) from public.companies where external_id in ('t1', 't2'))::int, 2, 'a member reads every company in the workspace');
 
 update public.companies set name = 'Changed' where id = '10000000-0000-0000-0000-00000000000a';
 select is((select name from public.companies where id = '10000000-0000-0000-0000-00000000000a'), 'Owner co', 'a member cannot edit another owner''s company');

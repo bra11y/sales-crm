@@ -29,7 +29,10 @@ test("a valid company becomes a direct company, a deal and a dated activity", ()
     win_probability: 100,
   });
   assert.deepEqual(result.deal, { stage: "Pilot", value_minor: 250050, currency: "NGN", status: "open" });
-  assert.deepEqual(result.activity, { kind: "manual", summary: "Call", at: "2026-10-10T12:00:00.000Z" });
+  assert.deepEqual(result.activities, [
+    { kind: "manual", summary: "Call", at: "2026-10-10T12:00:00.000Z" },
+    { kind: "manual", summary: "Added by hand", at: "2026-10-11T12:00:00.000Z" },
+  ]);
 });
 
 test("an empty name is refused with a message naming the field", () => {
@@ -40,10 +43,20 @@ test("an empty name is refused with a message naming the field", () => {
 test("no pipeline value means no deal, and a future date is pulled back to today", () => {
   const result = newCompanyRows({ ...input, pipelineValue: 0, interactionDate: "2027-01-01" }, { ownerId: null, externalId: "x1", today: "2026-10-11" });
   assert.equal(result.ok && result.deal, null);
-  assert.equal(result.ok && result.activity.at, "2026-10-11T12:00:00.000Z");
+  assert.equal(result.ok && result.activities[0].at, "2026-10-11T12:00:00.000Z");
 });
 
 test("a negative or missing value counts as zero", () => {
   const result = newCompanyRows({ ...input, pipelineValue: Number.NaN }, { ownerId: null, externalId: "x1", today: "2026-10-11" });
   assert.equal(result.ok && result.company.pipeline_value_minor, 0);
+});
+
+test("an old interaction date never hides the new company: it is also marked as added today", () => {
+  const result = newCompanyRows({ ...input, interactionDate: "2025-01-01" }, { ownerId: null, externalId: "x1", today: "2026-10-11" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.activities, [
+    { kind: "manual", summary: "Call", at: "2025-01-01T12:00:00.000Z" },
+    { kind: "manual", summary: "Added by hand", at: "2026-10-11T12:00:00.000Z" },
+  ]);
 });

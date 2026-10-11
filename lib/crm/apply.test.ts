@@ -76,3 +76,32 @@ test("a product with no adapter is unsupported and writes nothing", async () => 
   assert.deepEqual(result, { status: "unsupported" });
   assert.equal(db.state.events.size, 0);
 });
+
+test("an older sign-up applied after the Pro payment does not downgrade the company", async () => {
+  const db = createFakeDb();
+  const pro: CrmEvent = {
+    event_id: "bihub:paystack:bh_1",
+    product: "bihub",
+    type: "payment.succeeded",
+    occurred_at: "2026-10-05T09:00:00.000Z",
+    data: {
+      account: { id: "s1", name: "Ade Fabrics" },
+      payment: { reference: "bh_1", amount_minor: 499_900, currency: "NGN", provider: "paystack", paid_at: "2026-10-05T09:00:00.000Z" },
+      subscription: { plan: "pro", status: "active", amount_minor: 499_900, currency: "NGN", interval_months: 1 },
+    },
+  };
+  const created: CrmEvent = {
+    event_id: "bihub:store:s1:created",
+    product: "bihub",
+    type: "account.created",
+    occurred_at: "2026-10-01T09:00:00.000Z",
+    data: { account: { id: "s1", name: "Ade Fabrics" } },
+  };
+  await applyEvent(pro, db);
+  await applyEvent(created, db);
+  const company = db.state.companies.get("bihub:s1");
+  assert.equal(company?.stage, "Pro");
+  assert.equal(company?.segment, "Pro");
+  assert.equal(company?.winProbability, 100);
+  assert.equal(db.state.activities.size, 2);
+});
