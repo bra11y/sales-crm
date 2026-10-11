@@ -127,7 +127,20 @@ Follows `CONVENTIONS.md`: check the type scale in `app/globals.css` first, Tailw
 6. Bihub adapter and helper.
 7. v2 command endpoints and manage actions.
 
-## 12. Open questions
+## 12. Later sub-projects (each gets its own spec)
+
+Agreed on 2026-10-11. This spec covers sub-project 1 only.
+
+| # | Sub-project | Summary | Needs from this spec |
+|---|---|---|---|
+| 2 | Prospecting engine | Finds businesses through official sources (such as the Google Places API), audits their sites with the existing `accessiscan` engine, finds a public or provider-supplied contact, and adds them to the CRM as Prospects. A person sends the first message. Targets: accessibility audits and fixes, websites (Bihub Tech), Washcare for laundries, Bihub storefronts, and the owner's other apps | `companies.source`, a Prospect stage in each product profile, an `audits` table, a suppression list |
+| 3 | Marketing hub | Drafts, schedules and tracks free organic posts (Google Business Profile, Meta Pages and Instagram, LinkedIn, YouTube), attributes leads to channels with tracking links, and later connects Google Ads and Meta Ads for paid campaigns with a spending cap | Lead attribution fields on `companies` and `events` |
+
+Ad platforms charge for ad delivery, so paid ads stay paid. The hub manages and measures them. It does not avoid the cost.
+
+Scraping rules for sub-project 2, fixed now: respect `robots.txt`, rate-limit, keep only business contact data with its source URL, honour opt-outs, and never automate bulk first contact.
+
+## 13. Open questions
 
 - Which currencies appear besides NGN? Stored per row, but the Overview totals need one rule, either a currency switch or no cross-currency sum.
 - Are plan prices defined in each product or should the CRM keep a price list? Default: the product sends the amount.
