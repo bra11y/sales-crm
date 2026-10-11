@@ -38,7 +38,7 @@ Products ── POST /api/ingest/<product> (HMAC-signed) ──► events (raw, 
 
 - The CRM never writes to a product database. Products never read the CRM.
 - Raw events are kept so a faulty adapter can be fixed and replayed.
-- Washcare and Lux share one helper `sendCrmEvent(type, payload)`. It sends `product: "lux"` when `SOLE_TENANT_ID` is set, and `product: "washcare"` with the tenant id otherwise.
+- Washcare and Lux share one helper `sendCrmEvent(type, payload)`. It sends `product: "lux"` when the deployment sets `CRM_PRODUCT=lux`, and `product: "washcare"` otherwise. (`SOLE_TENANT_ID` exists only on Lux's branch, so it cannot drive shared code.)
 
 ## 4. Data model
 
