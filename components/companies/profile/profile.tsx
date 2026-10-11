@@ -12,6 +12,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/_ui/sheet";
+import { signOut } from "@/app/(crm)/actions";
 import DetailSection from "../detail/detail-section";
 import ProfileAccount from "./profile-account";
 import { CURRENT_USER, profileByName } from "@/data/companies";
@@ -165,6 +166,13 @@ export default function Profile() {
         )}
 
         <SheetFooter>
+          {isCurrentUser && (
+            <form action={signOut} className="mr-auto">
+              <Button type="submit" variant="ghost" size="sm">
+                Sign out
+              </Button>
+            </form>
+          )}
           <SheetClose asChild>
             <Button variant="subtle" size="sm">
               Close
