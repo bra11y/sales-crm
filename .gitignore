@@ -42,3 +42,4 @@ next-env.d.ts
 
 # superpowers scratch
 .superpowers/
+!.env.example
