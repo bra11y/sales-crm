@@ -8,9 +8,11 @@ import Tag from "@/components/_ui/tag";
 import { TableCell, TableRow } from "@/components/_ui/table";
 import SegmentBar from "@/components/_common/segment-bar";
 import Sparkline from "@/components/_common/sparkline";
-import { TAG_TONES, ownerByName, type Company } from "@/data/companies";
-import { formatDate, formatMoney, splitTags } from "@/lib/companies";
+import { ownerByName, toneFor, type Company } from "@/data/companies";
+import { ALL_PRODUCTS, formatDate, formatMoney, splitTags } from "@/lib/companies";
+import { currencySymbol } from "@/lib/crm/currency";
 import { cn } from "@/lib/utils";
+import { useCompaniesStore } from "@/stores/companies-store";
 import {
   TABLE_CELL_CLASS,
   TABLE_ROW_CLASS,
@@ -46,7 +48,11 @@ export default function CompanyRow({
   onOpenOwner,
 }: CompanyRowProps) {
   const owner = ownerByName(company.owner);
-  const { visible, hidden } = splitTags(company.tags);
+  const products = useCompaniesStore((state) => state.products);
+  const product = useCompaniesStore((state) => state.product);
+  const productName =
+    product === ALL_PRODUCTS ? products.find((p) => p.slug === company.product)?.name : undefined;
+  const { visible, hidden } = splitTags(productName ? [productName, ...company.tags] : company.tags);
 
   return (
     <TableRow
@@ -72,7 +78,7 @@ export default function CompanyRow({
       <TableCell role="cell" className={cellClass("segment")}>
         <span className="flex items-center gap-[3px]">
           {visible.map((tag) => (
-            <Tag key={tag} tone={TAG_TONES[tag]}>
+            <Tag key={tag} tone={tag === productName ? "neutral" : toneFor(tag, products)}>
               {tag}
             </Tag>
           ))}
@@ -91,7 +97,7 @@ export default function CompanyRow({
           aria-label={`Open ${owner.name} profile`}
           className="text-foreground -mx-1.5 gap-1.5 px-1.5 py-1 font-normal"
         >
-          <Avatar src={owner.avatar} alt="" />
+          <Avatar src={owner.avatar} alt="" name={owner.name} />
           {owner.name}
         </Button>
       </TableCell>
@@ -100,7 +106,7 @@ export default function CompanyRow({
       </TableCell>
       <TableCell role="cell" className={cellClass("pipelineValue")}>
         <span className="flex items-center gap-1">
-          <span className="text-muted-foreground">$</span>
+          <span className="text-muted-foreground">{currencySymbol(company.currency ?? "NGN")}</span>
           {formatMoney(company.pipelineValue)}
         </span>
       </TableCell>

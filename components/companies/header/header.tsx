@@ -4,7 +4,6 @@ import Avatar from "@/components/_ui/avatar";
 import Button from "@/components/_ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/_ui/tabs";
 import Notifications from "./notifications/notifications";
-import { CURRENT_USER } from "@/data/companies";
 import { useCompaniesStore } from "@/stores/companies-store";
 import MenuIcon from "@/public/assets/images/_common/menu.svg";
 import ActiveDot from "@/public/assets/images/companies/header/active-dot.svg";
@@ -17,6 +16,7 @@ const TABS = [
 ];
 
 export default function CompaniesHeader() {
+  const currentUser = useCompaniesStore((state) => state.currentUser);
   const activeTab = useCompaniesStore((state) => state.activeTab);
   const setActiveTab = useCompaniesStore((state) => state.setActiveTab);
   const setSidebarOpen = useCompaniesStore((state) => state.setSidebarOpen);
@@ -58,11 +58,11 @@ export default function CompaniesHeader() {
             variant="secondary"
             size="none"
             className="caption-style h-[30px] gap-1.5 py-[5px] pr-[7px] pl-[5px] font-normal"
-            aria-label={`Open profile for ${CURRENT_USER.name}`}
-            onClick={() => openProfile(CURRENT_USER.name)}
+            aria-label={`Open profile for ${currentUser.name}`}
+            onClick={() => openProfile(currentUser.name)}
           >
-            <Avatar src={CURRENT_USER.avatar} alt="" />
-            <span className="hidden sm:inline">{CURRENT_USER.name}</span>
+            <Avatar src={currentUser.avatar} alt="" name={currentUser.name} />
+            <span className="hidden sm:inline">{currentUser.name}</span>
           </Button>
         </div>
       </div>

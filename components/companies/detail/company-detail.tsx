@@ -22,9 +22,9 @@ import ActivityTrend from "./activity-trend";
 import ScoreCard from "./score-card";
 import {
   SCORE_CARDS,
-  TAG_TONES,
   TREND_WINDOWS,
   ownerByName,
+  toneFor,
 } from "@/data/companies";
 import { useCompaniesStore } from "@/stores/companies-store";
 import BuildingIcon from "@/public/assets/images/companies/detail/building.svg";
@@ -38,6 +38,7 @@ export default function CompanyDetail() {
   const detailId = useCompaniesStore((state) => state.detailId);
   const detailOpen = useCompaniesStore((state) => state.detailOpen);
   const companies = useCompaniesStore((state) => state.companies);
+  const products = useCompaniesStore((state) => state.products);
   const closeDetail = useCompaniesStore((state) => state.closeDetail);
   const openProfile = useCompaniesStore((state) => state.openProfile);
   const [trendWindow, setTrendWindow] = useState(TREND_WINDOWS[1]);
@@ -96,7 +97,7 @@ export default function CompanyDetail() {
                 <h2 className="truncate">{company.name}</h2>
                 <div className="flex flex-wrap items-center gap-[3px]">
                   {company.tags.map((tag) => (
-                    <Tag key={tag} tone={TAG_TONES[tag]} size="sm">
+                    <Tag key={tag} tone={toneFor(tag, products)} size="sm">
                       {tag}
                     </Tag>
                   ))}
@@ -113,7 +114,7 @@ export default function CompanyDetail() {
                   aria-label={`Open ${owner.name} profile`}
                   className="lead-style text-foreground -mx-1.5 gap-1.5 px-1.5 py-1 font-medium"
                 >
-                  <Avatar src={owner.avatar} alt="" />
+                  <Avatar src={owner.avatar} alt="" name={owner.name} />
                   {owner.name}
                 </Button>
                 <span className="flex items-center gap-1">

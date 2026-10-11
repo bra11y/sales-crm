@@ -12,7 +12,7 @@ export const STAGES = [
 
 export type Segment = (typeof SEGMENTS)[number];
 export type Stage = (typeof STAGES)[number];
-export type Tag = Segment | Stage;
+export type Tag = string;
 
 export type TagTone =
   | "blue"
@@ -26,7 +26,7 @@ export type TagTone =
   | "yellow"
   | "neutral";
 
-export const TAG_TONES: Record<Tag, TagTone> = {
+export const TAG_TONES: Record<Segment | Stage, TagTone> = {
   Enterprise: "blue",
   "Mid-Market": "moss",
   SMB: "yellow",
@@ -90,7 +90,29 @@ export const CURRENT_USER: Owner = {
   role: "Head of Sales",
 };
 
+export type ProductProfile = {
+  slug: string;
+  name: string;
+  stages: string[];
+  segments: string[];
+  tag_tones: Record<string, TagTone>;
+};
+
+let registeredOwners: Owner[] = [];
+
+export function registerOwners(owners: Owner[]) {
+  registeredOwners = owners;
+}
+
+export const UNASSIGNED: Owner = { name: "Unassigned", avatar: "", email: "", phone: "", role: "" };
+
+export function toneFor(tag: string, products: ProductProfile[]): TagTone {
+  for (const p of products) if (p.tag_tones[tag]) return p.tag_tones[tag];
+  return (TAG_TONES as Record<string, TagTone>)[tag] ?? "neutral";
+}
+
 export function ownerByName(name: string): Owner {
+  if (registeredOwners.length > 0) return registeredOwners.find((o) => o.name === name) ?? UNASSIGNED;
   return OWNERS.find((owner) => owner.name === name) ?? OWNERS[0];
 }
 
@@ -110,6 +132,8 @@ export type Company = {
   lastInteraction: { date: string; label: string };
   activityDays: number;
   logo?: string;
+  product?: string;
+  currency?: string;
 };
 
 export const TREND_PATTERN = [

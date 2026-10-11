@@ -24,6 +24,8 @@ import { useCompaniesStore } from "@/stores/companies-store";
 
 export default function CompaniesTable() {
   const companies = useCompaniesStore((state) => state.companies);
+  const hydrated = useCompaniesStore((state) => state.hydrated);
+  const product = useCompaniesStore((state) => state.product);
   const sortBy = useCompaniesStore((state) => state.sortBy);
   const owner = useCompaniesStore((state) => state.owner);
   const stage = useCompaniesStore((state) => state.stage);
@@ -37,8 +39,8 @@ export default function CompaniesTable() {
   const openProfile = useCompaniesStore((state) => state.openProfile);
 
   const visible = useMemo(
-    () => filterCompanies(companies, { sortBy, owner, stage, activityWindow }),
-    [companies, sortBy, owner, stage, activityWindow],
+    () => filterCompanies(companies, { product, sortBy, owner, stage, activityWindow }),
+    [companies, product, sortBy, owner, stage, activityWindow],
   );
 
   const selectedVisible = visible.filter((company) =>
@@ -104,7 +106,7 @@ export default function CompaniesTable() {
                   role="cell"
                   className="caption-style text-muted-foreground col-span-full flex h-[120px] items-center justify-center"
                 >
-                  No companies match the current filters.
+                  {hydrated ? "No companies match the current filters." : "Loading companies…"}
                 </td>
               </TableRow>
             )}

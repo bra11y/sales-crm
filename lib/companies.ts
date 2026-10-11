@@ -1,18 +1,21 @@
 import type { Company, SortKey } from "@/data/companies";
 
 export type CompanyFilters = {
+  product: string;
   sortBy: SortKey;
   owner: string;
   stage: string;
   activityWindow: number;
 };
 
-export const TODAY = "2026-09-14";
+export const TODAY = new Date().toISOString().slice(0, 10);
 
 export const ALL_OWNERS = "all";
 export const ANY_STAGE = "any";
+export const ALL_PRODUCTS = "all";
 
 export const DEFAULT_FILTERS: CompanyFilters = {
+  product: ALL_PRODUCTS,
   sortBy: "pipelineValue",
   owner: ALL_OWNERS,
   stage: ANY_STAGE,
@@ -35,9 +38,10 @@ const TAG_CHAR_BUDGET = 20;
 
 export function filterCompanies(
   companies: Company[],
-  { sortBy, owner, stage, activityWindow }: CompanyFilters,
+  { product, sortBy, owner, stage, activityWindow }: CompanyFilters,
 ): Company[] {
   const filtered = companies.filter((company) => {
+    if (product !== ALL_PRODUCTS && company.product !== product) return false;
     if (owner !== ALL_OWNERS && company.owner !== owner) return false;
     if (stage !== ANY_STAGE && !company.tags.some((tag) => tag === stage)) {
       return false;

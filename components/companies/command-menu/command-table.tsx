@@ -6,9 +6,11 @@ import Avatar from "@/components/_ui/avatar";
 import { CommandItem } from "@/components/_ui/command";
 import Tag from "@/components/_ui/tag";
 import SegmentBar from "@/components/_common/segment-bar";
-import { TAG_TONES, ownerByName, type Company } from "@/data/companies";
+import { ownerByName, toneFor, type Company } from "@/data/companies";
 import { formatDate, formatMoney, splitTags } from "@/lib/companies";
+import { currencySymbol } from "@/lib/crm/currency";
 import { cn } from "@/lib/utils";
+import { useCompaniesStore } from "@/stores/companies-store";
 import CalendarIcon from "@/public/assets/images/_common/calendar.svg";
 
 export const COMMAND_TABLE_GRID =
@@ -55,6 +57,7 @@ export function CommandCompanyRow({
   onSelect,
 }: CommandCompanyRowProps) {
   const owner = ownerByName(company.owner);
+  const products = useCompaniesStore((state) => state.products);
   const { visible, hidden } = splitTags(company.tags);
 
   return (
@@ -87,7 +90,7 @@ export function CommandCompanyRow({
 
       <span className="hidden min-w-0 items-center gap-[3px] overflow-hidden md:flex">
         {visible.map((tag) => (
-          <Tag key={tag} tone={TAG_TONES[tag]} size="sm">
+          <Tag key={tag} tone={toneFor(tag, products)} size="sm">
             {tag}
           </Tag>
         ))}
@@ -99,12 +102,12 @@ export function CommandCompanyRow({
       </span>
 
       <span className="text-soft hidden min-w-0 items-center gap-1.5 md:flex">
-        <Avatar src={owner.avatar} alt="" />
+        <Avatar src={owner.avatar} alt="" name={owner.name} />
         <span className="truncate">{owner.name}</span>
       </span>
 
       <span className="flex items-center justify-end gap-1 tabular-nums">
-        <span className="text-muted-foreground">$</span>
+        <span className="text-muted-foreground">{currencySymbol(company.currency ?? "NGN")}</span>
         {formatMoney(company.pipelineValue)}
       </span>
 

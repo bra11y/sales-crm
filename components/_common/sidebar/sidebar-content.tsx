@@ -1,6 +1,8 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import Button from "@/components/_ui/button";
+import ProductSwitcher from "./product-switcher";
 import { ScrollArea } from "@/components/_ui/scroll-area";
 import SidebarNavItem from "./sidebar-nav-item";
 import SidebarSection from "./sidebar-section";
@@ -24,10 +26,9 @@ import UserPlusIcon from "@/public/assets/images/companies/sidebar/user-plus.svg
 import MessageQuestionIcon from "@/public/assets/images/companies/sidebar/message-question.svg";
 import WalletIcon from "@/public/assets/images/companies/sidebar/wallet.svg";
 
-const BASE_COMPANY_COUNT = 223;
-
 export default function SidebarContent() {
   const companyCount = useCompaniesStore((state) => state.companies.length);
+  const pathname = usePathname();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -43,19 +44,22 @@ export default function SidebarContent() {
         </div>
       </div>
 
+      <ProductSwitcher />
+
       <ScrollArea className="min-h-0 flex-1">
         <nav aria-label="Primary">
           <SidebarSection className="border-sidebar-border border-b">
             <SidebarNavItem
               icon={BuildingIcon}
               label="Companies"
-              count={BASE_COMPANY_COUNT + companyCount}
-              active
+              count={companyCount}
+              href="/"
+              active={pathname === "/"}
             />
             <SidebarNavItem icon={ClipboardIcon} label="Deals Board" />
-            <SidebarNavItem icon={BarChartIcon} label="Forecast" count={9} />
+            <SidebarNavItem icon={BarChartIcon} label="Forecast" />
             <SidebarNavItem icon={ListIcon} label="Activities" />
-            <SidebarNavItem icon={BookClosedIcon} label="Contacts" count={38} />
+            <SidebarNavItem icon={BookClosedIcon} label="Contacts" />
             <SidebarNavItem icon={MailIcon} label="Email Sequences" />
           </SidebarSection>
 

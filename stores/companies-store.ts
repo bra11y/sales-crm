@@ -1,10 +1,29 @@
 import { create } from "zustand";
-import { COMPANIES, type Company, type SortKey } from "@/data/companies";
+import {
+  CURRENT_USER,
+  registerOwners,
+  type Company,
+  type Owner,
+  type ProductProfile,
+  type SortKey,
+} from "@/data/companies";
 import { NOTIFICATIONS } from "@/data/notifications";
-import { DEFAULT_FILTERS } from "@/lib/companies";
+import { ANY_STAGE, DEFAULT_FILTERS } from "@/lib/companies";
+
+type HydratePayload = {
+  companies: Company[];
+  products: ProductProfile[];
+  owners: Owner[];
+  currentUser: Owner;
+};
 
 type CompaniesState = {
   companies: Company[];
+  products: ProductProfile[];
+  owners: Owner[];
+  currentUser: Owner;
+  product: string;
+  hydrated: boolean;
   sortBy: SortKey;
   owner: string;
   stage: string;
@@ -19,6 +38,8 @@ type CompaniesState = {
   searchOpen: boolean;
   unreadNotificationIds: string[];
   activeTab: string;
+  hydrate: (payload: HydratePayload) => void;
+  setProduct: (product: string) => void;
   setSortBy: (sortBy: SortKey) => void;
   setOwner: (owner: string) => void;
   setStage: (stage: string) => void;
@@ -40,9 +61,13 @@ type CompaniesState = {
 };
 
 export const useCompaniesStore = create<CompaniesState>((set) => ({
-  companies: COMPANIES,
+  companies: [],
+  products: [],
+  owners: [],
+  currentUser: CURRENT_USER,
+  hydrated: false,
   ...DEFAULT_FILTERS,
-  selectedIds: ["microsoft"],
+  selectedIds: [],
   detailId: null,
   detailOpen: false,
   profileName: null,
@@ -54,11 +79,16 @@ export const useCompaniesStore = create<CompaniesState>((set) => ({
     (item) => item.id,
   ),
   activeTab: "companies",
+  hydrate: ({ companies, products, owners, currentUser }) => {
+    registerOwners(owners);
+    set({ companies, products, owners, currentUser, hydrated: true });
+  },
+  setProduct: (product) => set({ product, stage: ANY_STAGE }),
   setSortBy: (sortBy) => set({ sortBy }),
   setOwner: (owner) => set({ owner }),
   setStage: (stage) => set({ stage }),
   setActivityWindow: (activityWindow) => set({ activityWindow }),
-  resetFilters: () => set({ ...DEFAULT_FILTERS }),
+  resetFilters: () => set((state) => ({ ...DEFAULT_FILTERS, product: state.product })),
   toggleSelected: (id) =>
     set((state) => ({
       selectedIds: state.selectedIds.includes(id)

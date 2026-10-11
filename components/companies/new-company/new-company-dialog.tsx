@@ -24,43 +24,29 @@ import {
 import { Slider } from "@/components/_ui/slider";
 import SegmentBar from "@/components/_common/segment-bar";
 import FormSection from "./form-section";
-import LogoUpload from "./logo-upload";
-import {
-  DEFAULT_TREND,
-  INTERACTION_TYPES,
-  OWNERS,
-  SEGMENTS,
-  STAGES,
-  type Company,
-  type Segment,
-  type Stage,
-} from "@/data/companies";
-import { TODAY, daysSince } from "@/lib/companies";
-import { slugify } from "@/lib/utils";
+import { INTERACTION_TYPES, SEGMENTS, STAGES } from "@/data/companies";
+import { TODAY } from "@/lib/companies";
+import { createCompany } from "@/app/(crm)/actions";
 import { useCompaniesStore } from "@/stores/companies-store";
 import PlusIcon from "@/public/assets/images/_common/plus.svg";
 
 type FormState = {
-  logo: string | null;
   name: string;
-  segment: Segment;
-  stage: Stage;
+  segment: string;
+  stage: string;
   owner: string;
   pipelineValue: string;
-  openDeals: string;
   winProbability: number;
   interactionDate: string;
   interactionType: string;
 };
 
 const EMPTY_FORM: FormState = {
-  logo: null,
   name: "",
   segment: SEGMENTS[0],
   stage: STAGES[0],
-  owner: OWNERS[0].name,
+  owner: "",
   pipelineValue: "",
-  openDeals: "1",
   winProbability: 50,
   interactionDate: TODAY,
   interactionType: INTERACTION_TYPES[0],
@@ -70,41 +56,52 @@ export default function NewCompanyDialog() {
   const open = useCompaniesStore((state) => state.newCompanyOpen);
   const setOpen = useCompaniesStore((state) => state.setNewCompanyOpen);
   const addCompany = useCompaniesStore((state) => state.addCompany);
+  const owners = useCompaniesStore((state) => state.owners);
+  const currentUser = useCompaniesStore((state) => state.currentUser);
+  const direct = useCompaniesStore((state) => state.products.find((p) => p.slug === "direct"));
+  const segments = direct?.segments.length ? direct.segments : [...SEGMENTS];
+  const stages = direct?.stages.length ? direct.stages : [...STAGES];
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const ownerName = form.owner || currentUser.name;
   const nameRef = useRef<HTMLInputElement>(null);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const name = form.name.trim();
-    if (!name) {
-      setNameError("Enter a company name.");
+    if (!form.name.trim()) {
+      setNameError("Company name: enter a name.");
       nameRef.current?.focus();
       return;
     }
-
-    const company: Company = {
-      id: `${slugify(name)}-${Date.now()}`,
-      name,
-      logo: form.logo ?? undefined,
-      tags: [form.segment, form.stage],
-      owner: form.owner,
-      openDeals: Math.max(0, Math.round(Number(form.openDeals) || 0)),
-      pipelineValue: Math.max(0, Math.round(Number(form.pipelineValue) || 0)),
+    setSaving(true);
+    setSaveError(null);
+    const result = await createCompany({
+      name: form.name,
+      segment: form.segment,
+      stage: form.stage,
+      ownerName,
+      pipelineValue: Number(form.pipelineValue),
       winProbability: form.winProbability,
-      trend: DEFAULT_TREND,
-      lastInteraction: {
-        date: form.interactionDate || TODAY,
-        label: form.interactionType,
-      },
-      activityDays: daysSince(form.interactionDate || TODAY),
-    };
-
-    addCompany(company);
+      interactionDate: form.interactionDate,
+      interactionType: form.interactionType,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      if (result.error.startsWith("Company name")) {
+        setNameError(result.error);
+        nameRef.current?.focus();
+      } else {
+        setSaveError(result.error);
+      }
+      return;
+    }
+    addCompany(result.company);
   }
 
   return (
@@ -114,23 +111,18 @@ export default function NewCompanyDialog() {
         onCloseAutoFocus={() => {
           setForm(EMPTY_FORM);
           setNameError(null);
+          setSaveError(null);
         }}
       >
         <form onSubmit={handleSubmit} noValidate className="flex flex-col">
           <DialogHeader>
             <DialogTitle>New Company</DialogTitle>
             <DialogDescription>
-              Add a company to the pipeline. It appears in the list right away.
+              Add a company you are selling to directly. It is saved to the CRM.
             </DialogDescription>
           </DialogHeader>
 
           <FormSection title="Company">
-            <LogoUpload
-              value={form.logo}
-              companyName={form.name}
-              onChange={(logo) => update("logo", logo)}
-            />
-
             <Field
               label="Company name"
               htmlFor="company-name"
@@ -158,13 +150,13 @@ export default function NewCompanyDialog() {
               <Field label="Segment" htmlFor="company-segment">
                 <Select
                   value={form.segment}
-                  onValueChange={(value) => update("segment", value as Segment)}
+                  onValueChange={(value) => update("segment", value)}
                 >
                   <SelectTrigger id="company-segment">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {SEGMENTS.map((segment) => (
+                    {segments.map((segment) => (
                       <SelectItem key={segment} value={segment}>
                         {segment}
                       </SelectItem>
@@ -175,13 +167,13 @@ export default function NewCompanyDialog() {
               <Field label="Stage" htmlFor="company-stage">
                 <Select
                   value={form.stage}
-                  onValueChange={(value) => update("stage", value as Stage)}
+                  onValueChange={(value) => update("stage", value)}
                 >
                   <SelectTrigger id="company-stage">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {STAGES.map((stage) => (
+                    {stages.map((stage) => (
                       <SelectItem key={stage} value={stage}>
                         {stage}
                       </SelectItem>
@@ -195,17 +187,17 @@ export default function NewCompanyDialog() {
           <FormSection title="Ownership & deal">
             <Field label="Account owner" htmlFor="company-owner">
               <Select
-                value={form.owner}
+                value={ownerName}
                 onValueChange={(value) => update("owner", value)}
               >
                 <SelectTrigger id="company-owner">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {OWNERS.map((owner) => (
+                  {owners.map((owner) => (
                     <SelectItem key={owner.name} value={owner.name}>
                       <span className="flex items-center gap-2">
-                        <Avatar src={owner.avatar} alt="" />
+                        <Avatar src={owner.avatar} alt="" name={owner.name} />
                         {owner.name}
                       </span>
                     </SelectItem>
@@ -221,7 +213,7 @@ export default function NewCompanyDialog() {
                     aria-hidden
                     className="text-subtle pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[14px] leading-none"
                   >
-                    $
+                    ₦
                   </span>
                   <Input
                     id="company-pipeline"
@@ -238,17 +230,9 @@ export default function NewCompanyDialog() {
                   />
                 </div>
               </Field>
-              <Field label="Open deals" htmlFor="company-deals">
-                <Input
-                  id="company-deals"
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={form.openDeals}
-                  onChange={(event) => update("openDeals", event.target.value)}
-                  className="tabular-nums"
-                />
-              </Field>
+              <p className="caption-style text-subtle self-end">
+                A value above zero opens one deal for this company.
+              </p>
             </div>
 
             <Field
@@ -315,15 +299,20 @@ export default function NewCompanyDialog() {
             </div>
           </FormSection>
 
+          {saveError && (
+            <p role="alert" className="text-destructive px-5 pt-4">
+              {saveError}
+            </p>
+          )}
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="subtle" size="sm">
                 Cancel
               </Button>
             </DialogClose>
-            <Button variant="primary" size="sm" type="submit">
+            <Button variant="primary" size="sm" type="submit" disabled={saving}>
               <PlusIcon aria-hidden className="size-3" />
-              Create Company
+              {saving ? "Saving…" : "Create Company"}
             </Button>
           </DialogFooter>
         </form>

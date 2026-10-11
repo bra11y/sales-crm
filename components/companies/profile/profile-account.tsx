@@ -3,6 +3,7 @@ import Button from "@/components/_ui/button";
 import SegmentBar from "@/components/_common/segment-bar";
 import type { Company } from "@/data/companies";
 import { formatMoney } from "@/lib/companies";
+import { currencySymbol } from "@/lib/crm/currency";
 
 type ProfileAccountProps = {
   company: Company;
@@ -44,7 +45,7 @@ export default function ProfileAccount({ company, onOpen }: ProfileAccountProps)
         </span>
         <span className="flex shrink-0 flex-col items-end gap-1.5 tabular-nums">
           <span className="flex items-center gap-1">
-            <span className="text-muted-foreground">$</span>
+            <span className="text-muted-foreground">{currencySymbol(company.currency ?? "NGN")}</span>
             {formatMoney(company.pipelineValue)}
           </span>
           <SegmentBar percent={company.winProbability} className="w-[60px]" />

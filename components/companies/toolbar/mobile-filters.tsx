@@ -24,9 +24,9 @@ import {
 } from "@/components/_ui/sheet";
 import {
   ACTIVITY_OPTIONS,
-  OWNER_OPTIONS,
   SORT_MENU_OPTIONS,
-  STAGE_OPTIONS,
+  useOwnerOptions,
+  useStageOptions,
 } from "./filter-options";
 import { ownerByName, type SortKey } from "@/data/companies";
 import {
@@ -44,6 +44,9 @@ type MobileFiltersProps = {
 };
 
 export default function MobileFilters({ className }: MobileFiltersProps) {
+  const ownerOptions = useOwnerOptions();
+  const stageOptions = useStageOptions();
+  const product = useCompaniesStore((state) => state.product);
   const [open, setOpen] = useState(false);
   const companies = useCompaniesStore((state) => state.companies);
   const sortBy = useCompaniesStore((state) => state.sortBy);
@@ -58,13 +61,13 @@ export default function MobileFilters({ className }: MobileFiltersProps) {
   );
   const resetFilters = useCompaniesStore((state) => state.resetFilters);
 
-  const filters = { sortBy, owner, stage, activityWindow };
+  const filters = { product, sortBy, owner, stage, activityWindow };
   const activeCount = activeFilterCount(filters);
   const resultCount = useMemo(
     () =>
-      filterCompanies(companies, { sortBy, owner, stage, activityWindow })
+      filterCompanies(companies, { product, sortBy, owner, stage, activityWindow })
         .length,
-    [companies, sortBy, owner, stage, activityWindow],
+    [companies, product, sortBy, owner, stage, activityWindow],
   );
 
   return (
@@ -128,7 +131,7 @@ export default function MobileFilters({ className }: MobileFiltersProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {OWNER_OPTIONS.map((option) => (
+                  {ownerOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.value === ALL_OWNERS ? (
                         option.label
@@ -153,7 +156,7 @@ export default function MobileFilters({ className }: MobileFiltersProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {STAGE_OPTIONS.map((option) => (
+                  {stageOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>

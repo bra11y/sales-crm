@@ -15,8 +15,9 @@ import {
 import { signOut } from "@/app/(crm)/actions";
 import DetailSection from "../detail/detail-section";
 import ProfileAccount from "./profile-account";
-import { CURRENT_USER, profileByName } from "@/data/companies";
-import { ALL_OWNERS, formatMoney } from "@/lib/companies";
+import { profileByName } from "@/data/companies";
+import { ALL_OWNERS } from "@/lib/companies";
+import { formatTotals } from "@/lib/crm/currency";
 import { useCompaniesStore } from "@/stores/companies-store";
 import UsersIcon from "@/public/assets/images/companies/sidebar/users.svg";
 import XIcon from "@/public/assets/images/companies/detail/x.svg";
@@ -32,7 +33,8 @@ export default function Profile() {
   const setOwner = useCompaniesStore((state) => state.setOwner);
 
   const person = profileName ? profileByName(profileName) : null;
-  const isCurrentUser = person?.name === CURRENT_USER.name;
+  const currentUser = useCompaniesStore((state) => state.currentUser);
+  const isCurrentUser = person?.name === currentUser.name;
   const accounts = person
     ? companies
         .filter((company) => isCurrentUser || company.owner === person.name)
@@ -40,10 +42,6 @@ export default function Profile() {
     : [];
 
   const openDeals = accounts.reduce((sum, company) => sum + company.openDeals, 0);
-  const pipeline = accounts.reduce(
-    (sum, company) => sum + company.pipelineValue,
-    0,
-  );
   const avgWin = accounts.length
     ? Math.round(
         accounts.reduce((sum, company) => sum + company.winProbability, 0) /
@@ -54,7 +52,10 @@ export default function Profile() {
   const stats = [
     { label: "Accounts", value: String(accounts.length) },
     { label: "Open deals", value: String(openDeals) },
-    { label: "Pipeline", value: `$${formatMoney(pipeline)}` },
+    {
+      label: "Pipeline",
+      value: formatTotals(accounts.map((c) => ({ value: c.pipelineValue, currency: c.currency ?? "NGN" }))),
+    },
     { label: "Avg. win", value: `${avgWin}%` },
   ];
 
