@@ -28,6 +28,7 @@ import WalletIcon from "@/public/assets/images/companies/sidebar/wallet.svg";
 
 export default function SidebarContent() {
   const companyCount = useCompaniesStore((state) => state.companies.length);
+  const hydrated = useCompaniesStore((state) => state.hydrated);
   const pathname = usePathname();
 
   return (
@@ -44,7 +45,7 @@ export default function SidebarContent() {
         </div>
       </div>
 
-      <ProductSwitcher />
+      {pathname === "/" && <ProductSwitcher />}
 
       <ScrollArea className="min-h-0 flex-1">
         <nav aria-label="Primary">
@@ -52,7 +53,7 @@ export default function SidebarContent() {
             <SidebarNavItem
               icon={BuildingIcon}
               label="Companies"
-              count={companyCount}
+              count={hydrated ? companyCount : undefined}
               href="/"
               active={pathname === "/"}
             />
@@ -61,6 +62,16 @@ export default function SidebarContent() {
             <SidebarNavItem icon={ListIcon} label="Activities" />
             <SidebarNavItem icon={BookClosedIcon} label="Contacts" />
             <SidebarNavItem icon={MailIcon} label="Email Sequences" />
+          </SidebarSection>
+
+          <SidebarSection
+            title="Sales"
+            className="border-sidebar-border border-b"
+          >
+            <SidebarNavItem icon={BarChartAltIcon} label="Overview" href="/overview" active={pathname === "/overview"} />
+            <SidebarNavItem icon={WalletIcon} label="Subscriptions" href="/subscriptions" active={pathname === "/subscriptions"} />
+            <SidebarNavItem icon={ClipboardIcon} label="Payments" href="/payments" active={pathname === "/payments"} />
+            <SidebarNavItem icon={ListIcon} label="Integrations" href="/integrations" active={pathname === "/integrations"} />
           </SidebarSection>
 
           <SidebarSection
