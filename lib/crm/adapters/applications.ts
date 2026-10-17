@@ -16,7 +16,8 @@ export const adaptApplications: Adapter = (event) => {
 
   const docs = (["cv", "cover", "proposal"] as const).filter((k) => application.documents[k]).map((k) => DOC_NAMES[k]);
   let summary = `Sent ${list(docs)} for ${application.role}`;
-  if (application.matched.length) summary += ` · ${application.matched.length} skills matched`;
+  const n = application.matched.length;
+  if (n) summary += ` · ${n} skill${n === 1 ? "" : "s"} matched`;
   if (application.gaps.length) summary += ` · not in my skills: ${application.gaps.join(", ")}`;
 
   const out: Mutation[] = [

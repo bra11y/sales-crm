@@ -161,3 +161,17 @@ test("an application with no value or gaps keeps the summary short", () => {
   assert.equal(m[0].kind === "company" && m[0].segment, "Job");
   assert.equal(m[2].kind === "activity" && m[2].summary, "Sent CV for Frontend Developer");
 });
+
+test("one matched skill reads as a single skill", () => {
+  const m = adapterFor("applications")!(
+    event({
+      product: "applications",
+      type: "application.sent",
+      data: {
+        account: { id: "acme", name: "Acme" },
+        application: { role: "Accessibility Engineer", track: "Accessibility", documents: { cv: "# CV" }, matched: ["WCAG 2.2 AA"], gaps: [] },
+      },
+    }),
+  );
+  assert.equal(m[2].kind === "activity" && m[2].summary, "Sent CV for Accessibility Engineer · 1 skill matched");
+});
