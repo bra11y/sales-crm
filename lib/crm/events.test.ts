@@ -67,3 +67,47 @@ test("a subscription with an unsupported interval is refused", () => {
   };
   assert.equal(parseEvent(JSON.stringify(event)).ok, false);
 });
+
+const application = {
+  event_id: "applications:northwind:2026-10-17T15:00:00.000Z",
+  product: "applications",
+  type: "application.sent",
+  occurred_at: "2026-10-17T15:00:00.000Z",
+  data: {
+    account: { id: "northwind-outfitters", name: "Northwind Outfitters" },
+    segment: "Contract",
+    application: {
+      role: "Accessibility Consultant",
+      track: "Accessibility",
+      documents: { cv: "# Bryan Temple Onyenghan", proposal: "# Proposal" },
+      job_post: "Audit our Shopify store",
+      matched: ["WCAG 2.2 AA", "Shopify"],
+      gaps: ["lottie"],
+    },
+  },
+};
+
+test("an application event with its documents parses", () => {
+  const result = parseEvent(JSON.stringify(application));
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.event.data.application?.role, "Accessibility Consultant");
+});
+
+test("an application event needs data.application", () => {
+  const data = { account: application.data.account, segment: application.data.segment };
+  const result = parseEvent(JSON.stringify({ ...application, data }));
+  assert.deepEqual(result, { ok: false, reason: "An application event needs data.application." });
+});
+
+test("an application must carry at least one known document", () => {
+  const bad = { ...application, data: { ...application.data, application: { ...application.data.application, documents: { letter: "x" } } } };
+  const result = parseEvent(JSON.stringify(bad));
+  assert.deepEqual(result, { ok: false, reason: "data.application.documents needs a cv, cover or proposal." });
+});
+
+test("an oversized document is refused", () => {
+  const big = "x".repeat(60_001);
+  const bad = { ...application, data: { ...application.data, application: { ...application.data.application, documents: { cv: big } } } };
+  const result = parseEvent(JSON.stringify(bad));
+  assert.deepEqual(result, { ok: false, reason: "data.application.documents.cv is missing or over 60000 characters." });
+});

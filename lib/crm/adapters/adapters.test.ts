@@ -112,3 +112,52 @@ test("a failed payment records a failed payment and an activity, and leaves stag
   assert.ok(m.some((x) => x.kind === "payment" && x.status === "failed"));
   assert.ok(m.some((x) => x.kind === "activity" && x.summary === "Payment failed: ₦1,200.00"));
 });
+
+test("a sent application becomes an Applied company with a contact, an open deal and a plain activity", () => {
+  const m = adapterFor("applications")!(
+    event({
+      product: "applications",
+      type: "application.sent",
+      data: {
+        account: { id: "northwind-outfitters", name: "Northwind Outfitters" },
+        contact: { name: "Ada" },
+        segment: "Contract",
+        application: {
+          role: "Accessibility Consultant",
+          track: "Accessibility",
+          documents: { cv: "# CV", cover: "# Letter", proposal: "# Proposal" },
+          matched: ["WCAG 2.2 AA", "Shopify", "NVDA"],
+          gaps: ["lottie"],
+          value_minor: 300_000,
+          currency: "USD",
+        },
+      },
+    }),
+  );
+  assert.deepEqual(m.map((x) => x.kind), ["company", "contact", "deal", "activity"]);
+  assert.deepEqual(m[0], {
+    kind: "company", externalId: "northwind-outfitters", name: "Northwind Outfitters",
+    stage: "Applied", segment: "Contract", winProbability: 10, pipelineValueMinor: 300_000, currency: "USD", sourceAt: at,
+  });
+  assert.deepEqual(m[2], { kind: "deal", externalId: "northwind-outfitters", stage: "Applied", valueMinor: 300_000, currency: "USD", status: "open" });
+  assert.equal(
+    m[3].kind === "activity" && m[3].summary,
+    "Sent CV, cover letter and proposal for Accessibility Consultant · 3 skills matched · not in my skills: lottie",
+  );
+});
+
+test("an application with no value or gaps keeps the summary short", () => {
+  const m = adapterFor("applications")!(
+    event({
+      product: "applications",
+      type: "application.sent",
+      data: {
+        account: { id: "kola-pay", name: "Kola Pay" },
+        application: { role: "Frontend Developer", track: "Front-end", documents: { cv: "# CV" }, matched: [], gaps: [] },
+      },
+    }),
+  );
+  assert.deepEqual(m.map((x) => x.kind), ["company", "deal", "activity"]);
+  assert.equal(m[0].kind === "company" && m[0].segment, "Job");
+  assert.equal(m[2].kind === "activity" && m[2].summary, "Sent CV for Frontend Developer");
+});

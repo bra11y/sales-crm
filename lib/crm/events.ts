@@ -4,6 +4,7 @@ export const EVENT_TYPES = [
   "subscription.changed",
   "payment.succeeded",
   "payment.failed",
+  "application.sent",
 ] as const;
 
 export type CrmEventType = (typeof EVENT_TYPES)[number];
@@ -28,11 +29,22 @@ export type PaymentData = {
   provider: string;
   paid_at: string;
 };
+export type ApplicationData = {
+  role: string;
+  track: string;
+  documents: { cv?: string; cover?: string; proposal?: string };
+  job_post?: string;
+  matched: string[];
+  gaps: string[];
+  value_minor?: number;
+  currency?: string;
+};
 export type EventData = {
   account: AccountData;
   contact?: ContactData;
   subscription?: SubscriptionData;
   payment?: PaymentData;
+  application?: ApplicationData;
   note?: string;
   segment?: string;
 };
@@ -86,6 +98,29 @@ function checkPayment(p: Record<string, unknown>): string | null {
   return null;
 }
 
+const DOCUMENT_KINDS = ["cv", "cover", "proposal"];
+
+function isWords(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length <= 60 && value.every((w) => isText(w, 80));
+}
+
+function checkApplication(a: Record<string, unknown>): string | null {
+  if (!isText(a.role, 200)) return "data.application.role is missing.";
+  if (!isText(a.track, 40)) return "data.application.track is missing.";
+  const docs = a.documents as Record<string, unknown> | undefined;
+  const kinds = docs && typeof docs === "object" ? Object.keys(docs) : [];
+  if (!kinds.length || kinds.some((k) => !DOCUMENT_KINDS.includes(k))) return "data.application.documents needs a cv, cover or proposal.";
+  for (const k of kinds) {
+    if (!isText(docs![k], 60_000)) return `data.application.documents.${k} is missing or over 60000 characters.`;
+  }
+  if (a.job_post !== undefined && !isText(a.job_post, 40_000)) return "data.application.job_post is over 40000 characters.";
+  if (!isWords(a.matched)) return "data.application.matched must be a list of skills.";
+  if (!isWords(a.gaps)) return "data.application.gaps must be a list of tools.";
+  if (a.value_minor !== undefined && !isMinor(a.value_minor)) return "data.application.value_minor must be a whole number of minor units.";
+  if (a.currency !== undefined && !isCurrency(a.currency)) return "data.application.currency must be a three-letter code.";
+  return null;
+}
+
 export function parseEvent(raw: string): Result {
   let value: unknown;
   try {
@@ -123,6 +158,12 @@ export function parseEvent(raw: string): Result {
   if (e.type === "payment.succeeded" || e.type === "payment.failed") {
     if (data?.payment === undefined) return { ok: false, reason: "A payment event needs data.payment." };
     const problem = checkPayment(data.payment as Record<string, unknown>);
+    if (problem) return { ok: false, reason: problem };
+  }
+
+  if (e.type === "application.sent") {
+    if (data?.application === undefined) return { ok: false, reason: "An application event needs data.application." };
+    const problem = checkApplication(data.application as Record<string, unknown>);
     if (problem) return { ok: false, reason: problem };
   }
 

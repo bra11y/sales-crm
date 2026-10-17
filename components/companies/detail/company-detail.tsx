@@ -20,6 +20,7 @@ import DetailSection from "./detail-section";
 import PipelineHealth from "./pipeline-health";
 import ActivityTrend from "./activity-trend";
 import ScoreCard from "./score-card";
+import ApplicationPanel from "./application-panel";
 import {
   SCORE_CARDS,
   TREND_WINDOWS,
@@ -127,6 +128,8 @@ export default function CompanyDetail() {
                 </span>
               </div>
             </DetailSection>
+
+            {company.product === "applications" && <ApplicationPanel key={company.id} company={company} />}
 
             <DetailSection title="Pipeline health">
               <PipelineHealth company={company} />

@@ -58,6 +58,7 @@ type CompaniesState = {
   markAllNotificationsRead: () => void;
   setActiveTab: (tab: string) => void;
   addCompany: (company: Company) => void;
+  updateCompany: (company: Company) => void;
 };
 
 export const useCompaniesStore = create<CompaniesState>((set) => ({
@@ -113,6 +114,10 @@ export const useCompaniesStore = create<CompaniesState>((set) => ({
     })),
   markAllNotificationsRead: () => set({ unreadNotificationIds: [] }),
   setActiveTab: (activeTab) => set({ activeTab }),
+  updateCompany: (company) =>
+    set((state) => ({
+      companies: state.companies.map((c) => (c.id === company.id ? company : c)),
+    })),
   addCompany: (company) =>
     set((state) => ({
       companies: [company, ...state.companies],
