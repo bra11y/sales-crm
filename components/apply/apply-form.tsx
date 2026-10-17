@@ -59,13 +59,6 @@ export default function ApplyForm() {
     setAlert(text);
   }
 
-  function fillGuesses() {
-    if (!jd.trim()) return;
-    const g = (E.analyze(jd, F) as Analysis).guess;
-    if (!company) setCompany(g.company);
-    if (!role) setRole(g.role);
-  }
-
   function read(event: FormEvent) {
     event.preventDefault();
     if (!jd.trim()) {
@@ -75,9 +68,13 @@ export default function ApplyForm() {
     }
     const a = E.analyze(jd, F) as Analysis;
     if (track) a.track = track as Analysis["track"];
+    const name = company.trim() || a.guess.company;
+    const title = role.trim() || a.guess.role;
+    if (!company.trim()) setCompany(name);
+    if (!role.trim()) setRole(title);
     const nextWant = a.contract ? { ...want, proposal: true } : want;
     if (a.currency === "ngn") setCurrency("NGN");
-    const o = { jd, company: company.trim(), role: role.trim(), manager: manager.trim(), why: why.trim() };
+    const o = { jd, company: name, role: title, manager: manager.trim(), why: why.trim() };
     const next: Partial<Record<DocKey, string>> = {};
     for (const d of DOCS) if (nextWant[d.key]) next[d.key] = d.make(a, o, F);
     setWant(nextWant);
@@ -165,7 +162,6 @@ export default function ApplyForm() {
             id="apply-jd"
             value={jd}
             onChange={(e) => setJd(e.target.value)}
-            onBlur={fillGuesses}
             required
             aria-required="true"
             aria-describedby="apply-jd-hint"
@@ -173,8 +169,8 @@ export default function ApplyForm() {
             className={`${CONTROL} py-2 leading-normal`}
           />
         </Field>
-        <Field label="Company or client name" htmlFor="apply-company">
-          <Input id="apply-company" value={company} onChange={(e) => setCompany(e.target.value)} autoComplete="organization" />
+        <Field label="Company or client name" htmlFor="apply-company" hint="Leave empty to use the name found in the post.">
+          <Input id="apply-company" value={company} onChange={(e) => setCompany(e.target.value)} autoComplete="organization" aria-describedby="apply-company-hint" />
         </Field>
         <Field label="Role title or project name" htmlFor="apply-role" hint={'Level words like "Senior" are left off your CV.'}>
           <Input id="apply-role" value={role} onChange={(e) => setRole(e.target.value)} aria-describedby="apply-role-hint" />
