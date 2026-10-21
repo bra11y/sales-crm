@@ -68,7 +68,9 @@ export default function SidebarContent() {
             title="Sales"
             className="border-sidebar-border border-b"
           >
+            <SidebarNavItem icon={TargetIcon} label="Jobs" href="/jobs" active={pathname === "/jobs"} />
             <SidebarNavItem icon={MailIcon} label="Apply" href="/apply" active={pathname === "/apply"} />
+            <SidebarNavItem icon={UsersIcon} label="Profile" href="/profile" active={pathname === "/profile"} />
             <SidebarNavItem icon={BarChartAltIcon} label="Overview" href="/overview" active={pathname === "/overview"} />
             <SidebarNavItem icon={WalletIcon} label="Subscriptions" href="/subscriptions" active={pathname === "/subscriptions"} />
             <SidebarNavItem icon={ClipboardIcon} label="Payments" href="/payments" active={pathname === "/payments"} />

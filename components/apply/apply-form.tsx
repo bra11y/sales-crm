@@ -1,16 +1,17 @@
 "use client";
 
-import { type FormEvent, useState, useTransition } from "react";
+import { type FormEvent, useMemo, useState, useTransition } from "react";
 import { Packer } from "docx";
 import Button from "@/components/_ui/button";
 import Field from "@/components/_ui/field";
 import { Input } from "@/components/_ui/input";
 import Tag from "@/components/_ui/tag";
-import F from "@/lib/apply/facts.js";
+import SEED from "@/lib/apply/facts.js";
 import E from "@/lib/apply/engine.js";
 import R from "@/lib/apply/render.js";
 import { PRINT_CSS } from "@/lib/apply/print-css";
 import { saveApplication } from "@/app/(crm)/apply/actions";
+import { hydrateFacts, type StoredFacts } from "@/lib/jobs/facts";
 
 const CONTROL =
   "w-full rounded-lg border border-line-strong bg-secondary px-3 text-[14px] text-foreground outline-none transition-[border-color] duration-150 ease-power3-out focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring";
@@ -33,10 +34,13 @@ type Analysis = {
 
 const stripMeta = (md: string) => md.replace(/^<!--[\s\S]*?-->\s*/, "");
 
-export default function ApplyForm() {
-  const [jd, setJd] = useState("");
-  const [company, setCompany] = useState("");
-  const [role, setRole] = useState("");
+export type ApplyStart = { jobId: string; jd: string; company: string; role: string };
+
+export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start?: ApplyStart }) {
+  const F = useMemo(() => (facts ? hydrateFacts(facts) : SEED) as typeof SEED, [facts]);
+  const [jd, setJd] = useState(start?.jd ?? "");
+  const [company, setCompany] = useState(start?.company ?? "");
+  const [role, setRole] = useState(start?.role ?? "");
   const [manager, setManager] = useState("");
   const [why, setWhy] = useState("");
   const [value, setValue] = useState("");
@@ -143,6 +147,7 @@ export default function ApplyForm() {
         gaps: analysis.gaps,
         value,
         currency,
+        jobId: start?.jobId,
       });
       if (!result.ok) {
         warn(`Not saved: ${result.error}`);
