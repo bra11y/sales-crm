@@ -124,7 +124,7 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError }: 
           </p>
           <p className="caption-style text-soft">
             {lastRun ? `Last search ${ago(lastRun.started_at).toLowerCase()}, ${new Date(lastRun.started_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. ` : "No search yet. "}
-            The app also searches by itself at 7:00 and 19:00 Abuja time.
+            The app also searches by itself every day at 7:00 Abuja time.
           </p>
         </div>
         <Button variant="primary" size="md" className="h-11 self-start px-4 md:self-auto" onClick={search} aria-disabled={searching}>
