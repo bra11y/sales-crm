@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildApplicationEvent } from "@/lib/crm/application-event";
 import { applyEvent } from "@/lib/crm/apply";
 import { supabaseCrmDb } from "@/lib/crm/supabase-db";
-import type { Facts } from "@/lib/jobs/facts";
+import type { Facts, Proof } from "@/lib/jobs/facts";
 import { loadProfile } from "@/lib/jobs/profile";
 import { open, readKey, seal } from "@/lib/mail/crypto";
 import { type Contact, findContactEmail, isEmail } from "@/lib/mail/extract";
@@ -28,7 +28,7 @@ const JOB_COLS = "id, user_id, title, company, description, location, apply_url,
 
 export type Prepared = {
   jobId: string; contact: Contact | null; subject: string; body: string; cover: string; attachment: string;
-  why: Why; problems: string[]; notes: string[]; gaps: string[]; applyUrl: string;
+  why: Why; problems: string[]; notes: string[]; gaps: string[]; applyUrl: string; proof: Proof[];
   person: Record<"name" | "email" | "phone" | "linkedin" | "portfolio" | "location", string>;
   sendsLater: string | null; mail: { email: string | null; tested: boolean }; outbox: { status: string; sentAt: string | null } | null;
 };
@@ -107,7 +107,7 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
     ok: true,
     p: {
       jobId: job.id, contact, subject: d.subject, body: d.body, cover: d.cover, attachment: attachmentName(facts, job.company),
-      why, problems: d.problems, notes: d.notes, gaps: d.gaps, applyUrl: job.apply_url,
+      why, problems: d.problems, notes: d.notes, gaps: d.gaps, applyUrl: job.apply_url, proof: d.proof,
       person: { name: facts.person.name ?? "", email: facts.person.email ?? "", phone: facts.person.phone ?? "", linkedin: facts.person.linkedin ?? "", portfolio: facts.person.portfolio ?? "", location: facts.person.location ?? "" },
       sendsLater: inWindow(now, zone) ? null : zoneTime(nextWindow(now, zone), zone),
       mail: { email: account?.email ?? null, tested: Boolean(account?.test_sent_at) },
@@ -186,7 +186,7 @@ async function afterSent(db: Db, userId: string, row: OutRow) {
   await recordInCrm(db, userId, job, profile.facts, { cv: row.cv_markdown ?? d.cv, cover: d.cover }, manager);
   const sentAt = new Date();
   const [t1, t2] = followUpTimes(sentAt, guessZone(job.location));
-  const [b1, b2] = followUps(profile.facts, { role: cleanRole(job.title), company: job.company, manager, matched: job.matched, sentAt });
+  const [b1, b2] = followUps(profile.facts, { role: cleanRole(job.title), company: job.company, manager, matched: job.matched, sentAt, proof: d.proof });
   const subject = row.subject.startsWith("Re: ") ? row.subject : `Re: ${row.subject}`;
   await db.from("applications_outbox").insert([
     { user_id: userId, job_id: job.id, parent_id: row.id, kind: "follow_up_1", to_email: row.to_email, subject, body: b1, send_after: t1.toISOString() },

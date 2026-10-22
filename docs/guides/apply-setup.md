@@ -14,6 +14,29 @@ Last checked: 22 October 2026.
 4. Every application is saved in the CRM under Applications, stage Applied.
 5. The **Outbox** shows what is waiting, what was sent, replies, and jobs with no reply.
 
+### Proof of work (what keeps it free of AI filler)
+
+Profile → **Proof of work** holds real things an employer can open: a title, what you did, the measured result, and a link. For each job the app picks the best 2 or 3 by matching their tags to the post. They go into:
+
+- the email, as "Work you can check:" with links, just before the sign-off
+- follow-up 1, which links one piece of work
+- form answers like "Tell us about a project you're proud of" and "Anything else?"
+
+Nothing in this block is written by AI. Add a link to every item you can. Items without one show "Add a link" in the Apply panel.
+
+**Saved answers** (Profile) hold answers forms ask again and again: notice period, salary, visa, years of experience. Fill each once. The extension pastes them, and it lists any question you haven't answered yet.
+
+### The Chrome extension (form jobs)
+
+1. In Chrome, go to `chrome://extensions` and turn on Developer mode.
+2. Press **Load unpacked** and choose the `extension` folder in this project.
+3. In Profile → **Chrome extension**, press **Make a connection code**. Paste the code into the extension once.
+4. On an application form, open the extension and press **Fill this form**.
+
+It fills your name, email, phone, location, LinkedIn and portfolio. It uploads the tailored CV into the box named Resume or CV, and opens and fills a typed cover letter box. It answers questions from your saved answers and your proof. It outlines every box it filled in blue and lists what you must check yourself. **It never presses Submit.** Then press "I sent it: mark as applied" in the extension or the CRM.
+
+It was tested on live Greenhouse (Level Access), Lever (Spotify) and Ashby (Supabase) forms on 22 October 2026. It doesn't fill passport or citizenship boxes, because your Profile doesn't say what passport you hold. City lists that come from Google search are flagged for you to pick.
+
 ### Why most jobs can't be sent in one click
 
 - Greenhouse, Lever and Ashby only accept applications through the employer's own secret key, so no outside app can submit to them.

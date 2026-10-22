@@ -3,6 +3,7 @@
 import { cleanFacts, type StoredFacts } from "@/lib/jobs/facts";
 import { cleanPreferences, type Preferences } from "@/lib/jobs/preferences";
 import { loadProfile } from "@/lib/jobs/profile";
+import { createExtensionToken } from "@/lib/apply/kit";
 import { connectGmail, sendTestEmail } from "@/lib/apply/outbox";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -47,4 +48,17 @@ export async function disconnectMail(): Promise<{ ok: true } | { ok: false; erro
   await s.admin.from("applications_outbox").update({ status: "cancelled", error: "Gmail was disconnected." }).eq("user_id", s.userId).eq("status", "queued");
   const { error } = await s.admin.from("mail_accounts").delete().eq("user_id", s.userId);
   return error ? { ok: false, error: "Gmail could not be disconnected. Try again." } : { ok: true };
+}
+
+export async function makeExtensionCode(): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  const s = await mailUser();
+  if (!s) return { ok: false, error: "Sign in again." };
+  return { ok: true, code: await createExtensionToken(s.admin, s.userId) };
+}
+
+export async function revokeExtensionCode(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const s = await mailUser();
+  if (!s) return { ok: false, error: "Sign in again." };
+  const { error } = await s.admin.from("extension_tokens").delete().eq("user_id", s.userId);
+  return error ? { ok: false, error: "The code could not be turned off. Try again." } : { ok: true };
 }

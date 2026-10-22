@@ -5,10 +5,11 @@ import Button from "@/components/_ui/button";
 import { saveProfile } from "@/app/(crm)/profile/actions";
 import type { StoredFacts } from "@/lib/jobs/facts";
 import type { Preferences } from "@/lib/jobs/preferences";
+import ExtensionSection, { type ExtensionState } from "./extension-section";
 import MailSection, { type MailState } from "./mail-section";
 import { Chips, FIELD, Lines, Property, Section, TextBlock } from "./editors";
 
-type Props = { facts: StoredFacts; preferences: Preferences; updatedAt: string; sources: { id: string; name: string }[]; mail: MailState; aiProvider: string };
+type Props = { facts: StoredFacts; preferences: Preferences; updatedAt: string; sources: { id: string; name: string }[]; mail: MailState; extension: ExtensionState; aiProvider: string };
 
 const PERSON: { key: string; label: string; type?: string; autoComplete?: string }[] = [
   { key: "brand", label: "Known as" },
@@ -25,7 +26,7 @@ const PERSON: { key: string; label: string; type?: string; autoComplete?: string
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
-export default function ProfileDoc({ facts: initialFacts, preferences: initialPrefs, updatedAt, sources, mail, aiProvider }: Props) {
+export default function ProfileDoc({ facts: initialFacts, preferences: initialPrefs, updatedAt, sources, mail, extension, aiProvider }: Props) {
   const [facts, setFacts] = useState(initialFacts);
   const [prefs, setPrefs] = useState(initialPrefs);
   const [state, setState] = useState<{ kind: "idle" | "saving" | "saved" | "error"; text: string }>({ kind: "idle", text: `Saved at ${time(updatedAt)}` });
@@ -218,6 +219,58 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
             </Button>
           </div>
         ))}
+      </Section>
+
+      <Section
+        id="proof"
+        title="Proof of work"
+        hint="Real work an employer can open and check. The best 2 or 3 for each job go into your email, your form answers and your follow-up. A link makes a claim believable, so add one wherever you can."
+      >
+        <ul className="flex flex-col gap-3">
+          {(facts.work ?? []).map((w, wi) => (
+            <li key={wi} className="bg-white/[0.035] flex flex-col gap-1 rounded-2xl p-3">
+              <Property label="Title" value={w.title} onChange={(v) => edit((f) => ((f.work[wi].title = v), f))} />
+              <TextBlock label="What you did" rows={2} value={w.what} onChange={(v) => edit((f) => ((f.work[wi].what = v), f))} />
+              <TextBlock label="Result (a number if you have one)" rows={2} value={w.result} onChange={(v) => edit((f) => ((f.work[wi].result = v), f))} />
+              <Property
+                label="Link"
+                type="url"
+                value={w.url}
+                hint={w.url ? "Employers can open this." : "No link yet. Add a live site, case study or repo starting with https://."}
+                onChange={(v) => edit((f) => ((f.work[wi].url = v.trim()), f))}
+              />
+              <Property label="Tags" value={w.tags.join(", ")} hint="Words in a job post that make this relevant." onChange={(v) => edit((f) => ((f.work[wi].tags = v.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)), f))} />
+              <Button variant="ghost" size="md" className="text-soft h-11 self-start px-3" onClick={() => edit((f) => (f.work.splice(wi, 1), f))}>
+                Remove {w.title || `proof ${wi + 1}`}
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <Button variant="secondary" size="md" className="h-11 self-start rounded-xl px-4" onClick={() => edit((f) => ((f.work = [...(f.work ?? []), { title: "", what: "", result: "", url: "", tags: [] }]), f))}>
+          Add proof of work
+        </Button>
+      </Section>
+
+      <Section id="answers" title="Saved answers" hint="Answers to questions forms ask again and again. Fill each once and the Chrome extension pastes it whenever a form asks. Words are what a form's question might say.">
+        <ul className="flex flex-col gap-3">
+          {(facts.answers ?? []).map((a, ai) => (
+            <li key={ai} className="bg-white/[0.035] flex flex-col gap-1 rounded-2xl p-3">
+              <Property label="Question" value={a.question} onChange={(v) => edit((f) => ((f.answers[ai].question = v), f))} />
+              <TextBlock label="Your answer" rows={2} value={a.answer} hint={a.answer ? undefined : "Empty. Forms that ask this will be listed for you to fill."} onChange={(v) => edit((f) => ((f.answers[ai].answer = v), f))} />
+              <Property label="Words" value={a.words.join(", ")} onChange={(v) => edit((f) => ((f.answers[ai].words = v.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)), f))} />
+              <Button variant="ghost" size="md" className="text-soft h-11 self-start px-3" onClick={() => edit((f) => (f.answers.splice(ai, 1), f))}>
+                Remove the {a.question || `answer ${ai + 1}`} answer
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <Button variant="secondary" size="md" className="h-11 self-start rounded-xl px-4" onClick={() => edit((f) => ((f.answers = [...(f.answers ?? []), { question: "", words: [], answer: "" }]), f))}>
+          Add an answer
+        </Button>
+      </Section>
+
+      <Section id="extension" title="Chrome extension" hint="Fills application forms on Greenhouse, Lever, Ashby, Workable and more from this page. It never presses Submit.">
+        <ExtensionSection extension={extension} />
       </Section>
 
       <Section id="tracks" title="Role types" open={false} hint="Each role type has its own profile text for the CV and cover letter. Job titles that count decide which jobs are in your field.">

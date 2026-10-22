@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
-import Button, { buttonVariants } from "@/components/_ui/button";
+import Button from "@/components/_ui/button";
 import { markJobApplied, prepareApplication, sendApplication } from "@/app/(crm)/jobs/actions";
 import type { Prepared } from "@/lib/apply/outbox";
 import type { JobItem } from "./jobs-board";
 
-const CONTROL =
-  "w-full rounded-lg border border-line-strong bg-secondary px-3 text-[14px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring";
 
 type Props = { job: JobItem; onApplied: () => void; onError: (message: string) => void };
 
@@ -43,7 +41,7 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
       setSubject(r.p.subject);
       setBody(r.p.body);
       if (r.p.outbox) setDone(r.p.outbox.status === "sent" ? "sent" : "queued");
-      setNote(r.p.contact ? "Ready. Check the email, then send it." : "Ready. This job uses a form, so your apply kit is below.");
+      setNote(r.p.contact ? "Ready. Check the email, then send it." : "Ready.");
     });
   }
 
@@ -101,11 +99,92 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
 
   const canSend = Boolean(p?.mail.email && p.mail.tested && !p.problems.length && !done);
 
+  const emailJob = Boolean(p?.contact);
+  const proof = p?.proof ?? [];
+
+  const emailGroup = p && (
+    <Group title="Send by email" id={`${id}-email`}>
+      {!p.mail.email ? (
+        <Row>
+          <p className="leading-normal">
+            Connect your Gmail first, so it sends from your own address.{" "}
+            <a href="/profile#gmail" className="text-foreground underline underline-offset-2">
+              Connect Gmail in Profile
+            </a>
+          </p>
+        </Row>
+      ) : !p.mail.tested ? (
+        <Row>
+          <p className="leading-normal">
+            Send yourself the test email first.{" "}
+            <a href="/profile#gmail" className="text-foreground underline underline-offset-2">
+              Send the test in Profile
+            </a>
+          </p>
+        </Row>
+      ) : null}
+      <Row>
+        <label htmlFor={`${id}-to`} className="text-soft w-20 shrink-0 pt-2.5 text-[14px]">
+          To
+        </label>
+        <div className="min-w-0 flex-1">
+          <input id={`${id}-to`} type="email" autoComplete="off" value={to} onChange={(e) => setTo(e.target.value)} aria-describedby={`${id}-to-hint`} className={LINE_INPUT} />
+          <p id={`${id}-to-hint`} className="text-soft pt-1 text-[13px] leading-normal">
+            {p.contact ? <>From the post: &ldquo;{p.contact.sentence}&rdquo;</> : "Only if you have a recruiter's address. The post gives none."}
+          </p>
+        </div>
+      </Row>
+      <Row>
+        <label htmlFor={`${id}-subject`} className="text-soft w-20 shrink-0 pt-2.5 text-[14px]">
+          Subject
+        </label>
+        <input id={`${id}-subject`} value={subject} onChange={(e) => setSubject(e.target.value)} className={`${LINE_INPUT} min-w-0 flex-1`} />
+      </Row>
+      <Row>
+        <span className="text-soft w-20 shrink-0 text-[14px]">Attached</span>
+        <a href={`/api/jobs/${job.id}/cv`} target="_blank" rel="noopener" className="min-w-0 truncate underline underline-offset-2">
+          {p.attachment}
+          <span className="sr-only"> (opens the PDF in a new tab)</span>
+        </a>
+      </Row>
+      <details className="group">
+        <summary className="focus-visible:ring-ring flex min-h-11 cursor-pointer items-center justify-between px-4 outline-none focus-visible:ring-2 focus-visible:ring-inset">
+          Read or edit the email
+          <span aria-hidden className="text-soft transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none">
+            ›
+          </span>
+        </summary>
+        <div className="px-4 pb-3">
+          <label htmlFor={`${id}-body`} className="sr-only">
+            Email
+          </label>
+          <textarea id={`${id}-body`} rows={14} value={body} onChange={(e) => setBody(e.target.value)} className="border-line-strong bg-background/40 focus-visible:ring-ring w-full resize-y rounded-xl border p-3 text-[14px] leading-relaxed outline-none focus-visible:ring-2" />
+        </div>
+      </details>
+      {p.sendsLater && (
+        <Row>
+          <label className="flex min-h-11 w-full items-center justify-between gap-3 text-[14px]">
+            <span>
+              Outside their work hours. Sends {p.sendsLater}.
+            </span>
+            <span className="flex items-center gap-2">
+              Send now
+              <input type="checkbox" checked={anyway} onChange={(e) => setAnyway(e.target.checked)} className="accent-primary size-5" />
+            </span>
+          </label>
+        </Row>
+      )}
+    </Group>
+  );
+
   return (
-    <section aria-labelledby={`${id}-title`} className="flex flex-col gap-4">
-      <h3 id={`${id}-title`} tabIndex={-1} className="text-[16px] font-semibold outline-none">
-        Apply to {job.company || "this job"}
-      </h3>
+    <section aria-labelledby={`${id}-title`} className="flex flex-col gap-5">
+      <header className="flex flex-col gap-1">
+        <h3 id={`${id}-title`} tabIndex={-1} className="text-[22px] leading-tight font-semibold tracking-[-0.015em] outline-none">
+          Apply to {job.company || "this job"}
+        </h3>
+        <p className="text-soft text-[14px]">{emailJob ? "This job takes applications by email." : p ? "This job uses an application form." : job.title}</p>
+      </header>
 
       <p role="status" aria-live="polite" className="text-soft leading-normal empty:hidden">
         {note}
@@ -116,147 +195,191 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
         </p>
       )}
 
-      {busy && !p && <div aria-hidden className="bg-secondary h-40 animate-pulse rounded-lg motion-reduce:animate-none" />}
+      {busy && !p && <div aria-hidden className="h-48 animate-pulse rounded-2xl bg-white/[0.04] motion-reduce:animate-none" />}
 
       {p && (
         <>
-          <p className="caption-style text-soft">
-            {p.why.source === "ai" ? `The "why this company" lines were written by AI (${p.why.provider}) and checked against your Profile.` : p.why.note}{" "}
-            <button type="button" onClick={() => load(true)} className="text-foreground focus-visible:ring-ring rounded underline underline-offset-2 outline-none focus-visible:ring-2">
-              Write it again
-            </button>
-          </p>
-
           {p.problems.length > 0 && (
-            <ul role="alert" className="flex list-disc flex-col gap-1 rounded-lg border border-(--tag-amber-border) bg-(--tag-amber-bg) p-3 pl-7 text-(--tag-amber-text)">
+            <ul role="alert" className="flex list-disc flex-col gap-1 rounded-2xl border border-(--tag-amber-border) bg-(--tag-amber-bg) p-4 pl-8 text-(--tag-amber-text)">
               {p.problems.map((x) => (
                 <li key={x}>{x}</li>
               ))}
             </ul>
           )}
 
-          <div className="border-line-strong flex flex-col gap-3 rounded-xl border p-4">
-            <h4 className="font-semibold">Send by email</h4>
-            {!p.mail.email ? (
-              <p className="leading-normal">
-                Connect your Gmail first, so the app can send from your own address.{" "}
-                <a href="/profile#gmail" className="underline underline-offset-2">
-                  Connect Gmail in Profile
-                </a>
-              </p>
-            ) : !p.mail.tested ? (
-              <p className="leading-normal">
-                Send yourself the test email first. It checks Gmail works before anything goes to an employer.{" "}
-                <a href="/profile#gmail" className="underline underline-offset-2">
-                  Send the test in Profile
-                </a>
-              </p>
-            ) : null}
-
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-to`} className="text-[14px] font-medium">
-                Send to
-              </label>
-              <input id={`${id}-to`} type="email" autoComplete="off" value={to} onChange={(e) => setTo(e.target.value)} aria-describedby={`${id}-to-hint`} className={`${CONTROL} h-11`} />
-              <p id={`${id}-to-hint`} className="caption-style text-soft leading-normal">
-                {p.contact ? <>Found in the post: &ldquo;{p.contact.sentence}&rdquo;</> : "The post gives no apply email. If you have a recruiter's address, type it here. Otherwise use the form kit below."}
-              </p>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-subject`} className="text-[14px] font-medium">
-                Subject
-              </label>
-              <input id={`${id}-subject`} value={subject} onChange={(e) => setSubject(e.target.value)} className={`${CONTROL} h-11`} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-body`} className="text-[14px] font-medium">
-                Email
-              </label>
-              <textarea id={`${id}-body`} rows={12} value={body} onChange={(e) => setBody(e.target.value)} className={`${CONTROL} resize-y py-2 leading-relaxed`} />
-            </div>
-            <p className="text-[14px]">
-              Attached:{" "}
-              <a href={`/api/jobs/${job.id}/cv`} target="_blank" rel="noopener" className="underline underline-offset-2">
-                {p.attachment}
-                <span className="sr-only"> (opens the PDF in a new tab)</span>
-              </a>
-            </p>
-            {p.sendsLater && (
-              <div className="flex flex-col gap-1">
-                <p className="leading-normal">It&apos;s outside their work hours. It will send at {p.sendsLater}.</p>
-                <label className="flex min-h-11 items-center gap-2 text-[14px]">
-                  <input type="checkbox" checked={anyway} onChange={(e) => setAnyway(e.target.checked)} className="accent-primary size-5" />
-                  Send now anyway
-                </label>
-              </div>
-            )}
-            {done === "sent" || done === "queued" ? (
-              <p id={`${id}-done`} tabIndex={-1} className="font-medium outline-none">
-                {done === "sent" ? "Sent." : "Waiting to send."}{" "}
-                <a href="/outbox" className="underline underline-offset-2">
-                  See the Outbox
-                </a>
-              </p>
+          <Group title="Proof that fits this job" id={`${id}-proof`} footer="Picked from Proof of work in your Profile. It goes in the email and the form answers.">
+            {proof.length ? (
+              proof.map((w) => (
+                <Row key={w.title}>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="font-medium">{w.title}</span>
+                    <span className="text-soft text-[14px] leading-normal">{w.result}</span>
+                  </div>
+                  {w.url ? (
+                    <a href={w.url} target="_blank" rel="noopener" className="text-foreground inline-flex min-h-11 shrink-0 items-center underline underline-offset-2">
+                      Open<span className="sr-only"> {w.title} (opens in a new tab)</span>
+                    </a>
+                  ) : (
+                    <a href="/profile#proof" className="text-soft inline-flex min-h-11 shrink-0 items-center text-[13px] underline underline-offset-2">
+                      Add a link<span className="sr-only"> to {w.title} in Profile</span>
+                    </a>
+                  )}
+                </Row>
+              ))
             ) : (
-              <Button variant="primary" size="md" className="h-11 self-start px-5" onClick={send} aria-disabled={busy || !canSend}>
-                {busy ? "Working…" : "Send application"}
-              </Button>
+              <Row>
+                <p className="leading-normal">
+                  No proof of work yet.{" "}
+                  <a href="/profile#proof" className="text-foreground underline underline-offset-2">
+                    Add your best work in Profile
+                  </a>
+                </p>
+              </Row>
             )}
-          </div>
+          </Group>
 
-          <details open={!p.contact} className="border-line-strong rounded-xl border">
-            <summary className="focus-visible:ring-ring flex min-h-11 cursor-pointer items-center px-4 font-semibold outline-none focus-visible:ring-2">Apply on their form</summary>
-            <div className="flex flex-col gap-3 px-4 pb-4">
-              <p className="text-soft leading-normal">Open the form, then copy each answer in. Your tailored CV is ready to upload.</p>
-              <div className="flex flex-wrap gap-2">
-                <a href={`/api/jobs/${job.id}/cv`} download={p.attachment} className={buttonVariants({ variant: "secondary", size: "md", className: "h-11 px-4" })}>
-                  Download the CV (PDF)
-                </a>
-                <a href={p.applyUrl} target="_blank" rel="noopener" className={buttonVariants({ variant: "secondary", size: "md", className: "h-11 px-4" })}>
-                  Open the application form<span className="sr-only"> (opens in a new tab)</span>
-                </a>
-              </div>
-              <dl className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 text-[14px]">
-                {(
-                  [
-                    ["Name", p.person.name],
-                    ["Email", p.person.email],
-                    ["Phone", p.person.phone],
-                    ["Location", p.person.location],
-                    ["LinkedIn", p.person.linkedin],
-                    ["Portfolio", p.person.portfolio],
-                    ["Why this company", p.why.why],
-                    ["Cover letter", body],
-                  ] as const
-                ).map(([label, value]) =>
-                  value ? (
-                    <div key={label} className="contents">
-                      <dt className="text-soft">{label}</dt>
-                      <dd className="truncate">{value.split("\n")[0]}</dd>
-                      <dd>
-                        <Button variant="ghost" size="md" className="text-soft h-11 px-3" onClick={() => copy(label, value)}>
-                          Copy<span className="sr-only"> {label}</span>
-                        </Button>
-                      </dd>
-                    </div>
-                  ) : null,
-                )}
-              </dl>
-              {done === "applied" ? (
+          {emailJob ? (
+            <>
+              {emailGroup}
+              {done === "sent" || done === "queued" ? (
                 <p id={`${id}-done`} tabIndex={-1} className="font-medium outline-none">
-                  Marked as applied.
+                  {done === "sent" ? "Sent." : "Waiting to send."}{" "}
+                  <a href="/outbox" className="underline underline-offset-2">
+                    See the Outbox
+                  </a>
                 </p>
               ) : (
-                !done && (
-                  <Button variant="secondary" size="md" className="h-11 self-start px-4" onClick={applied} aria-disabled={busy}>
-                    I sent it on their form
-                  </Button>
-                )
+                <Button variant="primary" size="md" className={PRIMARY} onClick={send} aria-disabled={busy || !canSend}>
+                  {busy ? "Working…" : "Send application"}
+                </Button>
               )}
-            </div>
-          </details>
+            </>
+          ) : (
+            <>
+              <Group title="Apply on their form" id={`${id}-form`}>
+                <Step n={1}>
+                  <a href={`/api/jobs/${job.id}/cv`} download={p.attachment} className="underline underline-offset-2">
+                    Download your CV for this job
+                  </a>
+                </Step>
+                <Step n={2}>
+                  <a href={p.applyUrl} target="_blank" rel="noopener" className="underline underline-offset-2">
+                    Open the application form<span className="sr-only"> (opens in a new tab)</span>
+                  </a>
+                </Step>
+                <Step n={3}>
+                  <span>
+                    Press <strong>Fill this form</strong> in the Chrome extension.{" "}
+                    <a href="/profile#extension" className="text-soft text-[13px] underline underline-offset-2">
+                      Set it up
+                    </a>
+                  </span>
+                </Step>
+                <Step n={4}>
+                  <span>Read the form, then press Submit on their page.</span>
+                </Step>
+              </Group>
+              {done === "applied" ? (
+                <p id={`${id}-done`} tabIndex={-1} className="font-medium outline-none">
+                  Marked as applied and saved in your CRM.
+                </p>
+              ) : (
+                <Button variant="primary" size="md" className={PRIMARY} onClick={applied} aria-disabled={busy}>
+                  I sent it on their form
+                </Button>
+              )}
+
+              <details className="group overflow-hidden rounded-2xl bg-white/[0.04]">
+                <summary className="focus-visible:ring-ring flex min-h-11 cursor-pointer items-center justify-between px-4 font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset">
+                  Copy answers by hand
+                  <span aria-hidden className="text-soft transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none">
+                    ›
+                  </span>
+                </summary>
+                <dl className="divide-y divide-white/[0.08] border-t border-white/[0.08]">
+                  {(
+                    [
+                      ["Name", p.person.name],
+                      ["Email", p.person.email],
+                      ["Phone", p.person.phone],
+                      ["Location", p.person.location],
+                      ["LinkedIn", p.person.linkedin],
+                      ["Portfolio", p.person.portfolio],
+                      ["Why this company", p.why.why],
+                      ["Cover letter", body],
+                    ] as const
+                  ).map(([label, value]) =>
+                    value ? (
+                      <div key={label} className="flex min-h-11 items-center gap-3 px-4">
+                        <dt className="text-soft w-28 shrink-0 text-[14px]">{label}</dt>
+                        <dd className="min-w-0 flex-1 truncate text-[14px]">{value.split("\n")[0]}</dd>
+                        <dd>
+                          <Button variant="ghost" size="md" className="h-11 px-3" onClick={() => copy(label, value)}>
+                            Copy<span className="sr-only"> {label}</span>
+                          </Button>
+                        </dd>
+                      </div>
+                    ) : null,
+                  )}
+                </dl>
+              </details>
+
+              <details className="group">
+                <summary className="text-soft focus-visible:ring-ring inline-flex min-h-11 cursor-pointer items-center rounded-lg px-1 text-[14px] outline-none focus-visible:ring-2">
+                  Have a recruiter&apos;s email? Send it by email instead
+                </summary>
+                <div className="flex flex-col gap-3 pt-2">
+                  {emailGroup}
+                  {done !== "applied" && (
+                    <Button variant="secondary" size="md" className={PRIMARY} onClick={send} aria-disabled={busy || !canSend}>
+                      Send application by email
+                    </Button>
+                  )}
+                </div>
+              </details>
+            </>
+          )}
+
+          <p className="text-soft text-[13px] leading-normal">
+            {p.why.source === "ai" ? `The "why this company" lines were written by AI (${p.why.provider}) and checked against your Profile. Everything else comes from your Profile.` : p.why.note}{" "}
+            <button type="button" onClick={() => load(true)} className="text-foreground focus-visible:ring-ring rounded underline underline-offset-2 outline-none focus-visible:ring-2">
+              Write it again
+            </button>
+          </p>
         </>
       )}
     </section>
+  );
+}
+
+// Apple-style inset grouped list: a small heading, rows with hairline dividers, an optional footnote.
+const LINE_INPUT = "w-full border-0 border-b border-b-[#6b6b6b] bg-transparent py-2 text-[15px] outline-none focus-visible:border-b-ring focus-visible:ring-2 focus-visible:ring-ring rounded-none";
+const PRIMARY = "h-12 w-full rounded-xl text-[16px] font-semibold transition-transform duration-100 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100";
+
+function Group({ title, id, footer, children }: { title: string; id: string; footer?: string; children: React.ReactNode }) {
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-1.5">
+      <h4 id={id} className="text-soft px-4 text-[13px] font-medium">
+        {title}
+      </h4>
+      <div className="divide-y divide-white/[0.08] overflow-hidden rounded-2xl bg-white/[0.04]">{children}</div>
+      {footer && <p className="text-soft px-4 text-[13px] leading-normal">{footer}</p>}
+    </section>
+  );
+}
+
+function Row({ children }: { children: React.ReactNode }) {
+  return <div className="flex min-h-11 items-start gap-3 px-4 py-2.5">{children}</div>;
+}
+
+function Step({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-11 items-center gap-3 px-4 py-2.5">
+      <span aria-hidden className="bg-foreground text-background flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold tabular-nums">
+        {n}
+      </span>
+      <span className="sr-only">Step {n}:</span>
+      {children}
+    </div>
   );
 }

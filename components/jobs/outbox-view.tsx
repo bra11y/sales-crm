@@ -59,7 +59,7 @@ export default function OutboxView({ items, replies, account, loadError }: { ite
   return (
     <>
       <header className="flex flex-col gap-2">
-        <h1 className="text-[28px] leading-[1.1] font-semibold tracking-[-0.02em]">Outbox</h1>
+        <h1 className="text-[34px] leading-[1.05] font-bold tracking-[-0.025em]">Outbox</h1>
         <p className="text-soft leading-normal">
           {account ? (
             <>
@@ -97,7 +97,7 @@ export default function OutboxView({ items, replies, account, loadError }: { ite
 
       <Group title="Replies" count={replies.length} empty="No replies yet. Most employers answer within 1 to 2 weeks.">
         {replies.map((r) => (
-          <li key={r.id} className="border-line-strong flex flex-col gap-2 rounded-xl border p-4">
+          <li key={r.id} className="flex flex-col gap-2 px-4 py-3.5">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{r.subject || "(no subject)"}</span>
               <Tag tone={r.suggested_stage === "interview" ? "green" : r.suggested_stage === "closed" ? "neutral" : "blue"} size="sm">
@@ -123,7 +123,7 @@ export default function OutboxView({ items, replies, account, loadError }: { ite
 
       <Group title="Sending soon" count={queued.length} empty="Nothing is waiting to send.">
         {queued.map((i) => (
-          <li key={i.id} className="border-line-strong flex flex-col gap-2 rounded-xl border p-4">
+          <li key={i.id} className="flex flex-col gap-2 px-4 py-3.5">
             <p className="font-medium">
               {KIND[i.kind]}: {jobName(i)}
             </p>
@@ -149,7 +149,7 @@ export default function OutboxView({ items, replies, account, loadError }: { ite
       {failed.length > 0 && (
         <Group title="Did not send" count={failed.length} empty="">
           {failed.map((i) => (
-            <li key={i.id} className="flex flex-col gap-2 rounded-xl border border-(--tag-amber-border) bg-(--tag-amber-bg) p-4 text-(--tag-amber-text)">
+            <li key={i.id} className="flex flex-col gap-2 bg-(--tag-amber-bg) px-4 py-3.5 text-(--tag-amber-text)">
               <p className="font-medium">
                 {KIND[i.kind]}: {jobName(i)}
               </p>
@@ -164,7 +164,7 @@ export default function OutboxView({ items, replies, account, loadError }: { ite
 
       <Group title="Sent, waiting for a reply" count={waiting.length} empty="No applications sent yet. Open a job and press Apply.">
         {waiting.map((a) => (
-          <li key={a.id} className="border-line-strong flex flex-col gap-1 rounded-xl border p-4">
+          <li key={a.id} className="flex flex-col gap-1 px-4 py-3.5">
             <p className="font-medium">{jobName(a)}</p>
             <p className="caption-style text-soft">
               Sent to {a.to_email} · {a.sent_at ? when(a.sent_at) : ""}
@@ -182,7 +182,7 @@ export default function OutboxView({ items, replies, account, loadError }: { ite
 
       <Group title="No reply" count={noReply.length} empty="None yet. A job lands here 5 days after the second follow-up.">
         {noReply.map((a) => (
-          <li key={a.id} className="border-line-strong rounded-xl border p-4">
+          <li key={a.id} className="px-4 py-3.5">
             <p className="font-medium">{jobName(a)}</p>
             <p className="caption-style text-soft">Both follow-ups sent. The app has stopped writing to {a.to_email}.</p>
           </li>
@@ -195,11 +195,15 @@ export default function OutboxView({ items, replies, account, loadError }: { ite
 function Group({ title, count, empty, children }: { title: string; count: number; empty: string; children: React.ReactNode }) {
   const id = title.toLowerCase().replace(/[^a-z]+/g, "-");
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-3">
-      <h2 id={id} className="text-[18px] font-semibold">
-        {title} <span className="text-soft font-normal tabular-nums">({count})</span>
+    <section aria-labelledby={id} className="flex flex-col gap-2">
+      <h2 id={id} className="px-4 text-[17px] font-semibold tracking-[-0.01em]">
+        {title} <span className="text-soft font-normal tabular-nums">{count}</span>
       </h2>
-      {count ? <ul className="flex flex-col gap-3">{children}</ul> : <p className="text-soft">{empty}</p>}
+      {count ? (
+        <ul className="divide-y divide-white/[0.08] overflow-hidden rounded-2xl bg-white/[0.04]">{children}</ul>
+      ) : (
+        <p className="text-soft rounded-2xl bg-white/[0.04] px-4 py-3.5 text-[14px]">{empty}</p>
+      )}
     </section>
   );
 }

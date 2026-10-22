@@ -9,14 +9,19 @@ export const metadata: Metadata = { title: "Profile · Sales CRM", robots: { ind
 export default async function ProfilePage() {
   const profile = await loadProfile();
   const supabase = await createSupabaseServerClient();
-  const { data: mail } = profile ? await supabase.from("mail_accounts").select("email, test_sent_at").eq("user_id", profile.userId).maybeSingle() : { data: null };
+  const [{ data: mail }, { data: ext }] = profile
+    ? await Promise.all([
+        supabase.from("mail_accounts").select("email, test_sent_at").eq("user_id", profile.userId).maybeSingle(),
+        supabase.from("extension_tokens").select("created_at, last_used_at").eq("user_id", profile.userId).maybeSingle(),
+      ])
+    : [{ data: null }, { data: null }];
   const sources = Object.entries(SOURCES).map(([id, s]) => ({ id, name: s.name }));
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="mx-auto flex w-full max-w-[52em] flex-col gap-8 px-4 py-10 md:px-8">
         {profile ? (
-          <ProfileDoc facts={profile.stored} preferences={profile.preferences} updatedAt={profile.updatedAt} sources={sources} mail={mail ?? null} aiProvider={aiProvider()} />
+          <ProfileDoc facts={profile.stored} preferences={profile.preferences} updatedAt={profile.updatedAt} sources={sources} mail={mail ?? null} extension={ext ?? null} aiProvider={aiProvider()} />
         ) : (
           <>
             <h1 className="text-[28px] leading-[1.1] font-semibold tracking-[-0.02em]">Profile</h1>

@@ -31,10 +31,20 @@ export async function loadProfile(db?: SupabaseClient, userId?: string): Promise
   const id = userId ?? (await currentUserId());
   if (!id) return null;
   const { data } = await client.from("job_profiles").select("user_id, facts, preferences, source_state, updated_at").eq("user_id", id).maybeSingle();
-  if (data) return toProfile(data as Row);
-
-  const { data: owner } = await client.from("workspace_members").select("role").eq("workspace_id", 1).eq("user_id", id).eq("role", "owner").maybeSingle();
   const base = SEED as unknown as Facts;
+  const isOwner = async () => Boolean((await client.from("workspace_members").select("role").eq("workspace_id", 1).eq("user_id", id).eq("role", "owner").maybeSingle()).data);
+  if (data) {
+    const row = data as Row;
+    // Profiles saved before the proof and answer banks existed get them once.
+    if (!row.facts.work || !row.facts.answers) {
+      const owner = await isOwner();
+      row.facts = { ...row.facts, work: row.facts.work ?? (owner ? base.work : []), answers: row.facts.answers ?? (owner ? base.answers : blankFacts(base).answers) };
+      await client.from("job_profiles").update({ facts: row.facts }).eq("user_id", id);
+    }
+    return toProfile(row);
+  }
+
+  const owner = await isOwner();
   const seed = { user_id: id, facts: storeFacts(owner ? base : blankFacts(base)), preferences: DEFAULT_PREFERENCES };
   const { data: made, error } = await client.from("job_profiles").insert(seed).select("user_id, facts, preferences, source_state, updated_at").single();
   if (error || !made) return null;

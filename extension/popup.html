@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sales CRM Apply</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main id="main">
+      <h1>Apply</h1>
+
+      <section id="connect" hidden aria-labelledby="connect-title">
+        <h2 id="connect-title" class="group-title">Connect to your CRM</h2>
+        <form id="connect-form" class="group">
+          <div class="row stack">
+            <label for="server">CRM address (required)</label>
+            <input id="server" type="url" required value="https://sales-crm-virid-ten.vercel.app" autocomplete="url" />
+          </div>
+          <div class="row stack">
+            <label for="code">Connection code (required)</label>
+            <input id="code" type="password" required autocomplete="off" aria-describedby="code-hint error" />
+            <p id="code-hint" class="hint">In the CRM, open Profile, then Chrome extension, and make a code.</p>
+          </div>
+        </form>
+        <button type="submit" form="connect-form" class="primary">Connect</button>
+      </section>
+
+      <section id="ready" hidden aria-labelledby="job-title">
+        <div class="group">
+          <div class="row stack">
+            <h2 id="job-title" class="job"></h2>
+            <p id="job-company" class="hint"></p>
+            <p id="job-match" class="hint"></p>
+          </div>
+        </div>
+        <button type="button" id="fill" class="primary">Fill this form</button>
+        <p class="footnote">You press Submit. The extension never does.</p>
+
+        <section id="result" hidden aria-labelledby="result-title">
+          <h2 id="result-title" class="group-title">What was filled</h2>
+          <ul id="filled" class="group"></ul>
+          <h2 id="check-title" class="group-title" hidden>Check these yourself</h2>
+          <ul id="check" class="group" hidden></ul>
+          <h2 id="needs-title" class="group-title" hidden>Add once in Profile, then fill again</h2>
+          <ul id="needs" class="group" hidden></ul>
+          <button type="button" id="applied" class="secondary">I sent it: mark as applied</button>
+        </section>
+      </section>
+
+      <p id="status" role="status" aria-live="polite" class="footnote"></p>
+      <p id="error" role="alert" class="error"></p>
+
+      <footer>
+        <a id="open-crm" href="#" target="_blank" rel="noopener">Open the CRM<span class="sr-only"> (opens in a new tab)</span></a>
+        <button type="button" id="disconnect" class="link" hidden>Disconnect</button>
+      </footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -11,7 +11,11 @@ export type Facts = {
   education: { degree: string; dates: string; school: string };
   development: string[];
   services: unknown[];
+  work: Proof[];
+  answers: SavedAnswer[];
 };
+export type Proof = { title: string; what: string; result: string; url: string; tags: string[] };
+export type SavedAnswer = { question: string; words: string[]; answer: string };
 
 type StoredTrack = Omit<Track, "titleOk"> & { titleOk: string };
 export type StoredFacts = Omit<Facts, "tracks"> & { tracks: Record<string, StoredTrack> };
@@ -33,14 +37,14 @@ function safeRegex(source: string): RegExp {
 export function hydrateFacts(stored: StoredFacts): Facts {
   const tracks: Record<string, Track> = {};
   for (const [id, t] of Object.entries(stored.tracks)) tracks[id] = { ...t, titleOk: safeRegex(String(t.titleOk ?? "")) };
-  return { ...stored, tracks };
+  return { ...stored, tracks, work: stored.work ?? [], answers: stored.answers ?? [] };
 }
 
 export function blankFacts(seed: Facts): Facts {
   const tracks: Record<string, Track> = {};
   for (const [id, t] of Object.entries(seed.tracks)) tracks[id] = { ...t, profile: "", hook: "", story: "" };
   const person = Object.fromEntries(Object.keys(seed.person).map((k) => [k, ""]));
-  return { ...seed, person, tracks, skills: seed.skills.map((g) => ({ group: g.group, items: [] })), proofs: {}, jobs: [], projects: [], certifications: [], education: { degree: "", dates: "", school: "" }, development: [] };
+  return { ...seed, person, tracks, skills: seed.skills.map((g) => ({ group: g.group, items: [] })), proofs: {}, jobs: [], projects: [], certifications: [], education: { degree: "", dates: "", school: "" }, development: [], work: [], answers: seed.answers.map((a) => ({ ...a, answer: "" })) };
 }
 
 const str = (v: unknown, max: number) => String(v ?? "").slice(0, max);
@@ -95,5 +99,17 @@ export function cleanFacts(input: unknown, base: StoredFacts): StoredFacts {
     certifications: strs(f.certifications ?? base.certifications, 12, 300),
     education: { degree: str(f.education?.degree ?? base.education.degree, 120), dates: str(f.education?.dates ?? base.education.dates, 40), school: str(f.education?.school ?? base.education.school, 160) },
     development: strs(f.development ?? base.development, 12, 300),
+    work: (Array.isArray(f.work) ? f.work : base.work ?? []).slice(0, 20).map((w) => ({
+      title: str(w?.title, 80).trim(),
+      what: str(w?.what, 300),
+      result: str(w?.result, 300),
+      url: /^https:\/\/[^\s]+$/.test(String(w?.url ?? "").trim()) ? String(w.url).trim().slice(0, 300) : "",
+      tags: strs(w?.tags, 20, 40).map((t) => t.toLowerCase()),
+    })).filter((w) => w.title),
+    answers: (Array.isArray(f.answers) ? f.answers : base.answers ?? []).slice(0, 30).map((a) => ({
+      question: str(a?.question, 200).trim(),
+      words: strs(a?.words, 12, 60).map((w) => w.toLowerCase()),
+      answer: str(a?.answer, 2000),
+    })).filter((a) => a.question),
   };
 }

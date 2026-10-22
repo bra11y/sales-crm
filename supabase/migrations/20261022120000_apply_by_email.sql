@@ -74,3 +74,15 @@ revoke insert, update, delete on public.applications_outbox from authenticated, 
 
 create policy application_replies_read on public.application_replies for select to authenticated using (user_id = (select auth.uid()));
 revoke insert, update, delete on public.application_replies from authenticated, anon;
+
+-- Chrome extension: one connection code per user. Only its SHA-256 hash is stored.
+create table public.extension_tokens (
+  user_id uuid primary key references public.profiles (user_id) on delete cascade,
+  token_hash text not null unique check (token_hash ~ '^[0-9a-f]{64}$'),
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz
+);
+alter table public.extension_tokens enable row level security;
+create policy extension_tokens_read on public.extension_tokens for select to authenticated using (user_id = (select auth.uid()));
+revoke all on public.extension_tokens from authenticated, anon;
+grant select (user_id, created_at, last_used_at) on public.extension_tokens to authenticated;

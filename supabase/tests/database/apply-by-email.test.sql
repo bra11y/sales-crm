@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(10);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000b1', 'sender@test.local'),
@@ -14,6 +14,9 @@ insert into public.mail_accounts (user_id, email, secret_ciphertext, secret_iv, 
 insert into public.applications_outbox (id, user_id, kind, to_email, subject, body) values
   ('30000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000b1', 'application', 'jobs@a.test', 'Hi', 'Body'),
   ('30000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b2', 'application', 'jobs@b.test', 'Hi', 'Body');
+insert into public.extension_tokens (user_id, token_hash) values
+  ('00000000-0000-0000-0000-0000000000b1', repeat('a', 64)),
+  ('00000000-0000-0000-0000-0000000000b2', repeat('b', 64));
 insert into public.application_replies (user_id, message_id, from_email, received_at, suggested_stage) values
   ('00000000-0000-0000-0000-0000000000b2', '<r@b.test>', 'jane@b.test', now(), 'interview');
 
@@ -28,6 +31,8 @@ select throws_ok($$select secret_ciphertext from public.mail_accounts$$, '42501'
 select is((select count(*) from public.applications_outbox)::int, 1, 'a user sees only their own outbox');
 select is((select count(*) from public.application_replies)::int, 0, 'a user sees no one else''s replies');
 select throws_ok($$update public.applications_outbox set to_email = 'x@evil.test' where id = '30000000-0000-0000-0000-0000000000b1'$$, '42501', null, 'a user can not change an email behind the server''s back');
+select is((select count(*) from public.extension_tokens)::int, 1, 'a user sees only their own extension connection');
+select throws_ok($$select token_hash from public.extension_tokens$$, '42501', null, 'a user can never read the extension code hash');
 select throws_ok($$insert into public.applications_outbox (user_id, kind, to_email, subject, body) values ('00000000-0000-0000-0000-0000000000b1', 'application', 'a@b.test', 's', 'b')$$, '42501', null, 'a user can not queue an email directly');
 reset role;
 
