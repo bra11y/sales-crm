@@ -1,13 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { applyByEmail, markApplied, type Prepared, prepare } from "@/lib/apply/outbox";
 import { lookUpCompany, type CompanyInfo } from "@/lib/jobs/company";
 import { currentUserId } from "@/lib/jobs/profile";
 import { searchJobs, type SearchResult } from "@/lib/jobs/search";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const STATUSES = ["new", "saved", "applied", "dismissed"] as const;
+const STATUSES = ["new", "saved", "applied", "replied", "no_reply", "dismissed"] as const;
 export type JobStatus = (typeof STATUSES)[number];
 
 export async function findJobsNow(): Promise<SearchResult> {
@@ -41,4 +43,38 @@ export async function researchCompany(id: string): Promise<{ ok: true; info: Com
   const info = await lookUpCompany(job.company, job.apply_url);
   await supabase.from("job_posts").update({ company_info: info }).eq("id", id);
   return { ok: true, info };
+}
+
+async function signedIn() {
+  const userId = await currentUserId();
+  const admin = createSupabaseAdminClient();
+  return userId && admin ? { userId, admin } : null;
+}
+
+// On Vercel the AI Gateway login comes in this header; locally it is VERCEL_OIDC_TOKEN.
+async function oidc() {
+  return (await headers()).get("x-vercel-oidc-token");
+}
+
+export async function prepareApplication(jobId: string, fresh = false): Promise<{ ok: true; p: Prepared } | { ok: false; error: string }> {
+  const s = await signedIn();
+  if (!s) return { ok: false, error: "Sign in again to apply." };
+  return prepare(s.admin, s.userId, jobId, { oidc: await oidc(), fresh });
+}
+
+export async function sendApplication(jobId: string, input: { to: string; subject: string; body: string; anyway: boolean }) {
+  const s = await signedIn();
+  if (!s) return { ok: false as const, error: "Sign in again to apply." };
+  const r = await applyByEmail(s.admin, s.userId, jobId, { ...input, oidc: await oidc() });
+  revalidatePath("/jobs");
+  revalidatePath("/outbox");
+  return r;
+}
+
+export async function markJobApplied(jobId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const s = await signedIn();
+  if (!s) return { ok: false, error: "Sign in again." };
+  const r = await markApplied(s.admin, s.userId, jobId);
+  revalidatePath("/jobs");
+  return r.ok ? { ok: true } : r;
 }

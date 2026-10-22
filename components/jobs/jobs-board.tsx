@@ -34,6 +34,9 @@ export type JobItem = {
   hidden_reason: string | null;
   status: Status;
   company_info: CompanyInfo | null;
+  contact_email: string | null;
+  // An address the post asks you to send your application to. Null means it uses a form.
+  apply_email: string | null;
 };
 export type LastRun = { started_at: string; finished_at: string | null; kept: number; added: number; errors: unknown[] };
 export type SourceNames = Record<string, { name: string; home: string }>;
@@ -47,7 +50,7 @@ const WHERE_FILTERS = [
   { value: "local", label: "In my city" },
   { value: "visa", label: "Visa sponsorship" },
 ];
-const BOARD: Status[] = ["new", "saved", "applied"];
+const BOARD: Status[] = ["new", "saved", "applied", "replied"];
 
 export default function JobsBoard({ initialJobs, lastRun, sources, loadError }: { initialJobs: JobItem[]; lastRun: LastRun | null; sources: SourceNames; loadError: boolean }) {
   const [changes, setChanges] = useState<Record<string, Partial<JobItem>>>({});
@@ -56,6 +59,7 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError }: 
   const [where, setWhere] = useState("");
   const [showHidden, setShowHidden] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
+  const [emailOnly, setEmailOnly] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [status, setStatusText] = useState("");
   const [alert, setAlert] = useState("");
@@ -71,9 +75,10 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError }: 
         (showDismissed || j.status !== "dismissed") &&
         (!fit || (fit === "strong" ? j.band === "strong" : j.band !== "maybe")) &&
         (!where || j.eligibility === where) &&
+        (!emailOnly || Boolean(j.apply_email)) &&
         (!q || `${j.title} ${j.company} ${j.matched.join(" ")}`.toLowerCase().includes(q)),
     );
-  }, [jobs, query, fit, where, showHidden, showDismissed]);
+  }, [jobs, query, fit, where, showHidden, showDismissed, emailOnly]);
   const open = jobs.find((j) => j.id === openId) ?? null;
 
   function say(text: string) {
@@ -178,6 +183,10 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError }: 
             <input type="checkbox" checked={showDismissed} onChange={(e) => setShowDismissed(e.target.checked)} className="accent-primary size-5" />
             Show &ldquo;Not for me&rdquo;
           </label>
+          <label className="text-foreground flex min-h-11 items-center gap-2 text-[14px]">
+            <input type="checkbox" checked={emailOnly} onChange={(e) => setEmailOnly(e.target.checked)} className="accent-primary size-5" />
+            Only jobs you can apply to by email ({jobs.filter((j) => j.apply_email && !j.hidden_reason).length})
+          </label>
         </div>
       </div>
 
@@ -229,6 +238,7 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError }: 
                         </button>
                         <div className="text-soft caption-style mt-1">
                           {j.company || "Company not named"} · via {sources[j.source]?.name ?? j.source}
+                          {j.apply_email && <> · <span className="text-foreground">Apply by email</span></>}
                         </div>
                         {j.hidden_reason && <div className="caption-style mt-1 text-(--tag-amber-text)">Hidden: {j.hidden_reason}</div>}
                       </td>
@@ -245,7 +255,7 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError }: 
         </TabsContent>
 
         <TabsContent value="board">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {BOARD.map((col) => {
               const items = shown.filter((j) => j.status === col);
               return (

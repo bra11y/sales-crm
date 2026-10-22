@@ -6,6 +6,7 @@ import Tag from "@/components/_ui/tag";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/_ui/sheet";
 import { researchCompany } from "@/app/(crm)/jobs/actions";
 import type { CompanyInfo } from "@/lib/jobs/company";
+import ApplyPanel from "./apply-panel";
 import type { JobItem, SourceNames } from "./jobs-board";
 import { ago, BAND, payText, type Status, STATUS_LABEL, WHERE_LABEL } from "./labels";
 
@@ -35,6 +36,7 @@ export default function JobPeek({ job, sources, onClose, onMove, onCompany, onEr
 function PeekBody({ job, sources, onMove, onCompany, onError }: Omit<Props, "job" | "onClose"> & { job: JobItem }) {
   const [looking, startLook] = useTransition();
   const [lookNote, setLookNote] = useState("");
+  const [applying, setApplying] = useState(false);
   const source = sources[job.source];
   const band = BAND[job.band];
 
@@ -73,7 +75,8 @@ function PeekBody({ job, sources, onMove, onCompany, onError }: Omit<Props, "job
         </SheetClose>
       </SheetHeader>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5">
+      <div id="job-peek-scroll" className="relative flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5">
+        {applying && <ApplyPanel job={job} onApplied={() => onMove(job.id, "applied")} onError={onError} />}
         <dl className="grid grid-cols-[9em_1fr] gap-x-4 gap-y-2.5 text-[14px]">
           <dt className="text-soft">Fit</dt>
           <dd>
@@ -205,8 +208,21 @@ function PeekBody({ job, sources, onMove, onCompany, onError }: Omit<Props, "job
       </div>
 
       <div className="border-line-strong flex shrink-0 flex-wrap items-center gap-2 border-t px-6 py-3">
-        <Button variant="primary" size="md" className="h-11 px-4" href={`/apply?job=${job.id}`}>
-          Tailor my CV for this job
+        {!applying && (
+          <Button
+            variant="primary"
+            size="md"
+            className="h-11 px-5"
+            onClick={() => {
+              setApplying(true);
+              document.getElementById("job-peek-scroll")?.scrollTo({ top: 0 });
+            }}
+          >
+            Apply
+          </Button>
+        )}
+        <Button variant="secondary" size="md" className="h-11 px-4" href={`/apply?job=${job.id}`}>
+          Edit on the Apply page
         </Button>
         <a href={job.apply_url} target="_blank" rel="noopener" className={buttonVariants({ variant: "secondary", size: "md", className: "h-11 px-4" })}>
           Open the job post<span className="sr-only"> on {source?.name ?? "the job board"} (opens in a new tab)</span>

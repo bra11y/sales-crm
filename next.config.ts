@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Dev logs print server action arguments, which would include the Gmail app password.
+  logging: { serverFunctions: false },
   images: {
     // unoptimized: true,
     formats: ["image/avif", "image/webp"],

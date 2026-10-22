@@ -5,9 +5,10 @@ import Button from "@/components/_ui/button";
 import { saveProfile } from "@/app/(crm)/profile/actions";
 import type { StoredFacts } from "@/lib/jobs/facts";
 import type { Preferences } from "@/lib/jobs/preferences";
+import MailSection, { type MailState } from "./mail-section";
 import { Chips, FIELD, Lines, Property, Section, TextBlock } from "./editors";
 
-type Props = { facts: StoredFacts; preferences: Preferences; updatedAt: string; sources: { id: string; name: string }[] };
+type Props = { facts: StoredFacts; preferences: Preferences; updatedAt: string; sources: { id: string; name: string }[]; mail: MailState; aiProvider: string };
 
 const PERSON: { key: string; label: string; type?: string; autoComplete?: string }[] = [
   { key: "brand", label: "Known as" },
@@ -24,7 +25,7 @@ const PERSON: { key: string; label: string; type?: string; autoComplete?: string
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
-export default function ProfileDoc({ facts: initialFacts, preferences: initialPrefs, updatedAt, sources }: Props) {
+export default function ProfileDoc({ facts: initialFacts, preferences: initialPrefs, updatedAt, sources, mail, aiProvider }: Props) {
   const [facts, setFacts] = useState(initialFacts);
   const [prefs, setPrefs] = useState(initialPrefs);
   const [state, setState] = useState<{ kind: "idle" | "saving" | "saved" | "error"; text: string }>({ kind: "idle", text: `Saved at ${time(updatedAt)}` });
@@ -97,6 +98,19 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
           <Property key={p.key} label={p.label} type={p.type} autoComplete={p.autoComplete} value={facts.person[p.key] ?? ""} onChange={(v) => edit((f) => ((f.person[p.key] = v), f))} />
         ))}
       </div>
+
+      <Section id="applying" title="Sending applications" hint="Applications send from your own Gmail, at most 40 a day, inside the employer's work hours. Two follow-ups go 5 days apart, and stop when they reply.">
+        <MailSection mail={mail} suggested={facts.person.email ?? ""} />
+        <div className="border-line-strong flex flex-col gap-2 border-t pt-3">
+          <label className="flex min-h-11 items-center gap-2 text-[14px]">
+            <input type="checkbox" checked={prefs.ai === "on"} onChange={(e) => editPrefs({ ai: e.target.checked ? "on" : "off" })} className="accent-primary size-5" aria-describedby="profile-ai-hint" />
+            Let AI write the &ldquo;why this company&rdquo; lines
+          </label>
+          <p id="profile-ai-hint" className="caption-style text-soft leading-normal">
+            {aiProvider}. Everything else in your CV and letter comes from this page by plain rules, at no cost. Turn this off to keep every application free.
+          </p>
+        </div>
+      </Section>
 
       <Section id="find" title="Jobs to find" hint="The job finder uses these rules. Jobs that break them are hidden, and the reason is shown on the Jobs page.">
         <Property

@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { tick } from "@/lib/apply/outbox";
 import { searchJobs } from "@/lib/jobs/search";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -23,5 +24,7 @@ export async function GET(request: Request) {
     const r = await searchJobs(admin, user_id, "schedule");
     results.push(r.ok ? { added: r.added, kept: r.kept, errors: r.errors } : { error: r.error });
   }
-  return Response.json({ users: results.length, results });
+  // The daily run also sends and checks replies, in case the hourly GitHub tick is not set up.
+  const mail = await tick(admin, Date.now() + 120_000);
+  return Response.json({ users: results.length, results, mail });
 }

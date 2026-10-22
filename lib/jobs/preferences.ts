@@ -8,6 +8,8 @@ export type Preferences = {
   searches: string[];
   boards: Boards;
   sources: SourceId[];
+  // "on" lets a small AI model write the 'why this company' lines; "off" keeps everything free and rule-based.
+  ai: "on" | "off";
 };
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -22,6 +24,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     lever: ["spotify"],
   },
   sources: SOURCE_IDS,
+  ai: "on",
 };
 
 const words = (v: unknown, max: number) =>
@@ -47,5 +50,6 @@ export function cleanPreferences(input: unknown): Preferences {
       lever: boards.lever === undefined ? DEFAULT_PREFERENCES.boards.lever : slugs(boards.lever),
     },
     sources,
+    ai: p.ai === "off" ? "off" : "on",
   };
 }

@@ -125,3 +125,13 @@ New dependencies (`ai`, `nodemailer`, `imapflow` and a PDF library) must be vett
 ## Left to the builder
 
 The PDF library, the prompt wording (inside the rules above), the Outbox layout details within the house UI, and how often the Outbox list refreshes.
+
+## Changes made during the build (22 October 2026)
+
+- **AI writes only the 2 "why this company" sentences.** The CV and the rest of the letter stay rule-based, and the follow-ups use templates. That brings the cost from about 0.25 cents to about 0.03 cents per application. It falls back to a plain sentence when AI is off, unreachable or fails the checks.
+- **Any OpenAI-style provider.** A free provider (`FREE_AI_*`) is tried first, then the Gateway. Profile has an AI on/off switch. See `docs/guides/apply-setup.md`.
+- **Limits:** 40 a day, 15 seconds apart, so one hourly tick can send a batch.
+- **Most jobs use forms.** Only about 6% of posts name any email, and most of those aren't for applying. So Apply gives an apply kit for form jobs: the CV PDF, copyable answers, the form link, and "I sent it on their form". The address finder only takes an email from a sentence that says to apply, and it rejects privacy, security, accommodation and help addresses.
+- **The first send must be a test to yourself**, made with "Send me a test email" in Profile.
+- **The cover letter quotes the post's own words** when a skill was matched by another word (e.g. "payments" for Paystack), so it never claims the post asked for something it didn't.
+- **The CRM stage move on a confirmed reply is not built yet.** Confirming a reply changes the job status only.

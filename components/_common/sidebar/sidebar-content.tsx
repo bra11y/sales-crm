@@ -70,6 +70,7 @@ export default function SidebarContent() {
           >
             <SidebarNavItem icon={TargetIcon} label="Jobs" href="/jobs" active={pathname === "/jobs"} />
             <SidebarNavItem icon={MailIcon} label="Apply" href="/apply" active={pathname === "/apply"} />
+            <SidebarNavItem icon={ListIcon} label="Outbox" href="/outbox" active={pathname === "/outbox"} />
             <SidebarNavItem icon={UsersIcon} label="Profile" href="/profile" active={pathname === "/profile"} />
             <SidebarNavItem icon={BarChartAltIcon} label="Overview" href="/overview" active={pathname === "/overview"} />
             <SidebarNavItem icon={WalletIcon} label="Subscriptions" href="/subscriptions" active={pathname === "/subscriptions"} />
