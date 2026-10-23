@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/_ui/table";
 import { formatMoney } from "@/lib/crm/money";
 import type { SalesPayment } from "@/lib/crm/sales-query";
@@ -22,10 +23,17 @@ export default function PaymentsTable({ rows, productNames }: { rows: SalesPayme
           {rows.map((p) => (
             <TableRow key={`${p.provider}:${p.reference}`}>
               <TableCell className="tabular-nums">{formatDay(p.paid_at)}</TableCell>
-              <TableCell className="font-medium">{p.company_name}</TableCell>
+              <TableCell className="font-medium">
+                <Link href={`/?company=${p.company_id}`} className="hover:underline focus-visible:ring-ring rounded-sm outline-none focus-visible:ring-2">{p.company_name}</Link>
+              </TableCell>
               <TableCell>{productNames[p.product] ?? p.product}</TableCell>
               <TableCell className="tabular-nums">{formatMoney(p.amount_minor, p.currency)}</TableCell>
-              <TableCell>{p.status === "succeeded" ? "Paid" : "Failed"}</TableCell>
+              <TableCell>
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className={`size-1.5 rounded-full ${p.status === "succeeded" ? "bg-success" : "bg-danger"}`} />
+                  {p.status === "succeeded" ? "Paid" : "Failed"}
+                </span>
+              </TableCell>
               <TableCell>
                 <code className="caption-style">{p.reference}</code>
               </TableCell>

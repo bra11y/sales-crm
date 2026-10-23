@@ -11,7 +11,6 @@ import {
 import { ScrollArea } from "@/components/_ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/_ui/tabs";
 import NotificationItem from "./notification-item";
-import { NOTIFICATIONS } from "@/data/notifications";
 import { useCompaniesStore } from "@/stores/companies-store";
 import BellIcon from "@/public/assets/images/companies/header/bell.svg";
 
@@ -23,6 +22,7 @@ export default function Notifications() {
   const navigated = useRef(false);
   const companies = useCompaniesStore((state) => state.companies);
   const unreadIds = useCompaniesStore((state) => state.unreadNotificationIds);
+  const notifications = useCompaniesStore((state) => state.notifications);
   const markRead = useCompaniesStore((state) => state.markNotificationRead);
   const markAllRead = useCompaniesStore(
     (state) => state.markAllNotificationsRead,
@@ -30,7 +30,7 @@ export default function Notifications() {
   const openDetail = useCompaniesStore((state) => state.openDetail);
 
   const unreadCount = unreadIds.length;
-  const visible = NOTIFICATIONS.filter(
+  const visible = notifications.filter(
     (item) => filter === "all" || unreadIds.includes(item.id),
   );
 
@@ -128,7 +128,7 @@ export default function Notifications() {
               You’re all caught up
             </span>
             <span className="caption-style text-subtle block">
-              New mentions and deal updates will show up here.
+              Payments, failed payments, replies and stage moves show up here.
             </span>
           </div>
         )}

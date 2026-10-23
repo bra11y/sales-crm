@@ -2,23 +2,23 @@
 
 import Avatar from "@/components/_ui/avatar";
 import Button from "@/components/_ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/_ui/tabs";
+import { ViewTabs } from "@/components/workspace/parts";
 import Notifications from "./notifications/notifications";
 import { useCompaniesStore } from "@/stores/companies-store";
 import MenuIcon from "@/public/assets/images/_common/menu.svg";
 import ActiveDot from "@/public/assets/images/companies/header/active-dot.svg";
 import SearchIcon from "@/public/assets/images/_common/search.svg";
 
-const TABS = [
-  { value: "companies", label: "Companies" },
-  { value: "deals", label: "Deals" },
-  { value: "forecast", label: "Forecast" },
+// Views of the same companies, like tabs on a Notion database.
+const VIEWS = [
+  { href: "/", label: "Table" },
+  { href: "/deals", label: "Board" },
+  { href: "/forecast", label: "Forecast" },
+  { href: "/activity", label: "Activity" },
 ];
 
 export default function CompaniesHeader() {
   const currentUser = useCompaniesStore((state) => state.currentUser);
-  const activeTab = useCompaniesStore((state) => state.activeTab);
-  const setActiveTab = useCompaniesStore((state) => state.setActiveTab);
   const setSidebarOpen = useCompaniesStore((state) => state.setSidebarOpen);
   const setSearchOpen = useCompaniesStore((state) => state.setSearchOpen);
   const openProfile = useCompaniesStore((state) => state.openProfile);
@@ -67,15 +67,9 @@ export default function CompaniesHeader() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="border-border border-b px-4">
-          {TABS.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="px-4">
+        <ViewTabs label="Views" views={VIEWS} current="/" />
+      </div>
     </header>
   );
 }

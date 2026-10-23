@@ -7,10 +7,11 @@ import {
   type ProductProfile,
   type SortKey,
 } from "@/data/companies";
-import { NOTIFICATIONS } from "@/data/notifications";
+import { lastSeen, markSeen, type Notification } from "@/data/notifications";
 import { ANY_STAGE, DEFAULT_FILTERS } from "@/lib/companies";
 
 type HydratePayload = {
+  notifications?: Notification[];
   companies: Company[];
   products: ProductProfile[];
   owners: Owner[];
@@ -36,8 +37,8 @@ type CompaniesState = {
   newCompanyOpen: boolean;
   sidebarOpen: boolean;
   searchOpen: boolean;
+  notifications: Notification[];
   unreadNotificationIds: string[];
-  activeTab: string;
   hydrate: (payload: HydratePayload) => void;
   setProduct: (product: string) => void;
   setSortBy: (sortBy: SortKey) => void;
@@ -56,7 +57,6 @@ type CompaniesState = {
   setSearchOpen: (open: boolean) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
-  setActiveTab: (tab: string) => void;
   addCompany: (company: Company) => void;
   updateCompany: (company: Company) => void;
 };
@@ -76,13 +76,20 @@ export const useCompaniesStore = create<CompaniesState>((set) => ({
   newCompanyOpen: false,
   sidebarOpen: false,
   searchOpen: false,
-  unreadNotificationIds: NOTIFICATIONS.filter((item) => item.unread).map(
-    (item) => item.id,
-  ),
-  activeTab: "companies",
-  hydrate: ({ companies, products, owners, currentUser }) => {
+  notifications: [],
+  unreadNotificationIds: [],
+  hydrate: ({ companies, products, owners, currentUser, notifications = [] }) => {
     registerOwners(owners);
-    set({ companies, products, owners, currentUser, hydrated: true });
+    const seen = lastSeen();
+    set({
+      companies,
+      products,
+      owners,
+      currentUser,
+      notifications,
+      unreadNotificationIds: notifications.filter((n) => n.at > seen).map((n) => n.id),
+      hydrated: true,
+    });
   },
   setProduct: (product) => set({ product, stage: ANY_STAGE }),
   setSortBy: (sortBy) => set({ sortBy }),
@@ -112,8 +119,12 @@ export const useCompaniesStore = create<CompaniesState>((set) => ({
         (unread) => unread !== id,
       ),
     })),
-  markAllNotificationsRead: () => set({ unreadNotificationIds: [] }),
-  setActiveTab: (activeTab) => set({ activeTab }),
+  markAllNotificationsRead: () =>
+    set((state) => {
+      const newest = state.notifications[0]?.at;
+      if (newest) markSeen(newest);
+      return { unreadNotificationIds: [] };
+    }),
   updateCompany: (company) =>
     set((state) => ({
       companies: state.companies.map((c) => (c.id === company.id ? company : c)),
