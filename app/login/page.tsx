@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Button from "@/components/_ui/button";
 import LoginForm from "./login-form";
+import Logo from "@/public/assets/images/_common/logo.svg";
 
 export const metadata: Metadata = { title: "Sign in · Sales CRM", robots: { index: false } };
 
@@ -9,6 +10,7 @@ export default function LoginPage() {
     <main id="main" className="flex min-h-dvh items-center justify-center px-4">
       <div className="flex w-full max-w-[24em] flex-col gap-8">
         <div className="flex flex-col gap-2">
+          <Logo aria-hidden className="-ml-1 size-12" />
           <h1>Sign in to the Sales CRM</h1>
           <p className="text-soft">For the owner and invited team members.</p>
         </div>
