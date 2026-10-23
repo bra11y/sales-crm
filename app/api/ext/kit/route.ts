@@ -9,7 +9,10 @@ export async function GET(request: Request) {
   if (!admin) return Response.json({ error: "The CRM database is not configured." }, { status: 500 });
   const userId = await userFromToken(admin, request.headers.get("authorization"));
   if (!userId) return Response.json({ error: "The connection code is wrong or was revoked. Make a new one in Profile." }, { status: 401 });
-  const page = new URL(request.url).searchParams.get("url") ?? "";
-  const r = await buildKit(admin, userId, page.slice(0, 2000));
+  const params = new URL(request.url).searchParams;
+  const page = params.get("url") ?? "";
+  const job = params.get("job") ?? undefined;
+  if (job && !/^[0-9a-f-]{36}$/i.test(job)) return Response.json({ error: "That job id is not valid." }, { status: 400 });
+  const r = await buildKit(admin, userId, page.slice(0, 2000), job);
   return r.ok ? Response.json(r.kit, { headers: { "cache-control": "no-store" } }) : Response.json({ error: r.error }, { status: 404 });
 }

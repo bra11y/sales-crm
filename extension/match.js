@@ -80,7 +80,25 @@
     return candidates.find((c) => !/autofill|parse/i.test(c.text) && isResumeInput(c.text, c.accept)) || null;
   }
 
-  const API = { classify, answerFor, missingAnswer, isResumeInput, pickResume };
+  // The page after you press Submit. Checked only once the form has gone.
+  const SUCCESS = /thank(s| you) for (applying|your application|your interest in)|application (has been |was )?(received|submitted|sent)|we('ve| have) received your application|successfully (applied|submitted)|your application is (in|on its way)|you('ve| have) applied/i;
+  function isSuccess(text) {
+    return SUCCESS.test(text || "");
+  }
+
+  // Which button on a job listing leads to the form. Higher is better; 0 means not an apply button.
+  // Sign-in shortcuts (LinkedIn, Indeed, Google) are skipped: they need your accounts, not ours.
+  function applyScore(text, href) {
+    const t = (text || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (!t || t.length > 40) return 0;
+    if (/linkedin|indeed|google|seek|glassdoor|easy apply|save|share|similar|alert|sign ?in|log ?in/.test(t)) return 0;
+    if (/^(apply( now| here| online| today)?|apply for (this|the) (job|role|position)|apply to (this )?(job|role)|start (your )?application|submit (an )?application)$/.test(t)) return 3;
+    if (/apply on (the )?company('s)? (site|website)|apply externally|go to application|i'?m interested/.test(t)) return 2;
+    if (/\bapply\b/.test(t) && !/how to apply|applied/.test(t)) return 1;
+    return /apply|application/.test(href || "") && /apply/.test(t) ? 1 : 0;
+  }
+
+  const API = { classify, answerFor, missingAnswer, isResumeInput, pickResume, isSuccess, applyScore };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   else root.SalesCrmMatch = API;
 })(this);

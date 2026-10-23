@@ -255,4 +255,48 @@
     report.needs = [...new Set(report.needs)];
     return report;
   };
+
+  // ---------- following the funnel ----------
+
+  const SKIP_TYPES = ["hidden", "submit", "button", "checkbox", "radio", "password", "search", "image", "reset"];
+
+  function fillableCount() {
+    return [...document.querySelectorAll("input, textarea, select")].filter((el) => {
+      const type = (el.type || "").toLowerCase();
+      if (SKIP_TYPES.includes(type)) return false;
+      return type === "file" ? !el.disabled : usable(el);
+    }).length;
+  }
+
+  // What this page is: a form to fill, the thank-you page, or a listing with an Apply button.
+  window.__salesCrmDetect = function () {
+    const fields = fillableCount();
+    let best = null;
+    if (fields < 2 && M) {
+      for (const el of document.querySelectorAll("a[href], button, [role='button']")) {
+        if (!usable(el)) continue;
+        // Never press a button that would send a form.
+        if (el.form && (el.type || "").toLowerCase() === "submit") continue;
+        const label = text(el) || el.getAttribute("aria-label") || "";
+        const score = M.applyScore(label, el.href || "");
+        if (score > (best ? best.score : 0)) best = { el, score, label };
+      }
+    }
+    window.__salesCrmApplyTarget = best ? best.el : null;
+    return {
+      fields,
+      success: fields < 2 && Boolean(M && M.isSuccess(text(document.body).slice(0, 20000))),
+      apply: best ? best.label.slice(0, 60) : null,
+      top: window === window.top,
+    };
+  };
+
+  // Opens the form from a listing. Links open in this same tab, so the helper can follow.
+  window.__salesCrmGoApply = function () {
+    const el = window.__salesCrmApplyTarget;
+    if (!el) return false;
+    if (el.tagName === "A" && /^https?:/.test(el.href)) location.href = el.href;
+    else el.click();
+    return true;
+  };
 })();

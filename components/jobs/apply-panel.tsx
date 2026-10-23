@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Button from "@/components/_ui/button";
 import { markJobApplied, prepareApplication, sendApplication } from "@/app/(crm)/jobs/actions";
 import type { Prepared } from "@/lib/apply/outbox";
@@ -8,6 +8,27 @@ import type { JobItem } from "./jobs-board";
 
 
 type Props = { job: JobItem; onApplied: () => void; onError: (message: string) => void };
+
+// The Chrome extension marks the CRM page when it is installed (see extension/crm-bridge.js).
+const noSubscribe = () => () => {};
+const extensionVersion = () => document.documentElement.dataset.salesCrmExtension ?? "";
+
+// Hands the job to the extension and waits for it to say the tab opened.
+function startWithExtension(jobId: string): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const done = (r: { ok: boolean; error?: string }) => {
+      window.removeEventListener("message", listen);
+      clearTimeout(timer);
+      resolve(r);
+    };
+    const listen = (e: MessageEvent) => {
+      if (e.source === window && e.data?.source === "sales-crm-extension" && e.data.type === "started" && e.data.jobId === jobId) done({ ok: e.data.ok, error: e.data.error });
+    };
+    const timer = setTimeout(() => done({ ok: false, error: "The extension did not answer. Reload it in chrome://extensions, then try again." }), 15_000);
+    window.addEventListener("message", listen);
+    window.postMessage({ source: "sales-crm", type: "start-apply", jobId }, window.location.origin);
+  });
+}
 
 export default function ApplyPanel({ job, onApplied, onError }: Props) {
   const id = useId();
@@ -21,6 +42,8 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
   const [done, setDone] = useState<"sent" | "queued" | "applied" | null>(null);
   const [busy, start] = useTransition();
   const latest = useRef(0);
+  const extension = useSyncExternalStore(noSubscribe, extensionVersion, () => "");
+  const [launched, setLaunched] = useState(false);
   const focusTo = (target: string) => requestAnimationFrame(() => document.getElementById(target)?.focus());
 
   function load(fresh = false) {
@@ -85,6 +108,22 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
       setNote("Marked as applied and saved in your CRM.");
       focusTo(`${id}-done`);
       onApplied();
+    });
+  }
+
+  function applyWithExtension() {
+    if (busy) return;
+    start(async () => {
+      setProblem("");
+      setNote("Opening the application in a new tab…");
+      const r = await startWithExtension(job.id);
+      if (!r.ok) {
+        setNote("");
+        setProblem(r.error ?? "The extension did not start.");
+        return;
+      }
+      setLaunched(true);
+      setNote("A new tab opened. The panel at the bottom right walks you through it, and marks the job as applied when you finish.");
     });
   }
 
@@ -256,33 +295,46 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
             </>
           ) : (
             <>
-              <Group title="Apply on their form" id={`${id}-form`}>
-                <Step n={1}>
-                  <a href={`/api/jobs/${job.id}/cv`} download={p.attachment} className="underline underline-offset-2">
-                    Download your CV for this job
-                  </a>
-                </Step>
-                <Step n={2}>
-                  <a href={p.applyUrl} target="_blank" rel="noopener" className="underline underline-offset-2">
-                    Open the application form<span className="sr-only"> (opens in a new tab)</span>
-                  </a>
-                </Step>
-                <Step n={3}>
-                  <span>
-                    Press <strong>Fill this form</strong> in the Chrome extension.{" "}
-                    <a href="/profile#extension" className="text-soft text-[13px] underline underline-offset-2">
-                      Set it up
+              {extension ? (
+                <Group title="Apply on their form" id={`${id}-form`}>
+                  <Step n={1}><span>Press <strong>Apply with the extension</strong>. Their form opens in a new tab.</span></Step>
+                  <Step n={2}><span>It finds the form, presses their Apply button if needed, and fills every page with your CV and answers.</span></Step>
+                  <Step n={3}><span>You read each page and press Next or Submit. It never sends anything for you.</span></Step>
+                  <Step n={4}><span>On the thank-you page it marks the job as applied here.</span></Step>
+                </Group>
+              ) : (
+                <Group title="Apply on their form" id={`${id}-form`}>
+                  <Step n={1}>
+                    <span>
+                      Add the Chrome extension once, and it does the rest for you.{" "}
+                      <a href="/profile#extension" className="underline underline-offset-2">Set it up</a>
+                    </span>
+                  </Step>
+                  <Step n={2}>
+                    <a href={`/api/jobs/${job.id}/cv`} download={p.attachment} className="underline underline-offset-2">
+                      Or download your CV for this job
                     </a>
-                  </span>
-                </Step>
-                <Step n={4}>
-                  <span>Read the form, then press Submit on their page.</span>
-                </Step>
-              </Group>
+                  </Step>
+                  <Step n={3}>
+                    <a href={p.applyUrl} target="_blank" rel="noopener" className="underline underline-offset-2">
+                      and open the application form<span className="sr-only"> (opens in a new tab)</span>
+                    </a>
+                  </Step>
+                </Group>
+              )}
               {done === "applied" ? (
                 <p id={`${id}-done`} tabIndex={-1} className="font-medium outline-none">
                   Marked as applied and saved in your CRM.
                 </p>
+              ) : extension ? (
+                <>
+                  <Button variant={launched ? "secondary" : "primary"} size="md" className={PRIMARY} onClick={applyWithExtension} aria-disabled={busy}>
+                    {launched ? "Open it again" : "Apply with the extension"}
+                  </Button>
+                  <Button variant="ghost" size="md" className="text-soft h-11 self-start px-2" onClick={applied} aria-disabled={busy}>
+                    I already sent it: mark as applied
+                  </Button>
+                </>
               ) : (
                 <Button variant="primary" size="md" className={PRIMARY} onClick={applied} aria-disabled={busy}>
                   I sent it on their form

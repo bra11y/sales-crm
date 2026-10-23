@@ -105,3 +105,20 @@ test("passport and citizenship boxes are left for you", () => {
   assert.equal(M.classify("Country of citizenship", null, "text"), null);
   assert.equal(M.classify("Country of Residence", null, "text"), "country");
 });
+
+test("the helper finds the listing's Apply button and skips sign-in shortcuts", () => {
+  assert.equal(M.applyScore("Apply now", "https://x.test/jobs/1"), 3);
+  assert.equal(M.applyScore("Apply for this job"), 3);
+  assert.equal(M.applyScore("Apply on company website"), 2);
+  assert.equal(M.applyScore("Easy Apply"), 0);
+  assert.equal(M.applyScore("Apply with LinkedIn"), 0);
+  assert.equal(M.applyScore("How to apply"), 0);
+  assert.equal(M.applyScore("Save job"), 0);
+});
+
+test("the helper knows the thank-you page", () => {
+  assert.ok(M.isSuccess("Thank you for applying to Current! We'll be in touch."));
+  assert.ok(M.isSuccess("Your application has been submitted."));
+  assert.ok(M.isSuccess("We've received your application"));
+  assert.equal(M.isSuccess("Apply for this job. Tell us about yourself."), false);
+});

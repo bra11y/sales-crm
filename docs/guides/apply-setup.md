@@ -31,7 +31,20 @@ Nothing in this block is written by AI. Add a link to every item you can. Items 
 1. In Chrome, go to `chrome://extensions` and turn on Developer mode.
 2. Press **Load unpacked** and choose the `extension` folder in this project.
 3. In Profile → **Chrome extension**, press **Make a connection code**. Paste the code into the extension once.
-4. On an application form, open the extension and press **Fill this form**.
+4. In the CRM, open a job, press **Apply**, then **Apply with the extension**.
+
+What happens next, with no more clicks from you until Submit:
+
+- A new tab opens on the job's link.
+- If it's a job listing, the helper presses the listing's own **Apply** button (up to 3 times). It skips "Apply with LinkedIn/Indeed/Google", which need your accounts.
+- On the form, it fills every box it can and uploads your CV once. A panel at the bottom right shows the steps and what it filled.
+- Multi-page forms: press **Next** and the next page fills itself.
+- After you press **Submit**, it spots the "Thank you for applying" page and marks the job as applied in the CRM.
+- Sign-in walls (Workday, LinkedIn): sign in yourself; the form fills when it appears.
+
+Already on a form some other way? Open the extension from the toolbar and press **Help on this page**.
+
+After updating the extension files, press the reload arrow on it in `chrome://extensions`. It now needs access to all https sites, because Apply buttons can lead to any careers site. It only runs in a tab you started from the CRM or with "Help on this page".
 
 It fills your name, email, phone, location, LinkedIn and portfolio. It uploads the tailored CV into the box named Resume or CV, and opens and fills a typed cover letter box. It answers questions from your saved answers and your proof. It outlines every box it filled in blue and lists what you must check yourself. **It never presses Submit.** Then press "I sent it: mark as applied" in the extension or the CRM.
 

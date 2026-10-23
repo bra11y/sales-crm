@@ -9,7 +9,7 @@ import { proofBlock, proofLine } from "./proof";
 // What the Chrome extension needs to fill one application form.
 
 export type Kit = {
-  job: { id: string; title: string; company: string; matchedBy: "page" | "recent" };
+  job: { id: string; title: string; company: string; applyUrl: string; matchedBy: "page" | "recent" | "chosen" };
   fields: Record<string, string>;
   answers: { question: string; words: string[]; answer: string }[];
   generated: Record<"why" | "proof" | "links" | "cover" | "hear" | "extra", string>;
@@ -33,7 +33,12 @@ export async function userFromToken(db: SupabaseClient, header: string | null): 
   return data.user_id as string;
 }
 
-async function findJob(db: SupabaseClient, userId: string, pageUrl: string) {
+async function findJob(db: SupabaseClient, userId: string, pageUrl: string, jobId?: string) {
+  // The CRM's Apply button names the job, so there is nothing to guess.
+  if (jobId) {
+    const { data } = await db.from("job_posts").select("id").eq("user_id", userId).eq("id", jobId).maybeSingle();
+    return data ? { id: data.id as string, matchedBy: "chosen" as const } : null;
+  }
   const key = jobKey(pageUrl);
   if (key) {
     const { data } = await db.from("job_posts").select("id").eq("user_id", userId).or(`apply_url.ilike.%${key}%,url.ilike.%${key}%`).limit(1).maybeSingle();
@@ -44,8 +49,8 @@ async function findJob(db: SupabaseClient, userId: string, pageUrl: string) {
   return data ? { id: data.id as string, matchedBy: "recent" as const } : null;
 }
 
-export async function buildKit(db: SupabaseClient, userId: string, pageUrl: string): Promise<{ ok: true; kit: Kit } | { ok: false; error: string }> {
-  const found = await findJob(db, userId, pageUrl);
+export async function buildKit(db: SupabaseClient, userId: string, pageUrl: string, jobId?: string): Promise<{ ok: true; kit: Kit } | { ok: false; error: string }> {
+  const found = await findJob(db, userId, pageUrl, jobId);
   if (!found) return { ok: false, error: "No job found. In the CRM, open the job and press Apply first." };
   const r = await prepare(db, userId, found.id);
   if (!r.ok) return r;
@@ -60,7 +65,7 @@ export async function buildKit(db: SupabaseClient, userId: string, pageUrl: stri
   return {
     ok: true,
     kit: {
-      job: { id: found.id, title: job?.title ?? "", company: job?.company ?? "", matchedBy: found.matchedBy },
+      job: { id: found.id, title: job?.title ?? "", company: job?.company ?? "", applyUrl: /^https?:\/\//.test(p.applyUrl) ? p.applyUrl : "", matchedBy: found.matchedBy },
       fields: {
         firstName: first ?? "", lastName: rest[rest.length - 1] ?? "", fullName: p.person.name, email: p.person.email, phone: p.person.phone,
         linkedin: p.person.linkedin, portfolio: p.person.portfolio, github: "", city: city ?? "", country: country ?? "", location: p.person.location,
