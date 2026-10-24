@@ -1,8 +1,9 @@
 "use client";
 
-import { type FormEvent, useId, useMemo, useState, useTransition } from "react";
+import { type FormEvent, useId, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { Packer } from "docx";
 import Button from "@/components/_ui/button";
+import { extensionVersion, noSubscribe, startWithExtension } from "@/components/jobs/extension";
 import SEED from "@/lib/apply/facts.js";
 import E from "@/lib/apply/engine.js";
 import R from "@/lib/apply/render.js";
@@ -147,6 +148,18 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
     }
   }
 
+  const extension = useSyncExternalStore(noSubscribe, extensionVersion, () => "");
+
+  function launch() {
+    if (!start?.jobId || pending) return;
+    startTransition(async () => {
+      say("Opening the application in a new tab…");
+      const r = await startWithExtension(start.jobId);
+      if (!r.ok) warn(r.error ?? "The extension did not start.");
+      else say("A new tab opened. The panel at the bottom right fills the form and saves the proof when you press Submit.");
+    });
+  }
+
   function save() {
     if (!analysis || saved || pending) return;
     startTransition(async () => {
@@ -169,7 +182,7 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
         return;
       }
       setSaved(true);
-      say(`Saved. ${result.companyName} is in Companies under Applications, at the Applied stage.`);
+      say(`Marked as applied. ${result.companyName} is on your Applications board, and its replies will move it on by themselves.`);
     });
   }
 
@@ -269,7 +282,7 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
 
       {analysis && (
         <section id={`${id}-results`} tabIndex={-1} aria-labelledby={`${id}-check`} className="flex min-w-0 flex-col gap-5 outline-none">
-          <h2 id={`${id}-check`} className="px-1 text-[20px] font-semibold tracking-[-0.015em]">2. Check and save</h2>
+          <h2 id={`${id}-check`} className="px-1 text-[20px] font-semibold tracking-[-0.015em]">2. Check your documents</h2>
 
           <div className="flex flex-col gap-4 rounded-2xl bg-white/[0.04] p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -361,13 +374,32 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
           )}
 
           <div className="flex flex-col gap-3 border-t border-white/[0.08] pt-5">
-            <Button type="button" variant="primary" size="md" className={cn(PRIMARY, "w-full sm:w-auto sm:self-start")} onClick={save} aria-disabled={pending || saved}>
-              {saved ? "Saved to Companies" : pending ? "Saving…" : "Save application"}
+            <h3 className="px-1 text-[20px] font-semibold tracking-[-0.015em]">3. Send it</h3>
+            <p className="text-soft px-1 text-[14px] leading-normal">
+              This page writes your documents. It does not send them. {start?.jobId ? "Send them one of these ways:" : "Download them, send them on the company's form or by email, then mark it here."}
+            </p>
+            {start?.jobId && !saved && (
+              <div className="flex flex-wrap gap-2">
+                {extension ? (
+                  <Button type="button" variant="primary" size="md" className="h-11 rounded-xl px-4" onClick={launch} aria-disabled={pending}>
+                    Apply with the extension
+                  </Button>
+                ) : (
+                  <Button variant="secondary" size="md" className="h-11 rounded-xl px-4" href="/profile#extension">
+                    Set up the extension to fill their form
+                  </Button>
+                )}
+                <Button variant="secondary" size="md" className="h-11 rounded-xl px-4" href={`/jobs?open=${start.jobId}`}>
+                  Send by email from the job
+                </Button>
+              </div>
+            )}
+            <Button type="button" variant={start?.jobId ? "ghost" : "primary"} size="md" className={cn(start?.jobId ? "h-11 self-start px-2" : PRIMARY, !start?.jobId && "w-full sm:w-auto sm:self-start")} onClick={save} aria-disabled={pending || saved}>
+              {saved ? "Marked as applied" : pending ? "Saving…" : "I already sent it: mark as applied"}
             </Button>
-            <p className="text-soft text-[13px]">Saving adds it to Companies under Applications, at the Applied stage, so it counts toward your goals.</p>
             {saved && (
-              <Button variant="link" size="none" href="/deals?product=applications" className="self-start">
-                Open the Applications board
+              <Button variant="link" size="none" href="/applications" className="self-start">
+                See it on your Applications board
               </Button>
             )}
             <p role="status" aria-live="polite" className="text-soft empty:hidden">{status}</p>

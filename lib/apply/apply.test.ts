@@ -21,7 +21,8 @@ for (const [name, jd] of Object.entries(POSTS)) {
     const o = { jd, company: a.guess.company || "Test Co", role: a.guess.role, manager: "Ada", why: "I use your product every week." };
     const docs: Record<string, string> = { cv: E.makeCV(a, o, F), cover: E.makeCover(a, o, F), proposal: E.makeProposal(a, o, F) };
     for (const [kind, md] of Object.entries(docs)) {
-      assert.deepEqual(E.lint(md), [], `${kind} has slop warnings`);
+      // "Add a number" is advice about the Profile's facts, not a writing fault.
+      assert.deepEqual(E.lint(md).filter((w: string) => !/have no number/.test(w)), [], `${kind} has slop warnings`);
       assert.ok(!md.includes("\u2014"), `${kind} has an em dash`);
       const body = md.replace(/^<!--[\s\S]*?-->/, "");
       for (const gap of a.gaps as string[]) {
@@ -39,3 +40,10 @@ for (const [name, jd] of Object.entries(POSTS)) {
     assert.ok(docs.cover.replace(/^<!--[\s\S]*?-->/, "").split(/\s+/).filter(Boolean).length <= 400, "cover letter over 400 words");
   });
 }
+
+test("lint flags long letters and CVs with few measured results", () => {
+  const long = "<!-- kind: letter -->\n\nHi Ada,\n\n" + "We ship work. ".repeat(140);
+  assert.ok(E.lint(long).some((w: string) => /under 400/.test(w)));
+  const cv = "<!-- kind: cv -->\n\n" + Array.from({ length: 8 }, (_, i) => `- Built thing ${"abcdefgh"[i]} for the team`).join("\n");
+  assert.ok(E.lint(cv).some((w: string) => /8 of 8 bullets have no number/.test(w)));
+});

@@ -1,6 +1,6 @@
 type TagTone = "green" | "blue" | "neutral";
 
-export const STATUS_LABEL = { new: "To review", saved: "Saved", applied: "Applied", replied: "Replied", no_reply: "No reply", dismissed: "Not for me" } as const;
+export const STATUS_LABEL = { new: "To review", saved: "Saved", applied: "Applied", replied: "Replied", interview: "Interview", offer: "Offer", rejected: "Not selected", no_reply: "No reply", dismissed: "Not for me" } as const;
 export type Status = keyof typeof STATUS_LABEL;
 
 export const WHERE_LABEL: Record<string, string> = {

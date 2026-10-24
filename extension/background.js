@@ -4,7 +4,7 @@
 // and the thank-you page marks the job as applied in the CRM. Submit is yours.
 
 const MAX_HOPS = 3;
-const BOARD_HOSTS = /(^|\.)(linkedin\.com|indeed\.[a-z.]+|glassdoor\.[a-z.]+)$/;
+const BOARD_HOSTS = /(^|\.)(linkedin\.com|indeed\.[a-z.]+|glassdoor\.[a-z.]+|seek\.com\.au|seek\.co\.nz)$/;
 const key = (tabId) => `run:${tabId}`;
 const kits = new Map(); // jobId -> { kit, cv } for this browser session
 const timers = new Map();
@@ -64,9 +64,10 @@ async function panel(tabId, state) {
 
 async function markApplied(tabId, run, auto) {
   try {
-    await api("/api/ext/applied", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ job: run.jobId }) });
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    await api("/api/ext/applied", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ job: run.jobId, url: tab?.url || "", filled: run.filled, auto }) });
     await setRun(tabId, { ...run, done: true });
-    await panel(tabId, { job: run.job, step: "success", tone: "good", message: auto ? "Application sent. It's saved in your CRM as applied, and counts toward your goals." : "Saved in your CRM as applied." });
+    await panel(tabId, { job: run.job, step: "success", tone: "good", message: auto ? "Application sent. The CRM saved the thank-you page as proof and moved the job to Applied. Replies in your Gmail move it on by themselves." : "Saved in your CRM as applied." });
   } catch (e) {
     await panel(tabId, { job: run.job, step: "error", tone: "bad", message: e.message });
   }

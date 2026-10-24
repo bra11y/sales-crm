@@ -11,6 +11,7 @@ const BOARDS: { source: string; name: string; domain: RegExp }[] = [
   { source: "linkedin", name: "LinkedIn alert", domain: /(^|\.)linkedin\.com$/ },
   { source: "indeed", name: "Indeed alert", domain: /(^|\.)indeed\.(com|ng|co\.uk)$/ },
   { source: "glassdoor", name: "Glassdoor alert", domain: /(^|\.)glassdoor\.(com|co\.uk)$/ },
+  { source: "seek", name: "SEEK alert", domain: /(^|\.)seek\.(com\.au|co\.nz)$/ },
   { source: "emailalert", name: "Job alert email", domain: /(^|\.)(wellfound\.com|angel\.co|otta\.com|welcometothejungle\.com|workingnomads\.com|jobgether\.com|a11yjobs\.com|dribbble\.com|himalayas\.app|remotive\.com|weworkremotely\.com|remoteok\.com|jobicy\.com)$/ },
 ];
 export const ALERT_SOURCES = Object.fromEntries(BOARDS.map((b) => [b.source, { name: b.name, home: "https://mail.google.com" }]));
@@ -44,6 +45,10 @@ export function jobLink(raw: string): { id: string; url: string } | null {
   if (/(^|\.)glassdoor\./.test(host)) {
     const jl = u.searchParams.get("jobListingId") ?? u.searchParams.get("jl") ?? u.pathname.match(/jl=?(\d{6,})|_JL(\d{6,})|-(\d{9,})\.htm/)?.slice(1).find(Boolean);
     return jl ? { id: `gd-${jl}`, url: `https://www.glassdoor.com/job-listing/index.htm?jl=${jl}` } : null;
+  }
+  if (/(^|\.)seek\./.test(host)) {
+    const id = u.pathname.match(/\/job\/(\d{6,})/)?.[1];
+    return id ? { id: `sk-${id}`, url: `https://www.seek.com.au/job/${id}` } : null;
   }
   if (!/\/(jobs?|careers?|positions?|openings?|remote-jobs|companies\/[^/]+\/jobs)\//i.test(u.pathname)) return null;
   for (const k of [...u.searchParams.keys()]) if (/^(utm_|ref|trk|tracking|source|mc_|lipi|midtoken)/i.test(k)) u.searchParams.delete(k);

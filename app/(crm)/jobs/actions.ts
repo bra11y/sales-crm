@@ -2,14 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { applyByEmail, markApplied, type Prepared, prepare } from "@/lib/apply/outbox";
+import { applyByEmail, MANUAL_PROOF, markApplied, noteApplied, type Prepared, prepare } from "@/lib/apply/outbox";
 import { lookUpCompany, type CompanyInfo } from "@/lib/jobs/company";
 import { currentUserId } from "@/lib/jobs/profile";
 import { searchJobs, type SearchResult } from "@/lib/jobs/search";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const STATUSES = ["new", "saved", "applied", "replied", "no_reply", "dismissed"] as const;
+const STATUSES = ["new", "saved", "applied", "replied", "interview", "offer", "rejected", "no_reply", "dismissed"] as const;
 export type JobStatus = (typeof STATUSES)[number];
 
 export async function findJobsNow(): Promise<SearchResult> {
@@ -29,10 +29,29 @@ export async function setJobStatus(id: string, status: JobStatus): Promise<{ ok:
     .from("job_posts")
     .update({ status, status_changed_at: new Date().toISOString() })
     .eq("id", id)
-    .select("id");
+    .select("id, user_id");
   if (error || !data?.length) return { ok: false, error: "That job could not be updated." };
+  // Moves you make by hand go in the job's history too.
+  const admin = createSupabaseAdminClient();
+  if (admin) {
+    const userId = data[0].user_id as string;
+    if (status === "applied") await noteApplied(admin, userId, id, MANUAL_PROOF);
+    else if (!["new", "saved", "dismissed"].includes(status)) await admin.from("application_events").insert({ user_id: userId, job_id: id, kind: "moved", title: `You moved it to ${MOVE_LABEL[status] ?? status}`, detail: "" });
+  }
   revalidatePath("/jobs");
+  revalidatePath("/applications");
   return { ok: true };
+}
+
+const MOVE_LABEL: Record<string, string> = { replied: "Replied", interview: "Interview", offer: "Offer", rejected: "Not selected", no_reply: "No reply" };
+
+export type HistoryItem = { id: string; kind: string; at: string; title: string; detail: string; evidence: Record<string, string> };
+
+// The proof and replies for one job, newest first.
+export async function getJobHistory(id: string): Promise<HistoryItem[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.from("application_events").select("id, kind, at, title, detail, evidence").eq("job_id", id).order("at", { ascending: false }).limit(50);
+  return (data ?? []) as HistoryItem[];
 }
 
 export async function researchCompany(id: string): Promise<{ ok: true; info: CompanyInfo } | { ok: false; error: string }> {
@@ -76,5 +95,6 @@ export async function markJobApplied(jobId: string): Promise<{ ok: true } | { ok
   if (!s) return { ok: false, error: "Sign in again." };
   const r = await markApplied(s.admin, s.userId, jobId);
   revalidatePath("/jobs");
+  revalidatePath("/applications");
   return r.ok ? { ok: true } : r;
 }

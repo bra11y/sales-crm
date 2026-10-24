@@ -13,6 +13,7 @@ import { type MailLogin, readInbox, sendMail, testLogin } from "@/lib/mail/gmail
 import { isAutoReply, matchReply, snippet, suggestStage } from "@/lib/mail/reply";
 import { followUpTimes, guessZone, inWindow, nextWindow, sendBudget, zoneTime } from "@/lib/mail/schedule";
 import { cvPdf } from "@/lib/pdf/cv";
+import { classifyMail, companyDomains, EVENT_TITLE, isJobSender, matchJob, nextStatus, type Status, type TrackedJob } from "./track";
 import { aiProviders, type Why, writeWhy } from "./ai";
 import { attachmentName, cleanRole, draftApplication, followUps, withEmail } from "./compose";
 
@@ -132,7 +133,25 @@ export async function cvFor(db: Db, userId: string, jobId: string): Promise<{ na
 
 // ---------- CRM record ----------
 
-async function recordInCrm(db: Db, userId: string, job: JobRow, facts: Facts, docs: { cv: string; cover: string }, manager: string) {
+// How an application went out, kept as proof on the job's history.
+export type AppliedProof = { via: "email" | "form" | "manual"; kind: "sent_email" | "submitted_form" | "marked_applied"; title: string; detail: string; evidence?: Record<string, string> };
+
+export const MANUAL_PROOF: AppliedProof = { via: "manual", kind: "marked_applied", title: "You marked it as applied", detail: "No proof from the company yet. Their confirmation email shows here when it arrives." };
+
+// Adds the proof and moves the job to Applied, unless it is already further along.
+export async function noteApplied(db: Db, userId: string, jobId: string, proof: AppliedProof) {
+  const { data: job } = await db.from("job_posts").select("status, applied_at, applied_via").eq("id", jobId).eq("user_id", userId).maybeSingle();
+  if (!job) return;
+  const now = new Date().toISOString();
+  await db.from("application_events").insert({ user_id: userId, job_id: jobId, kind: proof.kind, title: proof.title, detail: proof.detail, evidence: proof.evidence ?? {}, at: now });
+  const patch: Record<string, string> = {};
+  if (!job.applied_at) Object.assign(patch, { applied_at: now, applied_via: proof.via });
+  else if (proof.via !== "manual" && job.applied_via === "manual") patch.applied_via = proof.via;
+  if (["new", "saved", "dismissed"].includes(job.status)) Object.assign(patch, { status: "applied", status_changed_at: now });
+  if (Object.keys(patch).length) await db.from("job_posts").update(patch).eq("id", jobId);
+}
+
+async function recordInCrm(db: Db, userId: string, job: JobRow, facts: Facts, docs: { cv: string; cover: string }, manager: string, proof: AppliedProof) {
   const { data: owner } = await db.from("workspace_members").select("role").eq("workspace_id", 1).eq("user_id", userId).eq("role", "owner").maybeSingle();
   if (owner) {
     const built = buildApplicationEvent({
@@ -141,15 +160,15 @@ async function recordInCrm(db: Db, userId: string, job: JobRow, facts: Facts, do
     });
     if (built.ok) await applyEvent(built.event, supabaseCrmDb(db));
   }
-  await db.from("job_posts").update({ status: "applied", status_changed_at: new Date().toISOString() }).eq("id", job.id);
+  await noteApplied(db, userId, job.id, proof);
 }
 
-export async function markApplied(db: Db, userId: string, jobId: string): Promise<Result<object>> {
+export async function markApplied(db: Db, userId: string, jobId: string, proof: AppliedProof = MANUAL_PROOF): Promise<Result<object>> {
   const job = await loadJob(db, userId, jobId);
   const profile = await loadProfile(db, userId);
   if (!job || !profile) return { ok: false, error: "That job was not found." };
   const d = draftApplication({ title: job.title, company: job.company, description: job.description, track: job.track }, profile.facts, job.draft?.why ?? "", job.draft?.manager ?? "");
-  await recordInCrm(db, userId, job, profile.facts, { cv: d.cv, cover: d.cover }, job.draft?.manager ?? "");
+  await recordInCrm(db, userId, job, profile.facts, { cv: d.cv, cover: d.cover }, job.draft?.manager ?? "", proof);
   return { ok: true };
 }
 
@@ -181,13 +200,25 @@ async function deliver(db: Db, login: MailLogin, row: OutRow): Promise<string | 
 }
 
 async function afterSent(db: Db, userId: string, row: OutRow) {
-  if (row.kind !== "application" || !row.job_id) return;
+  if (!row.job_id) return;
+  const { data: sentRow } = await db.from("applications_outbox").select("message_id, sent_at").eq("id", row.id).maybeSingle();
+  if (row.kind === "follow_up_1" || row.kind === "follow_up_2") {
+    await db.from("application_events").insert({ user_id: userId, job_id: row.job_id, kind: "follow_up", title: `Follow-up ${row.kind.slice(-1)} sent to ${row.to_email}`, detail: "Sent from your Gmail, in the same email thread.", evidence: { to: row.to_email, messageId: sentRow?.message_id ?? "" } });
+    return;
+  }
+  if (row.kind !== "application") return;
   const job = await loadJob(db, userId, row.job_id);
   const profile = await loadProfile(db, userId);
   if (!job || !profile) return;
   const manager = job.draft?.manager ?? "";
   const d = draftApplication({ title: job.title, company: job.company, description: job.description, track: job.track }, profile.facts, job.draft?.why ?? "", manager);
-  await recordInCrm(db, userId, job, profile.facts, { cv: row.cv_markdown ?? d.cv, cover: d.cover }, manager);
+  await recordInCrm(db, userId, job, profile.facts, { cv: row.cv_markdown ?? d.cv, cover: d.cover }, manager, {
+    via: "email",
+    kind: "sent_email",
+    title: `Emailed to ${row.to_email}`,
+    detail: `Sent from your Gmail with your CV attached (${row.attachment_name ?? "CV.pdf"}). It is in your Gmail Sent folder under "${row.subject}".`,
+    evidence: { to: row.to_email, subject: row.subject, messageId: sentRow?.message_id ?? "" },
+  });
   const sentAt = new Date();
   const [t1, t2] = followUpTimes(sentAt, guessZone(job.location));
   const [b1, b2] = followUps(profile.facts, { role: cleanRole(job.title), company: job.company, manager, matched: job.matched, sentAt, proof: d.proof });
@@ -272,9 +303,14 @@ export async function applyByEmail(
 export async function checkReplies(db: Db, userId: string): Promise<{ found: number; error?: string }> {
   const login = await loadLogin(db, userId);
   if (!login) return { found: 0 };
-  const { data } = await db.from("applications_outbox").select("id, job_id, parent_id, kind, message_id, to_email").eq("user_id", userId).eq("status", "sent").neq("kind", "test").not("message_id", "is", null).gte("sent_at", new Date(Date.now() - 90 * 86_400_000).toISOString());
+  const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
+  const { data } = await db.from("applications_outbox").select("id, job_id, parent_id, kind, message_id, to_email").eq("user_id", userId).eq("status", "sent").neq("kind", "test").not("message_id", "is", null).gte("sent_at", since);
   const rows = data ?? [];
-  if (!rows.length) {
+  // Jobs you applied to on a form: their emails come from the company or its hiring system.
+  const { data: open } = await db.from("job_posts").select("id, company, apply_url, url, status, company_info").eq("user_id", userId).in("status", ["applied", "replied", "interview", "no_reply"]).gte("applied_at", since).order("applied_at", { ascending: false });
+  const applied = (open ?? []) as { id: string; company: string; apply_url: string; url: string; status: Status; company_info: { links?: { href: string }[] } | null }[];
+  const tracked: TrackedJob[] = applied.map((j) => ({ id: j.id, company: j.company, domains: companyDomains([j.apply_url, j.url, ...(j.company_info?.links ?? []).map((l) => l.href)]) }));
+  if (!rows.length && !tracked.length) {
     await db.from("mail_accounts").update({ last_checked_at: new Date().toISOString() }).eq("user_id", userId);
     return { found: 0 };
   }
@@ -283,28 +319,52 @@ export async function checkReplies(db: Db, userId: string): Promise<{ found: num
   const addresses = new Set(sent.map((s) => s.toEmail));
   let inbox;
   try {
-    inbox = await readInbox(login, login.lastUid, (from) => addresses.has(from) || domains.has(from.split("@")[1]));
+    inbox = await readInbox(login, login.lastUid, (from) => addresses.has(from) || domains.has(from.split("@")[1]) || isJobSender(from, tracked));
   } catch {
     return { found: 0, error: "Gmail would not let the app read the inbox. Check that IMAP is on." };
   }
   let found = 0;
   for (const m of inbox.messages) {
-    if (isAutoReply(m)) continue;
+    const kind = classifyMail(m.subject, m.text);
+    // Receipts are sent by machines, so only out-of-office notes are skipped for them.
+    if (kind !== "confirmed" && isAutoReply(m)) continue;
     const s = matchReply(m, sent);
-    if (!s) continue;
-    const row = rows.find((r) => r.id === s.id)!;
-    const root = row.kind === "application" ? row.id : row.parent_id;
-    const { error } = await db.from("application_replies").insert({
-      user_id: userId, job_id: row.job_id, outbox_id: root, message_id: m.messageId, from_email: m.from, subject: m.subject.slice(0, 300),
-      received_at: m.receivedAt ?? new Date().toISOString(), snippet: snippet(m.text), suggested_stage: suggestStage(m.subject, m.text),
-    });
-    if (error) continue;
-    found++;
-    await db.from("applications_outbox").update({ status: "cancelled", error: "They replied, so this follow-up was cancelled." }).eq("parent_id", root).eq("status", "queued");
-    if (row.job_id) await db.from("job_posts").update({ status: "replied", status_changed_at: new Date().toISOString() }).eq("id", row.job_id).in("status", ["applied", "no_reply", "saved", "new"]);
+    let jobId: string | null = null;
+    if (s) {
+      const row = rows.find((r) => r.id === s.id)!;
+      const root = row.kind === "application" ? row.id : row.parent_id;
+      jobId = row.job_id;
+      if (kind !== "confirmed") {
+        const { error } = await db.from("application_replies").insert({
+          user_id: userId, job_id: row.job_id, outbox_id: root, message_id: m.messageId, from_email: m.from, subject: m.subject.slice(0, 300),
+          received_at: m.receivedAt ?? new Date().toISOString(), snippet: snippet(m.text), suggested_stage: suggestStage(m.subject, m.text),
+        });
+        if (!error) await db.from("applications_outbox").update({ status: "cancelled", error: "They replied, so this follow-up was cancelled." }).eq("parent_id", root).eq("status", "queued");
+      }
+    } else jobId = matchJob(m, tracked)?.id ?? null;
+    if (!jobId) continue;
+    if (await recordMail(db, userId, jobId, kind, m)) found++;
   }
   await db.from("mail_accounts").update({ last_uid: inbox.lastUid, last_checked_at: new Date().toISOString() }).eq("user_id", userId);
   return { found };
+}
+
+// One email about a job: added to its history once, and the status moves forward.
+async function recordMail(db: Db, userId: string, jobId: string, kind: ReturnType<typeof classifyMail>, m: { messageId: string; from: string; subject: string; text: string; receivedAt?: string }) {
+  const { data: job } = await db.from("job_posts").select("company, status").eq("id", jobId).maybeSingle();
+  if (!job) return false;
+  const at = m.receivedAt ?? new Date().toISOString();
+  const { error } = await db.from("application_events").insert({
+    user_id: userId, job_id: jobId, kind, at, title: EVENT_TITLE[kind](job.company), message_id: m.messageId,
+    detail: `${m.subject.slice(0, 200)}${m.text ? ` - "${snippet(m.text).slice(0, 240)}"` : ""}`, evidence: { from: m.from, subject: m.subject.slice(0, 300), messageId: m.messageId },
+  });
+  if (error) return false; // already recorded
+  const next = nextStatus(job.status as Status, kind);
+  const patch: Record<string, string> = {};
+  if (next !== job.status) Object.assign(patch, { status: next, status_changed_at: at });
+  if (kind === "confirmed") patch.confirmed_at = at;
+  if (Object.keys(patch).length) await db.from("job_posts").update(patch).eq("id", jobId);
+  return true;
 }
 
 // ---------- job alerts ----------
@@ -321,6 +381,12 @@ export async function markNoReply(db: Db, userId: string, now: Date) {
   const { data } = await db.from("applications_outbox").select("job_id").eq("user_id", userId).eq("kind", "follow_up_2").eq("status", "sent").lte("sent_at", new Date(now.getTime() - 5 * 86_400_000).toISOString());
   const ids = (data ?? []).map((r) => r.job_id).filter(Boolean);
   if (ids.length) await db.from("job_posts").update({ status: "no_reply", status_changed_at: now.toISOString() }).in("id", ids).eq("status", "applied");
+  // Form applications have no follow-ups: three weeks of silence counts as no reply.
+  const { data: quiet } = await db.from("job_posts").select("id").eq("user_id", userId).eq("status", "applied").in("applied_via", ["form", "manual"]).lte("applied_at", new Date(now.getTime() - 21 * 86_400_000).toISOString());
+  for (const { id } of quiet ?? []) {
+    await db.from("job_posts").update({ status: "no_reply", status_changed_at: now.toISOString() }).eq("id", id);
+    await db.from("application_events").insert({ user_id: userId, job_id: id, kind: "moved", title: "No reply after 3 weeks", detail: "Moved to No reply by itself. It moves back if they write to you." });
+  }
 }
 
 // One pass for every connected user: replies first (so follow-ups cancel), then sends.

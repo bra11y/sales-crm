@@ -28,6 +28,8 @@ export type SidebarData = {
   pipelines: { slug: string; name: string; count: number }[];
   trialsEnding: number;
   queued: number;
+  // Applications waiting on, or in, a reply.
+  applications: number;
 };
 
 // Fixed order, one per pipeline, never re-ranked (same hues as the charts).
@@ -93,6 +95,7 @@ export default function SidebarContent({ data }: { data: SidebarData }) {
 
           <SidebarSection title="Job search" className="border-sidebar-border border-b">
             <SidebarNavItem icon={TargetIcon} label="Jobs" href="/jobs" active={at("/jobs")} />
+            <SidebarNavItem icon={ClipboardIcon} label="Applications" count={data.applications || undefined} href="/applications" active={at("/applications")} />
             <SidebarNavItem icon={MailIcon} label="Apply" href="/apply" active={at("/apply")} />
             <SidebarNavItem icon={ListIcon} label="Outbox" count={data.queued || undefined} href="/outbox" active={at("/outbox")} />
             <SidebarNavItem icon={UsersIcon} label="Profile" href="/profile" active={at("/profile")} />

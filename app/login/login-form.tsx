@@ -7,14 +7,8 @@ import { Label } from "@/components/_ui/label";
 import { type LoginState, signIn, signInWithGoogle } from "./actions";
 
 export default function LoginForm() {
-  const [state, action, pending] = useActionState<LoginState, FormData>(
-    signIn,
-    {},
-  );
-  const [google, googleAction, googlePending] = useActionState<LoginState>(
-    signInWithGoogle,
-    {},
-  );
+  const [state, action, pending] = useActionState<LoginState, FormData>(signIn, {});
+  const [google, googleAction, googlePending] = useActionState<LoginState>(signInWithGoogle, {});
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
@@ -27,12 +21,7 @@ export default function LoginForm() {
   return (
     <div className="flex flex-col gap-5">
       <form action={googleAction} className="flex flex-col gap-2">
-        <Button
-          type="submit"
-          variant="secondary"
-          size="md"
-          disabled={googlePending}
-        >
+        <Button type="submit" variant="secondary" size="md" disabled={googlePending}>
           {googlePending ? "Opening Google…" : "Continue with Google"}
         </Button>
         {google.error && (
@@ -41,9 +30,7 @@ export default function LoginForm() {
           </p>
         )}
       </form>
-      <p className="text-soft text-center text-[14px]">
-        or sign in with your email
-      </p>
+      <p className="text-soft text-center text-[14px]">or sign in with your email</p>
       <form action={action} noValidate className="flex flex-col gap-5">
         {state.error && (
           <p role="alert" className="text-destructive">
@@ -79,9 +66,7 @@ export default function LoginForm() {
             autoComplete="current-password"
             required
             aria-invalid={state.fields?.password ? true : undefined}
-            aria-describedby={
-              state.fields?.password ? "password-error" : undefined
-            }
+            aria-describedby={state.fields?.password ? "password-error" : undefined}
           />
           {state.fields?.password && (
             <p id="password-error" role="alert" className="text-destructive">
