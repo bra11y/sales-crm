@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore, useTransition
 import Button from "@/components/_ui/button";
 import { markJobApplied, prepareApplication, sendApplication } from "@/app/(crm)/jobs/actions";
 import type { Prepared } from "@/lib/apply/outbox";
+import { readyChecks, readySummary } from "@/lib/apply/ready";
 import type { JobItem } from "./jobs-board";
 
 
@@ -246,6 +247,8 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
             </ul>
           )}
 
+          <ReadyCheck job={job} p={p} extension={Boolean(extension)} id={`${id}-ready`} />
+
           <Group title="Proof that fits this job" id={`${id}-proof`} footer="Picked from Proof of work in your Profile. It goes in the email and the form answers.">
             {proof.length ? (
               proof.map((w) => (
@@ -401,6 +404,38 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
         </>
       )}
     </section>
+  );
+}
+
+const MARK = { yes: { icon: "✓", label: "Ready", cls: "bg-(--tag-green-bg) text-(--tag-green-text)" }, warn: { icon: "!", label: "Check", cls: "bg-(--tag-amber-bg) text-(--tag-amber-text)" }, no: { icon: "×", label: "Fix", cls: "bg-danger/15 text-danger" } };
+
+// One look before you apply: where you can work, pay, freshness, CV match, profile and sending.
+function ReadyCheck({ job, p, extension, id }: { job: JobItem; p: Prepared; extension: boolean; id: string }) {
+  const checks = readyChecks(job, { person: p.person, proof: p.proof, problems: p.problems, byEmail: Boolean(p.contact), mail: p.mail, extension, minMonthlyUsd: p.minMonthlyUsd });
+  const blocked = checks.some((c) => c.state === "no");
+  return (
+    <Group title={`Ready check: ${readySummary(checks)}`} id={id} footer={blocked ? "You can still apply. Fixing these first gives you a better chance." : undefined}>
+      {checks.map((c) => (
+        <div key={c.text} className="flex min-h-11 items-start gap-3 px-4 py-2.5">
+          <span aria-hidden className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${MARK[c.state].cls}`}>
+            {MARK[c.state].icon}
+          </span>
+          <span className="sr-only">{MARK[c.state].label}:</span>
+          <span className="min-w-0 flex-1 text-[14px] leading-normal">{c.text}</span>
+          {c.fix && (
+            <a href={c.fix.href} className="text-foreground inline-flex min-h-6 shrink-0 items-center text-[14px] underline underline-offset-2">
+              {c.fix.label}
+            </a>
+          )}
+        </div>
+      ))}
+      <div className="flex min-h-11 items-center gap-3 px-4 py-2.5">
+        <span className="min-w-0 flex-1 text-[14px] leading-normal">Your CV for this job, with clickable LinkedIn and Portfolio links</span>
+        <a href={`/api/jobs/${job.id}/cv`} target="_blank" rel="noopener" className="text-foreground inline-flex min-h-6 shrink-0 items-center text-[14px] underline underline-offset-2">
+          Preview<span className="sr-only"> your CV (opens the PDF in a new tab)</span>
+        </a>
+      </div>
+    </Group>
   );
 }
 

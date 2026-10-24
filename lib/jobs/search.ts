@@ -1,12 +1,13 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { readJobAlerts } from "@/lib/apply/outbox";
 import { loadProfile } from "./profile.ts";
 import { dueSources, fetchSources, toRows } from "./run.ts";
 
 const MINUTE = 60_000;
 const DAY = 86_400_000;
 
-export type SearchResult = { ok: true; fetched: number; kept: number; added: number; skipped: string[]; errors: number } | { ok: false; error: string };
+export type SearchResult = { ok: true; fetched: number; kept: number; added: number; skipped: string[]; errors: number; fromEmail: number | null } | { ok: false; error: string };
 
 export async function searchJobs(admin: SupabaseClient, userId: string, trigger: "manual" | "schedule", now = new Date()): Promise<SearchResult> {
   const profile = await loadProfile(admin, userId);
@@ -23,7 +24,14 @@ export async function searchJobs(admin: SupabaseClient, userId: string, trigger:
   const { data: run } = await admin.from("job_runs").insert({ user_id: userId, trigger, started_at: now.toISOString() }).select("id").single();
 
   const result = await fetchSources(due, profile.preferences);
-  const rows = toRows(result.posts, profile.facts, profile.preferences, userId, now);
+  // Job-alert emails in your Gmail (LinkedIn, Indeed, Glassdoor…) join the board results.
+  const uid = Number(profile.sourceState.email_alerts_uid) || null;
+  let alertError = 0;
+  const alerts = await readJobAlerts(admin, userId, uid).catch(() => {
+    alertError = 1;
+    return null;
+  });
+  const rows = toRows([...result.posts, ...(alerts?.posts ?? [])], profile.facts, profile.preferences, userId, now);
 
   const { data: existing } = await admin.from("job_posts").select("source, external_id").eq("user_id", userId).in("source", [...new Set(rows.map((r) => r.source))]);
   const known = new Set((existing ?? []).map((r) => `${r.source}|${r.external_id}`));
@@ -41,11 +49,12 @@ export async function searchJobs(admin: SupabaseClient, userId: string, trigger:
 
   const sourceState = { ...profile.sourceState };
   for (const id of result.fetched) sourceState[id] = now.toISOString();
+  if (alerts?.lastUid) sourceState.email_alerts_uid = String(alerts.lastUid);
   await admin.from("job_profiles").update({ source_state: sourceState }).eq("user_id", userId);
   await admin
     .from("job_runs")
     .update({ finished_at: new Date().toISOString(), fetched: result.posts.length, kept: rows.length, added, errors: result.errors })
     .eq("id", run?.id);
 
-  return { ok: true, fetched: result.posts.length, kept: rows.filter((r) => !r.hidden_reason).length, added, skipped, errors: result.errors.length };
+  return { ok: true, fetched: result.posts.length, kept: rows.filter((r) => !r.hidden_reason).length, added, skipped, errors: result.errors.length + alertError, fromEmail: alerts ? alerts.posts.length : null };
 }

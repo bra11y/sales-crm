@@ -269,7 +269,7 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
         </Button>
       </Section>
 
-      <Section id="extension" title="Chrome extension" hint="Fills application forms on Greenhouse, Lever, Ashby, Workable and more from this page. It never presses Submit.">
+      <Section id="extension" title="Chrome extension" hint="Press Apply on a job here and it opens the job, finds the form on any careers site and fills it from this page. It never presses Submit.">
         <ExtensionSection extension={extension} />
       </Section>
 

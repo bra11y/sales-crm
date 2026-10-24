@@ -4,6 +4,7 @@
 // and the thank-you page marks the job as applied in the CRM. Submit is yours.
 
 const MAX_HOPS = 3;
+const BOARD_HOSTS = /(^|\.)(linkedin\.com|indeed\.[a-z.]+|glassdoor\.[a-z.]+)$/;
 const key = (tabId) => `run:${tabId}`;
 const kits = new Map(); // jobId -> { kit, cv } for this browser session
 const timers = new Map();
@@ -91,6 +92,16 @@ async function step(tabId, { force = false } = {}) {
     return;
   }
   run.job = { title: entry.kit.job.title, company: entry.kit.job.company };
+
+  // Job boards that ban automation: the helper waits for you to press their Apply.
+  if (BOARD_HOSTS.test(new URL(tab.url).hostname)) {
+    await setRun(tabId, run);
+    return panel(tabId, {
+      job: run.job,
+      step: "nothing",
+      message: "This is the job on a board that does not allow helpers to click for you. Press its Apply button (not Easy Apply). The company's form fills itself when it opens.",
+    });
+  }
 
   const frames = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: () => window.__salesCrmDetect && window.__salesCrmDetect() });
   const seen = frames.map((f) => f.result).filter(Boolean);

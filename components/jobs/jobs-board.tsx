@@ -98,6 +98,7 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError }: 
       }
       say(
         `Done. ${r.added} new job${r.added === 1 ? "" : "s"}, ${r.kept} that fit you in total.` +
+          (r.fromEmail ? ` Read ${r.fromEmail} job${r.fromEmail === 1 ? "" : "s"} from the job-alert emails in your Gmail.` : r.fromEmail === 0 ? " No new job-alert emails in your Gmail." : "") +
           (r.errors ? ` ${r.errors} board${r.errors === 1 ? "" : "s"} did not answer and will be tried next time.` : ""),
       );
     });
@@ -125,7 +126,7 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError }: 
         <div className="flex flex-col gap-2">
           <h1 className="text-[24px] leading-[1.1] font-semibold tracking-[-0.02em]">Jobs</h1>
           <p className="text-soft max-w-[44em] leading-normal">
-            Remote jobs from 9 job boards, scored against your profile. Jobs under your pay floor or closed to where you live are hidden, and the reason is shown.
+            Remote jobs from 9 job boards and the job-alert emails in your Gmail, scored against your profile. Jobs under your pay floor or closed to where you live are hidden, and the reason is shown.
           </p>
           <p className="caption-style text-soft">
             {lastRun ? `Last search ${ago(lastRun.started_at).toLowerCase()}, ${new Date(lastRun.started_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. ` : "No search yet. "}

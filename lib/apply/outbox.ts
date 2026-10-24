@@ -4,9 +4,11 @@ import { buildApplicationEvent } from "@/lib/crm/application-event";
 import { applyEvent } from "@/lib/crm/apply";
 import { supabaseCrmDb } from "@/lib/crm/supabase-db";
 import type { Facts, Proof } from "@/lib/jobs/facts";
+import type { JobPost } from "@/lib/jobs/sources";
 import { loadProfile } from "@/lib/jobs/profile";
 import { open, readKey, seal } from "@/lib/mail/crypto";
 import { type Contact, findContactEmail, isEmail } from "@/lib/mail/extract";
+import { alertBoard, parseAlert } from "@/lib/mail/alerts";
 import { type MailLogin, readInbox, sendMail, testLogin } from "@/lib/mail/gmail";
 import { isAutoReply, matchReply, snippet, suggestStage } from "@/lib/mail/reply";
 import { followUpTimes, guessZone, inWindow, nextWindow, sendBudget, zoneTime } from "@/lib/mail/schedule";
@@ -31,6 +33,7 @@ export type Prepared = {
   why: Why; problems: string[]; notes: string[]; gaps: string[]; applyUrl: string; proof: Proof[];
   person: Record<"name" | "email" | "phone" | "linkedin" | "portfolio" | "location", string>;
   sendsLater: string | null; mail: { email: string | null; tested: boolean }; outbox: { status: string; sentAt: string | null } | null;
+  minMonthlyUsd: number;
 };
 
 // ---------- Gmail login ----------
@@ -112,6 +115,7 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
       sendsLater: inWindow(now, zone) ? null : zoneTime(nextWindow(now, zone), zone),
       mail: { email: account?.email ?? null, tested: Boolean(account?.test_sent_at) },
       outbox: out ? { status: out.status, sentAt: out.sent_at } : null,
+      minMonthlyUsd: profile.preferences.minMonthlyUsd,
     },
   };
 }
@@ -301,6 +305,16 @@ export async function checkReplies(db: Db, userId: string): Promise<{ found: num
   }
   await db.from("mail_accounts").update({ last_uid: inbox.lastUid, last_checked_at: new Date().toISOString() }).eq("user_id", userId);
   return { found };
+}
+
+// ---------- job alerts ----------
+
+// Job-alert emails since the last look, as job posts. Null when Gmail is not connected.
+export async function readJobAlerts(db: Db, userId: string, lastUid: number | null): Promise<{ lastUid: number | null; posts: JobPost[] } | null> {
+  const login = await loadLogin(db, userId);
+  if (!login) return null;
+  const inbox = await readInbox(login, lastUid, (from) => Boolean(alertBoard(from)));
+  return { lastUid: inbox.lastUid, posts: inbox.messages.flatMap((m) => parseAlert(m)) };
 }
 
 export async function markNoReply(db: Db, userId: string, now: Date) {

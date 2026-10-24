@@ -52,6 +52,9 @@ function payFrom(min: unknown, max: unknown, currency: unknown, period: unknown)
   };
 }
 
+// Accessibility companies, always searched: their roles rarely reach the general boards.
+export const ACCESSIBILITY_BOARDS = { greenhouse: ["levelaccess", "audioeye", "accessibe"] };
+
 export type SourceId = "remotive" | "remoteok" | "himalayas" | "jobicy" | "weworkremotely" | "arbeitnow" | "greenhouse" | "ashby" | "lever";
 
 export const SOURCES: Record<SourceId, Source> = {
@@ -107,7 +110,8 @@ export const SOURCES: Record<SourceId, Source> = {
     name: "Himalayas",
     home: "https://himalayas.app",
     minHoursBetween: 3,
-    urls: (q) => q.searches.map((s) => `https://himalayas.app/jobs/api/search?q=${encodeURIComponent(s)}&limit=20`),
+    // Two pages of 20 per search: niche searches like "accessibility" have hundreds of results.
+    urls: (q) => q.searches.flatMap((s) => [1, 2].map((page) => `https://himalayas.app/jobs/api/search?q=${encodeURIComponent(s)}&limit=20&page=${page}`)),
     parse: (body) =>
       (JSON.parse(body).jobs ?? []).map((j: Record<string, unknown>) => ({
         source: "himalayas",
@@ -210,7 +214,7 @@ export const SOURCES: Record<SourceId, Source> = {
     name: "Greenhouse",
     home: "https://www.greenhouse.com",
     minHoursBetween: 3,
-    urls: (q) => q.boards.greenhouse.map((b) => `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(b)}/jobs?content=true`),
+    urls: (q) => [...new Set([...q.boards.greenhouse, ...ACCESSIBILITY_BOARDS.greenhouse])].map((b) => `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(b)}/jobs?content=true`),
     parse: (body, url) =>
       (JSON.parse(body).jobs ?? []).map((j: Record<string, unknown>) => {
         const description = text(j.content);

@@ -27,6 +27,7 @@ const NOT_REMOTE = /\b(hybrid|on-?site|in[- ]office|office[- ]based)\b/i;
 const LOCKED = /\b(must|need to|required to)\s+(be\s+)?(based|located|reside|residing|living|live)\s+in\s+(the\s+)?(us|u\.s\.|usa|united states|uk|united kingdom|canada|eu|europe|australia)\b|\b(us|usa|u\.s\.|uk|eu|canada)[- ]only\b|\bauthori[sz]ed to work in the (us|united states|uk|united kingdom)\b/i;
 const VISA = /\bvisa sponsorship\b|\bsponsor (your|a|the) (work )?visa\b|\brelocation (support|package|assistance)\b|\bwe (can|will) sponsor\b/i;
 const NO_VISA = /\b(no|not|unable to|cannot|can't|won't|do not|does not|don't)\s+(offer\s+|provide\s+)?(visa\s+)?sponsor/i;
+const ALERT = /^(linkedin|indeed|glassdoor|emailalert)$/;
 const SENIOR = /\b(staff|principal|director|head of|vp|vice president|chief)\b/i;
 
 const lower = (s: string) => s.toLowerCase();
@@ -73,7 +74,8 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
   if (ageDays !== null && ageDays > 180) flags.push("Open for over 6 months. It may be an always-open pipeline post.");
   else if (ageDays !== null && ageDays > 30) flags.push(`Posted ${ageDays} days ago. It may already be filled.`);
   if (!post.company.trim()) flags.push("No company is named.");
-  if (post.description.length < 400) flags.push("Very short post with few details.");
+  if (ALERT.test(post.source)) flags.push("From a job alert email, so only the title is known. Open the post to read it.");
+  else if (post.description.length < 400) flags.push("Very short post with few details.");
   if (SENIOR.test(post.title)) flags.push("The title asks for a very senior level.");
   if (pay === null) flags.push("Pay is not listed. Ask early.");
 
@@ -82,7 +84,7 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
   score += pay === null ? 5 : pay >= prefs.minMonthlyUsd ? 15 : 0;
   score += ageDays === null ? 3 : ageDays <= 3 ? 15 : ageDays <= 7 ? 10 : ageDays <= 14 ? 6 : ageDays <= 30 ? 3 : 0;
   score -= Math.min(a.gaps.length * 4, 12);
-  score -= flags.filter((f) => !f.startsWith("Pay is not")).length * 5;
+  score -= flags.filter((f) => !f.startsWith("Pay is not") && !f.startsWith("From a job alert")).length * 5;
   score = Math.max(0, Math.min(100, score));
 
   return {

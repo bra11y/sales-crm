@@ -3,6 +3,7 @@ import JobsBoard, { type JobItem, type LastRun } from "@/components/jobs/jobs-bo
 import { currentUserId } from "@/lib/jobs/profile";
 import { findContactEmail } from "@/lib/mail/extract";
 import { SOURCES } from "@/lib/jobs/sources";
+import { ALERT_SOURCES } from "@/lib/mail/alerts";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Jobs · Sales CRM", robots: { index: false } };
@@ -18,7 +19,7 @@ export default async function JobsPage() {
     supabase.from("job_posts").select(COLUMNS).eq("user_id", userId).order("score", { ascending: false }).order("posted_at", { ascending: false }).limit(600),
     supabase.from("job_runs").select("started_at, finished_at, kept, added, errors").eq("user_id", userId).order("started_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  const sourceNames = Object.fromEntries(Object.entries(SOURCES).map(([id, s]) => [id, { name: s.name, home: s.home }]));
+  const sourceNames = { ...Object.fromEntries(Object.entries(SOURCES).map(([id, s]) => [id, { name: s.name, home: s.home }])), ...ALERT_SOURCES };
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
