@@ -1,3 +1,4 @@
+import RegisterSW from "@/components/_common/register-sw";
 import Sidebar from "@/components/_common/sidebar/sidebar";
 import type { SidebarData } from "@/components/_common/sidebar/sidebar-content";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -37,6 +38,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       </a>
       <Sidebar data={data} />
       <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col focus:outline-none">
+        <RegisterSW />
         {children}
       </main>
     </div>

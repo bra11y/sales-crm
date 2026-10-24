@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import Button from "@/components/_ui/button";
 import Tag from "@/components/_ui/tag";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/_ui/tabs";
@@ -148,9 +149,14 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError, op
             The app also searches by itself every day at 7:00 Abuja time.
           </p>
         </div>
-        <Button variant="primary" size="md" className="h-11 self-start px-4 md:self-auto" onClick={search} aria-disabled={searching}>
-          {searching ? "Searching…" : "Find jobs now"}
-        </Button>
+        <div className="flex flex-wrap gap-2 self-start md:self-auto">
+          <Link href="/jobs/add" className="bg-secondary focus-visible:ring-ring inline-flex h-11 items-center rounded-lg border border-line-strong px-4 text-[15px] outline-none focus-visible:ring-2">
+            Add from a screenshot
+          </Link>
+          <Button variant="primary" size="md" className="h-11 px-4" onClick={search} aria-disabled={searching}>
+            {searching ? "Searching…" : "Find jobs now"}
+          </Button>
+        </div>
       </header>
 
       <p role="status" aria-live="polite" className="text-soft min-h-5">

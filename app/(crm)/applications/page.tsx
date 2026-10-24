@@ -3,6 +3,7 @@ import ApplicationsBoard, { type AppItem, type Latest } from "@/components/jobs/
 import { currentUserId } from "@/lib/jobs/profile";
 import { SOURCES } from "@/lib/jobs/sources";
 import { ALERT_SOURCES } from "@/lib/mail/alerts";
+import { CAPTURE_SOURCE } from "@/lib/jobs/capture";
 import { findContactEmail } from "@/lib/mail/extract";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -32,6 +33,7 @@ export default async function ApplicationsPage() {
   const sources = {
     ...Object.fromEntries(Object.entries(SOURCES).map(([id, s]) => [id, { name: s.name, home: s.home }])),
     ...ALERT_SOURCES,
+    ...CAPTURE_SOURCE,
   };
   const items = ((jobs ?? []) as Omit<AppItem, "apply_email" | "latest">[]).map((j) => ({
     ...j,

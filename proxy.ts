@@ -19,5 +19,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/ingest|api/jobs/cron|api/jobs/tick|api/ext/|_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml|llms.txt|assets/).*)"],
+  matcher: ["/((?!api/ingest|api/jobs/cron|api/jobs/tick|api/ext/|_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|manifest.webmanifest|sw.js|icons/|robots.txt|sitemap.xml|llms.txt|assets/).*)"],
 };
