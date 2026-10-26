@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sales CRM Apply",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Follows a job application from the CRM to the thank-you page, and checks your writing in any text box when you ask. You always press Submit yourself.",
   "action": {
     "default_popup": "popup.html",

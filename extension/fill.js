@@ -27,10 +27,18 @@
       // Lever, Ashby and others put the question in a nearby element, not a <label for>.
       let p = el.parentElement;
       for (let i = 0; i < 4 && p; i++, p = p.parentElement) {
-        const q = p.querySelector(
-          "label, legend, .application-label, [class*='label'], [class*='question']",
+        // Skip another field's label: one that wraps a box or points at a different one.
+        const q = [
+          ...p.querySelectorAll(
+            "label, legend, .application-label, [class*='label'], [class*='question']",
+          ),
+        ].find(
+          (n) =>
+            !n.contains(el) &&
+            !n.querySelector("input, select, textarea") &&
+            !(n.htmlFor && n.htmlFor !== el.id),
         );
-        if (q && !q.contains(el)) {
+        if (q) {
           parts.push(text(q));
           break;
         }
@@ -204,11 +212,10 @@
         if (type === "file") continue;
         if (el.value && el.value.trim()) continue;
 
-        const key = M.classify(
-          label || hints(el),
-          el.getAttribute("autocomplete"),
-          type,
-        );
+        // A label that says nothing useful falls back to the placeholder and name ("First name *").
+        const key =
+          M.classify(label || hints(el), el.getAttribute("autocomplete"), type) ||
+          (label ? M.classify(hints(el), el.getAttribute("autocomplete"), type) : null);
         if (key && fields[key]) {
           if (
             el.getAttribute("role") === "combobox" ||
