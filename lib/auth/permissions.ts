@@ -30,6 +30,7 @@ const ROUTES: [string, Permission | "open"][] = [
   ["/applications", "jobs:use"],
   ["/apply", "jobs:use"],
   ["/outbox", "jobs:use"],
+  ["/freelance", "jobs:use"],
   ["/profile", "jobs:use"],
   ["/scholarships", "grow:use"],
   ["/documents", "grow:use"],

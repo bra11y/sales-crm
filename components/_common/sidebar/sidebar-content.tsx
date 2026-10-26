@@ -102,6 +102,7 @@ export default function SidebarContent({ data }: { data: SidebarData }) {
             {/* Outbox lives inside Applications: one place for everything you sent. */}
             <SidebarNavItem icon={ClipboardIcon} label="Applications" count={data.applications || undefined} href="/applications" active={at("/applications") || at("/outbox")} />
             <SidebarNavItem icon={MailIcon} label="CV and letter" href="/apply" active={at("/apply")} />
+            <SidebarNavItem icon={WalletIcon} label="Freelance and audits" href="/freelance" active={at("/freelance")} />
             <SidebarNavItem icon={UsersIcon} label="Profile" href="/profile" active={at("/profile")} />
           </SidebarSection>
 

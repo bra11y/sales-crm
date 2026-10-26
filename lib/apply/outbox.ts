@@ -93,7 +93,7 @@ export async function connectGmail(db: Db, userId: string, email: string, passwo
   return error ? { ok: false, error: "The connection worked, but it could not be saved. Try again." } : { ok: true };
 }
 
-async function loadLogin(db: Db, userId: string, name?: string): Promise<(MailLogin & { lastUid: number | null; tested: boolean }) | null> {
+export async function loadLogin(db: Db, userId: string, name?: string): Promise<(MailLogin & { lastUid: number | null; tested: boolean }) | null> {
   const key = readKey();
   const { data } = await db.from("mail_accounts").select("email, secret_ciphertext, secret_iv, secret_tag, last_uid, test_sent_at").eq("user_id", userId).maybeSingle();
   if (!data || !key) return null;

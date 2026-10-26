@@ -42,6 +42,30 @@ export async function testLogin(login: MailLogin): Promise<string> {
   }
 }
 
+// Puts an email in your Gmail Drafts folder, unsent, so you read it and press Send yourself.
+export async function saveDraft(login: MailLogin, m: Outgoing): Promise<void> {
+  // Stream mode builds the email without sending it.
+  const built = await nodemailer
+    .createTransport({ streamTransport: true, buffer: true, newline: "windows" })
+    .sendMail({ from: { name: login.name || login.email, address: login.email }, to: m.to, subject: m.subject, text: m.text });
+  const raw = (built as unknown as { message: Buffer }).message;
+  if (DROP) {
+    await mkdir(DROP, { recursive: true });
+    await writeFile(`${DROP}/draft-${Date.now()}-${m.to.replace(/[^a-z0-9@.]/gi, "")}.eml`, raw);
+    return;
+  }
+  const client = imap(login);
+  await client.connect();
+  try {
+    // The Drafts folder's name depends on the Gmail language; its role does not.
+    const folders = await client.list();
+    const drafts = folders.find((f) => f.specialUse === "\\Drafts")?.path ?? "[Gmail]/Drafts";
+    await client.append(drafts, raw, ["\\Draft"]);
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
 export async function sendMail(login: MailLogin, m: Outgoing): Promise<string> {
   const info = await transport(login).sendMail({
     from: { name: login.name || login.email, address: login.email },
@@ -101,7 +125,11 @@ export async function readInbox(login: MailLogin, lastUid: number | null, wanted
       const from = msg.envelope?.from?.[0]?.address?.toLowerCase() ?? "";
       if (!from || from === login.email.toLowerCase() || !wanted(from)) continue;
       const head = msg.headers?.toString() ?? "";
-      const header = (name: string) => head.match(new RegExp(`^${name}:\\s*([\\s\\S]*?)(?=\\r?\\n\\S|$)`, "im"))?.[1].replace(/\s+/g, " ").trim();
+      const header = (name: string) =>
+        head
+          .match(new RegExp(`^${name}:\\s*([\\s\\S]*?)(?=\\r?\\n\\S|$)`, "im"))?.[1]
+          .replace(/\s+/g, " ")
+          .trim();
       picks.push({
         uid: msg.uid,
         part: textPart(msg.bodyStructure),

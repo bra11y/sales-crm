@@ -7,18 +7,10 @@ type SidebarSectionProps = {
   className?: string;
 };
 
-export default function SidebarSection({
-  title,
-  children,
-  className,
-}: SidebarSectionProps) {
+export default function SidebarSection({ title, children, className }: SidebarSectionProps) {
   return (
     <div className={cn("flex flex-col gap-1 p-3", className)}>
-      {title && (
-        <span className="eyebrow-style block font-medium text-faint">
-          {title}
-        </span>
-      )}
+      {title && <span className="eyebrow-style text-faint block font-medium">{title}</span>}
       <ul className="flex flex-col">{children}</ul>
     </div>
   );

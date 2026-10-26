@@ -1,19 +1,7 @@
 "use client";
 
-import {
-  useRef,
-  useSyncExternalStore,
-  type KeyboardEvent,
-  type PointerEvent,
-} from "react";
-import {
-  SIDEBAR_DEFAULT_WIDTH,
-  SIDEBAR_MAX_WIDTH,
-  SIDEBAR_MIN_WIDTH,
-  SIDEBAR_WIDTH_STORAGE_KEY,
-  SIDEBAR_WIDTH_VAR,
-  clampSidebarWidth,
-} from "@/lib/sidebar";
+import { useRef, useSyncExternalStore, type KeyboardEvent, type PointerEvent } from "react";
+import { SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, SIDEBAR_WIDTH_STORAGE_KEY, SIDEBAR_WIDTH_VAR, clampSidebarWidth } from "@/lib/sidebar";
 
 const KEYBOARD_STEP = 10;
 
@@ -22,25 +10,15 @@ let currentWidth: number | null = null;
 
 function readWidth() {
   if (currentWidth === null) {
-    const value = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        SIDEBAR_WIDTH_VAR,
-      ),
-      10,
-    );
-    currentWidth = Number.isNaN(value)
-      ? SIDEBAR_DEFAULT_WIDTH
-      : clampSidebarWidth(value);
+    const value = parseInt(getComputedStyle(document.documentElement).getPropertyValue(SIDEBAR_WIDTH_VAR), 10);
+    currentWidth = Number.isNaN(value) ? SIDEBAR_DEFAULT_WIDTH : clampSidebarWidth(value);
   }
   return currentWidth;
 }
 
 function applyWidth(width: number) {
   currentWidth = clampSidebarWidth(width);
-  document.documentElement.style.setProperty(
-    SIDEBAR_WIDTH_VAR,
-    `${currentWidth}px`,
-  );
+  document.documentElement.style.setProperty(SIDEBAR_WIDTH_VAR, `${currentWidth}px`);
   listeners.forEach((listener) => listener());
 }
 
@@ -56,11 +34,7 @@ function subscribe(listener: () => void) {
 }
 
 export default function SidebarResizer() {
-  const width = useSyncExternalStore(
-    subscribe,
-    readWidth,
-    () => SIDEBAR_DEFAULT_WIDTH,
-  );
+  const width = useSyncExternalStore(subscribe, readWidth, () => SIDEBAR_DEFAULT_WIDTH);
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -123,7 +97,7 @@ export default function SidebarResizer() {
     >
       <span
         aria-hidden
-        className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-[background-color] duration-150 ease-power3-out group-hover:bg-line-strong group-focus-visible:bg-subtle group-active:bg-subtle"
+        className="ease-power3-out group-hover:bg-line-strong group-focus-visible:bg-subtle group-active:bg-subtle absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-[background-color] duration-150"
       />
     </div>
   );
