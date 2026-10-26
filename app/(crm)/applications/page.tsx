@@ -4,6 +4,7 @@ import { currentUserId } from "@/lib/jobs/profile";
 import { SOURCES } from "@/lib/jobs/sources";
 import { ALERT_SOURCES } from "@/lib/mail/alerts";
 import { CAPTURE_SOURCE } from "@/lib/jobs/capture";
+import { WHATSAPP_SOURCE } from "@/lib/import/whatsapp";
 import { findContactEmail } from "@/lib/mail/extract";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -34,6 +35,7 @@ export default async function ApplicationsPage() {
     ...Object.fromEntries(Object.entries(SOURCES).map(([id, s]) => [id, { name: s.name, home: s.home }])),
     ...ALERT_SOURCES,
     ...CAPTURE_SOURCE,
+    ...WHATSAPP_SOURCE,
   };
   const items = ((jobs ?? []) as Omit<AppItem, "apply_email" | "latest">[]).map((j) => ({
     ...j,

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { DOC_LABEL, type DocKind } from "@/lib/grow/documents";
 import { cleanSteps, goalSteps, LEVELS, SCHOLARSHIP_STEPS, STATUSES, type Step, steps } from "@/lib/grow/grow";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -108,5 +109,40 @@ export async function removeCareerGoal(id: string): Promise<Result> {
   const { error } = await supabase.from("career_goals").delete().eq("id", id);
   if (error) return { ok: false, error: "It could not be removed. Reload and try again." };
   revalidatePath("/plans");
+  return { ok: true };
+}
+
+// A scholarship found in a chat becomes one you track, with a checklist for the documents it names.
+export async function trackLead(id: string): Promise<Result> {
+  const supabase = await createSupabaseServerClient();
+  const { data: lead } = await supabase.from("scholarship_leads").select("title, url, place, level, benefits, needs, deadline").eq("id", id).maybeSingle();
+  if (!lead) return { ok: false, error: "That scholarship was not found. Reload the page." };
+  const lv = (lead.level ?? "").toLowerCase();
+  const level = /phd|doctor/.test(lv) ? "phd" : /master|postgrad/.test(lv) ? "masters" : /undergrad|bachelor/.test(lv) ? "undergraduate" : /short|course|training/.test(lv) ? "short course" : "any";
+  const named = ((lead.needs ?? []) as DocKind[]).filter((k) => DOC_LABEL[k]).map((k) => `Have your ${DOC_LABEL[k].toLowerCase()} ready`);
+  const { data, error } = await supabase
+    .from("scholarships")
+    .insert({
+      name: lead.title,
+      url: lead.url.replace(/^http:/, "https:"),
+      country: lead.place,
+      amount: ((lead.benefits ?? []) as string[])[0]?.slice(0, 120) ?? null,
+      level,
+      deadline: lead.deadline,
+      steps: steps([...named, ...SCHOLARSHIP_STEPS].slice(0, 30)),
+    })
+    .select("id")
+    .single();
+  if (error || !data) return { ok: false, error: "It could not be added. Try again." };
+  await supabase.from("scholarship_leads").update({ dismissed: true }).eq("id", id);
+  revalidatePath("/scholarships");
+  return { ok: true, id: data.id };
+}
+
+export async function dismissLead(id: string): Promise<Result> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("scholarship_leads").update({ dismissed: true }).eq("id", id);
+  if (error) return { ok: false, error: "That change was not saved. Reload and try again." };
+  revalidatePath("/scholarships");
   return { ok: true };
 }

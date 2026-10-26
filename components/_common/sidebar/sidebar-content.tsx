@@ -103,6 +103,7 @@ export default function SidebarContent({ data }: { data: SidebarData }) {
 
           <SidebarSection title="Grow" className="border-sidebar-border border-b">
             <SidebarNavItem icon={BookClosedIcon} label="Scholarships" href="/scholarships" active={at("/scholarships")} />
+            <SidebarNavItem icon={ClipboardIcon} label="Documents" href="/documents" active={at("/documents")} />
             <SidebarNavItem icon={TargetAltIcon} label="Career goals" href="/plans" active={at("/plans")} />
             <SidebarNavItem icon={MessageQuestionIcon} label="Study and interviews" href="/study" active={at("/study")} />
             <SidebarNavItem icon={BarChartAltIcon} label="Labs" href="/labs" active={at("/labs")} />

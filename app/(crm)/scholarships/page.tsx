@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import ChatImport from "@/components/grow/chat-import";
+import Leads, { type Lead } from "@/components/grow/leads";
 import Scholarships from "@/components/grow/scholarships";
+import type { DocKind } from "@/lib/grow/documents";
 import { Page, PageHead } from "@/components/workspace/parts";
 import { type Scholarship, SOURCES, sortScholarships } from "@/lib/grow/grow";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -8,8 +11,20 @@ export const metadata: Metadata = { title: "Scholarships · Sales CRM", robots: 
 
 export default async function ScholarshipsPage() {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.from("scholarships").select("id, name, provider, url, level, country, amount, deadline, status, steps, note");
   const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const [{ data, error }, { data: leadRows }, { data: docRows }] = await Promise.all([
+    supabase.from("scholarships").select("id, name, provider, url, level, country, amount, deadline, status, steps, note"),
+    supabase
+      .from("scholarship_leads")
+      .select("id, title, url, place, eligible, level, benefits, needs, deadline, deadline_text")
+      .eq("dismissed", false)
+      .or(`deadline.is.null,deadline.gte.${today}`)
+      .order("deadline", { ascending: true, nullsFirst: false })
+      .limit(1000),
+    supabase.from("documents").select("kind, expires_on"),
+  ]);
+  const have = [...new Set((docRows ?? []).filter((d) => !d.expires_on || d.expires_on >= today).map((d) => d.kind as DocKind))];
   const list = sortScholarships((data ?? []) as Scholarship[], now);
   return (
     <Page>
@@ -19,7 +34,9 @@ export default async function ScholarshipsPage() {
           Your scholarships could not be loaded. If this is new, the database update may not be live yet.
         </p>
       )}
-      <Scholarships list={list} now={now.toISOString()} />
+      <Scholarships list={list} have={have} now={now.toISOString()} />
+      <Leads leads={(leadRows ?? []) as Lead[]} have={have} now={now.toISOString()} />
+      <ChatImport />
       <section aria-labelledby="sources" className="flex flex-col gap-3">
         <h2 id="sources" className="px-1 text-[20px] font-semibold tracking-[-0.015em]">
           Big programmes to look at

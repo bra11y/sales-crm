@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/_ui/button";
 import { addScholarship, removeScholarship, updateScholarship } from "@/app/(crm)/grow-actions";
 import { daysLeft, dueText, LEVEL_LABEL, LEVELS, type Scholarship, STATUS_LABEL, STATUSES } from "@/lib/grow/grow";
+import { DOC_LABEL, type DocKind, readiness, SCHOLARSHIP_NEEDS } from "@/lib/grow/documents";
 import Checklist from "./checklist";
 import { cn } from "@/lib/utils";
 
 const FIELD = "w-full rounded-xl border border-line-strong bg-secondary px-3 h-11 text-[15px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring";
 
-export default function Scholarships({ list, now }: { list: Scholarship[]; now: string }) {
+export default function Scholarships({ list, have, now }: { list: Scholarship[]; have: DocKind[]; now: string }) {
   const id = useId();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -117,7 +118,7 @@ export default function Scholarships({ list, now }: { list: Scholarship[]; now: 
         ) : (
           <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {list.map((s) => (
-              <Card key={s.id} s={s} now={now} />
+              <Card key={s.id} s={s} have={have} now={now} />
             ))}
           </ul>
         )}
@@ -126,7 +127,7 @@ export default function Scholarships({ list, now }: { list: Scholarship[]; now: 
   );
 }
 
-function Card({ s, now }: { s: Scholarship; now: string }) {
+function Card({ s, have, now }: { s: Scholarship; have: DocKind[]; now: string }) {
   const id = useId();
   const router = useRouter();
   const [stage, setStage] = useState(s.status);
@@ -205,10 +206,29 @@ function Card({ s, now }: { s: Scholarship; now: string }) {
           </Button>
         )}
       </div>
+      {open && <DocsLine have={have} />}
       <Checklist label={`Checklist for ${s.name}`} initial={s.steps} save={(steps) => updateScholarship(s.id, { steps })} />
       <p role="status" aria-live="polite" className="text-soft text-[14px] empty:hidden">
         {msg}
       </p>
     </li>
+  );
+}
+
+// Which of the usual documents are ready, with a link to upload the first one missing.
+function DocsLine({ have }: { have: DocKind[] }) {
+  const r = readiness(
+    have.map((kind) => ({ kind, expires_on: null })),
+    SCHOLARSHIP_NEEDS,
+  );
+  if (!r.missing.length) return <p className="text-success text-[14px]">All the usual documents are in Documents.</p>;
+  return (
+    <p className="text-[14px] leading-normal">
+      Documents: {r.have.length} of {SCHOLARSHIP_NEEDS.length} ready.{" "}
+      <a href={`/documents?need=${r.missing[0]}`} className="underline underline-offset-2">
+        Upload your {DOC_LABEL[r.missing[0]].toLowerCase()}
+      </a>
+      {r.missing.length > 1 ? ` and ${r.missing.length - 1} more` : ""}.
+    </p>
   );
 }
