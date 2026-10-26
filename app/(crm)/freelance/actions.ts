@@ -5,6 +5,8 @@ import { loadLogin } from "@/lib/apply/outbox";
 import { auditHtml, type Finding } from "@/lib/audit/check";
 import { fetchPage, siteUrl } from "@/lib/audit/fetch";
 import { pitch } from "@/lib/audit/pitch";
+import { loadGigs } from "@/lib/gigs/load";
+import { gigReply } from "@/lib/gigs/reply";
 import { currentUserId, loadProfile } from "@/lib/jobs/profile";
 import { saveDraft } from "@/lib/mail/gmail";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -91,6 +93,52 @@ export async function removeProspect(id: string): Promise<Result> {
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from("audit_prospects").delete().eq("id", id);
   if (error) return { ok: false, error: "It could not be removed." };
+  revalidatePath("/freelance");
+  return { ok: true };
+}
+
+const GIG_STATUSES = ["drafted", "sent", "replied", "won", "not_for_me"];
+
+// Writes a reply to a gig post into your Gmail Drafts. The post is looked up again here,
+// so the address and wording come from the post itself, not from the page.
+export async function draftGigReply(gigId: string): Promise<Result & { to?: string | null; url?: string }> {
+  const { gigs } = await loadGigs();
+  const gig = gigs.find((g) => g.id === gigId);
+  if (!gig) return { ok: false, error: "That post is no longer in the feed. Open it from its link instead." };
+  const userId = await currentUserId();
+  const admin = createSupabaseAdminClient();
+  const profile = await loadProfile();
+  if (!userId || !admin || !profile) return { ok: false, error: "Sign in again." };
+  const mail = gigReply(gig, profile.facts);
+  const mark = () => setGigStatus(gig, "drafted");
+  const text = `${gig.email ? `To: ${gig.email}\n` : ""}Subject: ${mail.subject}\n\n${mail.body}`;
+  // No email in the post: you reply where it was posted, so here is the text to paste.
+  if (!gig.email) {
+    await mark();
+    return { ok: true, note: "The post has no email address. Copy this reply and answer on the post.", text, to: null, url: gig.url };
+  }
+  const login = await loadLogin(admin, userId, profile.facts.person.name);
+  if (!login) return { ok: true, note: "Gmail is not connected, so here is the reply to copy.", text, to: gig.email, url: gig.url };
+  try {
+    await saveDraft(login, { to: gig.email, subject: mail.subject, text: mail.body });
+  } catch {
+    return { ok: true, note: "Gmail did not take the draft. Here is the reply to copy.", text, to: gig.email, url: gig.url };
+  }
+  await mark();
+  revalidatePath("/freelance");
+  return { ok: true, note: `Saved in your Gmail Drafts to ${gig.email}. Read it, then send it yourself.`, text, to: gig.email, url: gig.url };
+}
+
+export async function setGigStatus(gig: { id: string; url: string; title: string }, status: string): Promise<Result> {
+  if (!GIG_STATUSES.includes(status)) return { ok: false, error: "Pick one of the listed stages." };
+  if (!/^https:\/\//.test(gig.url) || !gig.id) return { ok: false, error: "That post could not be saved." };
+  const supabase = await createSupabaseServerClient();
+  const { data: had } = await supabase.from("gig_replies").select("id").eq("gig_id", gig.id).maybeSingle();
+  const now = new Date().toISOString();
+  const { error } = had
+    ? await supabase.from("gig_replies").update({ status, updated_at: now }).eq("id", had.id)
+    : await supabase.from("gig_replies").insert({ gig_id: gig.id.slice(0, 120), url: gig.url.slice(0, 1000), title: gig.title.slice(0, 300), status, updated_at: now });
+  if (error) return { ok: false, error: "That change was not saved." };
   revalidatePath("/freelance");
   return { ok: true };
 }

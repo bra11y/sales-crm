@@ -1,11 +1,13 @@
 "use client";
 
 import { needsAccount } from "@/lib/jobs/account";
+import { jobLevel, LEVEL_LABEL, LEVELS } from "@/lib/jobs/level";
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import Button from "@/components/_ui/button";
 import Tag from "@/components/_ui/tag";
+import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/_ui/tabs";
 import { findJobsNow, setJobStatus } from "@/app/(crm)/jobs/actions";
 import type { CompanyInfo } from "@/lib/jobs/company";
@@ -50,6 +52,8 @@ export type LastRun = {
   errors: unknown[];
 };
 export type SourceNames = Record<string, { name: string; home: string }>;
+// One row per job board for "Is the search working?": when it was last read and whether it answered.
+export type BoardHealth = { id: string; name: string; checkedAt: string | null; error: string | null; jobs: number; stale: boolean };
 
 const CONTROL =
   "h-11 rounded-lg border border-line-strong bg-secondary px-3 text-[14px] text-foreground outline-none transition-[border-color] duration-150 ease-power3-out focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none";
@@ -74,17 +78,20 @@ export default function JobsBoard({
   sources,
   loadError,
   openFirst = null,
+  health = [],
 }: {
   initialJobs: JobItem[];
   lastRun: LastRun | null;
   sources: SourceNames;
   loadError: boolean;
   openFirst?: string | null;
+  health?: BoardHealth[];
 }) {
   const [changes, setChanges] = useState<Record<string, Partial<JobItem>>>({});
   const [query, setQuery] = useState("");
   const [fit, setFit] = useState("");
   const [where, setWhere] = useState("");
+  const [level, setLevel] = useState("");
   // Jobs whose form makes you create an account first stay out of the way unless you ask.
   const [noAccount, setNoAccount] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
@@ -106,11 +113,12 @@ export default function JobsBoard({
         (showDismissed || j.status !== "dismissed") &&
         (!fit || (fit === "strong" ? j.band === "strong" : j.band !== "maybe")) &&
         (!where || (where === "nigeria" ? inNigeria(j) : j.eligibility === where)) &&
+        (!level || jobLevel(j.title, j.description).level === level) &&
         (!emailOnly || Boolean(j.apply_email)) &&
         (!noAccount || Boolean(j.apply_email) || !needsAccount(j.apply_url)) &&
         (!q || `${j.title} ${j.company} ${j.matched.join(" ")}`.toLowerCase().includes(q)),
     );
-  }, [jobs, query, fit, where, showHidden, showDismissed, emailOnly, noAccount]);
+  }, [jobs, query, fit, where, level, showHidden, showDismissed, emailOnly, noAccount]);
   const accountCount = jobs.filter((j) => !j.apply_email && needsAccount(j.apply_url)).length;
   const open = jobs.find((j) => j.id === openId) ?? null;
 
@@ -129,6 +137,11 @@ export default function JobsBoard({
         setAlert(r.error);
         return;
       }
+      // Every board was asked a short time ago: say so, and when to try again.
+      if (r.asked === 0)
+        return say(
+          `Nothing to check yet. Every job board was searched in the last hour${r.nextAt ? `. Try again after ${new Date(r.nextAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}. The jobs below are up to date.`,
+        );
       say(
         `Done. ${r.added} new job${r.added === 1 ? "" : "s"}, ${r.kept} that fit you in total.` +
           (r.fromEmail ? ` Read ${r.fromEmail} job${r.fromEmail === 1 ? "" : "s"} from the job-alert emails in your Gmail.` : r.fromEmail === 0 ? " No new job-alert emails in your Gmail." : "") +
@@ -164,8 +177,8 @@ export default function JobsBoard({
         <div className="flex flex-col gap-2">
           <h1 className="text-[24px] leading-[1.1] font-semibold tracking-[-0.02em]">Jobs</h1>
           <p className="text-soft max-w-[44em] leading-normal">
-            Remote jobs from 9 job boards and the job-alert emails in your Gmail, scored against your profile. Jobs under your pay floor or closed to where you live are hidden, and the reason is
-            shown.
+            Jobs from remote job boards, Nigerian job sites, company career pages and the job-alert emails in your Gmail, scored against your profile. Jobs under your pay floor, closed to where you
+            live, or not at the level you want are hidden, and the reason is shown.
           </p>
           <p className="caption-style text-soft">
             {lastRun
@@ -191,6 +204,7 @@ export default function JobsBoard({
         {alert}
       </p>
       {loadError && <p className="text-danger">Your jobs could not be loaded. Refresh the page to try again.</p>}
+      {health.length > 0 && <Health boards={health} />}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -217,6 +231,19 @@ export default function JobsBoard({
             {WHERE_FILTERS.map((w) => (
               <option key={w.value} value={w.value}>
                 {w.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="jobs-level" className="caption-style text-soft">
+            Level
+          </label>
+          <select id="jobs-level" value={level} onChange={(e) => setLevel(e.target.value)} className={CONTROL}>
+            <option value="">All levels</option>
+            {LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {LEVEL_LABEL[l]}
               </option>
             ))}
           </select>
@@ -381,6 +408,54 @@ function FitTag({ job }: { job: JobItem }) {
     <Tag tone={b.tone} size="sm">
       {job.score} {b.label}
     </Tag>
+  );
+}
+
+function Health({ boards }: { boards: BoardHealth[] }) {
+  const failed = boards.filter((b) => b.error);
+  const stale = boards.filter((b) => !b.error && b.stale);
+  const summary = failed.length
+    ? `${failed.length} job board${failed.length === 1 ? "" : "s"} did not answer last time`
+    : stale.length
+      ? `${stale.length} job board${stale.length === 1 ? " has" : "s have"} not been read for over a day`
+      : `All ${boards.length} job boards answered`;
+  return (
+    <details className="rounded-xl bg-white/[0.04] px-4 py-3 text-[14px]">
+      <summary className="focus-visible:ring-ring min-h-6 cursor-pointer rounded outline-none focus-visible:ring-2">
+        Is the search working? <span className={failed.length || stale.length ? "text-(--tag-amber-text)" : "text-soft"}>{summary}.</span>
+      </summary>
+      <table className="mt-3 w-full text-left text-[13px]">
+        <caption className="sr-only">Each job board, when it was last read, and the jobs it gave you</caption>
+        <thead className="text-soft">
+          <tr>
+            <th scope="col" className="py-1 pr-3 font-normal">
+              Board
+            </th>
+            <th scope="col" className="py-1 pr-3 font-normal">
+              Last read
+            </th>
+            <th scope="col" className="py-1 pr-3 font-normal">
+              State
+            </th>
+            <th scope="col" className="py-1 text-right font-normal">
+              Jobs
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {boards.map((b) => (
+            <tr key={b.id} className="border-t border-white/[0.06]">
+              <th scope="row" className="py-1.5 pr-3 font-normal">
+                {b.name}
+              </th>
+              <td className="py-1.5 pr-3">{b.checkedAt ? ago(b.checkedAt) : "Not yet"}</td>
+              <td className={cn("py-1.5 pr-3", b.error && "text-danger")}>{b.error ? `Did not answer (${b.error})` : b.checkedAt ? "Working" : "Waiting for the next search"}</td>
+              <td className="py-1.5 text-right tabular-nums">{b.jobs}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
   );
 }
 

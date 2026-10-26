@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { DOC_LABEL, type DocKind } from "@/lib/grow/documents";
 import { cleanSteps, goalSteps, LEVELS, SCHOLARSHIP_STEPS, STATUSES, type Step, steps } from "@/lib/grow/grow";
 import { currentUserId, loadProfile } from "@/lib/jobs/profile";
+import { applicationSteps, draftStatement } from "@/lib/grow/statement";
 import { cleanScholarshipPrefs } from "@/lib/scholarships/fit";
 import { searchScholarships } from "@/lib/scholarships/search";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -50,7 +51,7 @@ export async function addScholarship(form: FormData): Promise<Result> {
   return { ok: true, id: data.id };
 }
 
-export async function updateScholarship(id: string, patch: { status?: string; steps?: Step[]; note?: string; deadline?: string | null }): Promise<Result> {
+export async function updateScholarship(id: string, patch: { status?: string; steps?: Step[]; note?: string; deadline?: string | null; statement?: string }): Promise<Result> {
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.status !== undefined) {
     if (!(STATUSES as readonly string[]).includes(patch.status)) return { ok: false, error: "Pick one of the listed stages." };
@@ -62,6 +63,7 @@ export async function updateScholarship(id: string, patch: { status?: string; st
     update.steps = s;
   }
   if (patch.note !== undefined) update.note = patch.note.slice(0, 2000) || null;
+  if (patch.statement !== undefined) update.statement = patch.statement.slice(0, 20_000) || null;
   if (patch.deadline !== undefined) update.deadline = patch.deadline && /^\d{4}-\d{2}-\d{2}$/.test(patch.deadline) ? patch.deadline : null;
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from("scholarships").update(update).eq("id", id);
@@ -141,6 +143,48 @@ export async function trackLead(id: string): Promise<Result> {
   await supabase.from("scholarship_leads").update({ tracked_id: data.id }).eq("id", id);
   revalidatePath("/scholarships");
   return { ok: true, id: data.id };
+}
+
+// Starts the application: tracks the scholarship if it is not yet tracked, moves it to
+// Preparing, builds the checklist from the documents it asks for, and drafts your statement.
+export async function startApplication(input: { leadId?: string; scholarshipId?: string }): Promise<Result> {
+  const supabase = await createSupabaseServerClient();
+  const profile = await loadProfile(supabase);
+  if (!profile) return { ok: false, error: "Sign in again." };
+  let id = input.scholarshipId ?? null;
+  let needs: DocKind[] = [];
+  if (input.leadId) {
+    const { data: lead } = await supabase.from("scholarship_leads").select("tracked_id, needs").eq("id", input.leadId).maybeSingle();
+    if (!lead) return { ok: false, error: "That scholarship was not found. Reload the page." };
+    needs = ((lead.needs ?? []) as DocKind[]).filter((k) => DOC_LABEL[k]);
+    id = lead.tracked_id;
+    if (!id) {
+      const r = await trackLead(input.leadId);
+      if (!r.ok || !r.id) return r.ok ? { ok: false, error: "It could not be added. Try again." } : r;
+      id = r.id;
+    }
+  }
+  if (!id) return { ok: false, error: "Pick a scholarship first." };
+  const [{ data: s }, { data: docs }] = await Promise.all([
+    supabase.from("scholarships").select("name, url, country, level, deadline, statement").eq("id", id).maybeSingle(),
+    supabase.from("documents").select("kind"),
+  ]);
+  if (!s) return { ok: false, error: "That scholarship was not found. Reload the page." };
+  const info = { name: s.name, place: s.country, level: s.level, deadline: s.deadline, url: s.url, needs };
+  const have = [...new Set((docs ?? []).map((d) => d.kind as DocKind))];
+  const { error } = await supabase
+    .from("scholarships")
+    .update({
+      status: "preparing",
+      steps: applicationSteps(info, have),
+      // A statement you already started is never written over.
+      ...(s.statement ? {} : { statement: draftStatement(profile.facts as unknown as Parameters<typeof draftStatement>[0], info) }),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) return { ok: false, error: "The application could not be started. Try again." };
+  revalidatePath("/scholarships");
+  return { ok: true, id };
 }
 
 export async function dismissLead(id: string): Promise<Result> {

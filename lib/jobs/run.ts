@@ -6,14 +6,27 @@ import { type JobPost, SOURCES, type SourceId } from "./sources.ts";
 const HOUR = 3_600_000;
 export const USER_AGENT = "SalesCRM-JobFinder/1.0 (+https://sales-crm-virid-ten.vercel.app)";
 
-export function dueSources(prefs: Preferences, state: Record<string, string>, now = new Date()): SourceId[] {
+// When you press "Find jobs now", a board checked in the last hour is not asked again.
+export const MANUAL_GAP_HOURS = 1;
+
+export function dueSources(prefs: Preferences, state: Record<string, string>, now = new Date(), trigger: "manual" | "schedule" = "schedule"): SourceId[] {
   // A job board on your skip list is never searched.
   return prefs.sources
     .filter((id) => !blocked(SOURCES[id].home, prefs.blockedSites))
     .filter((id) => {
       const last = Date.parse(state[id] ?? "");
-      return !Number.isFinite(last) || now.getTime() - last >= SOURCES[id].minHoursBetween * HOUR;
+      const gap = trigger === "manual" ? Math.min(MANUAL_GAP_HOURS, SOURCES[id].minHoursBetween) : SOURCES[id].minHoursBetween;
+      return !Number.isFinite(last) || now.getTime() - last >= gap * HOUR;
     });
+}
+
+// When the first board will be ready to ask again, for the message after a search that found nothing to ask.
+export function nextDue(prefs: Preferences, state: Record<string, string>, trigger: "manual" | "schedule" = "manual"): Date | null {
+  const times = prefs.sources
+    .filter((id) => !blocked(SOURCES[id].home, prefs.blockedSites))
+    .map((id) => Date.parse(state[id] ?? "") + (trigger === "manual" ? Math.min(MANUAL_GAP_HOURS, SOURCES[id].minHoursBetween) : SOURCES[id].minHoursBetween) * HOUR)
+    .filter(Number.isFinite);
+  return times.length ? new Date(Math.min(...times)) : null;
 }
 
 export type JobRow = ReturnType<typeof toRows>[number];
@@ -56,6 +69,31 @@ export function toRows(posts: JobPost[], facts: Facts, prefs: Preferences, userI
     .filter((r) => r.url.startsWith("https://") && r.apply_url.startsWith("https://"));
 }
 
+// For boards whose feed is a summary: read the full page of each recent job in your fields.
+async function withDetails(id: SourceId, posts: JobPost[], q: { fits?: (title: string) => boolean }, fetcher: typeof fetch): Promise<JobPost[]> {
+  const details = SOURCES[id].details;
+  if (!details) return posts;
+  const recent = (p: JobPost) => !p.postedAt || Date.now() - Date.parse(p.postedAt) < 14 * 24 * HOUR;
+  const pick = posts.filter((p) => recent(p) && (!q.fits || q.fits(p.title))).slice(0, details.max);
+  const read: JobPost[] = [];
+  // Four pages at a time, to go easy on the site.
+  for (let i = 0; i < pick.length; i += 4) {
+    read.push(
+      ...(await Promise.all(
+        pick.slice(i, i + 4).map(async (p) => {
+          try {
+            const res = await fetcher(p.url, { headers: { "user-agent": USER_AGENT, accept: "text/html" }, signal: AbortSignal.timeout(15_000) });
+            return res.ok ? details.read(await res.text(), p) : p;
+          } catch {
+            return p;
+          }
+        }),
+      )),
+    );
+  }
+  return read;
+}
+
 export type Fetched = { posts: JobPost[]; errors: { source: SourceId; url: string; error: string }[]; fetched: SourceId[] };
 
 async function getOnce(url: string, fetcher: typeof fetch) {
@@ -64,10 +102,10 @@ async function getOnce(url: string, fetcher: typeof fetch) {
   return res.text();
 }
 
-export async function fetchSources(ids: SourceId[], prefs: Preferences, fetcher: typeof fetch = fetch, parallel = 6): Promise<Fetched> {
+export async function fetchSources(ids: SourceId[], prefs: Preferences, fetcher: typeof fetch = fetch, parallel = 6, fits?: (title: string) => boolean): Promise<Fetched> {
   const out: Fetched = { posts: [], errors: [], fetched: [] };
   const ok = new Set<SourceId>();
-  const query = { searches: prefs.searches, boards: boardsFor(prefs) };
+  const query = { searches: prefs.searches, boards: boardsFor(prefs), fits };
   const queue = ids.flatMap((id) => SOURCES[id].urls(query).map((url) => ({ id, url })));
   async function worker() {
     for (let job = queue.shift(); job; job = queue.shift()) {
@@ -80,7 +118,8 @@ export async function fetchSources(ids: SourceId[], prefs: Preferences, fetcher:
           if ((first as { http?: boolean }).http) throw first;
           body = await getOnce(url, fetcher);
         }
-        out.posts.push(...SOURCES[id].parse(body, url));
+        const posts = SOURCES[id].parse(body, url);
+        out.posts.push(...(await withDetails(id, posts, query, fetcher)));
         ok.add(id);
       } catch (cause) {
         out.errors.push({ source: id, url, error: cause instanceof Error ? cause.message.slice(0, 200) : "Failed" });

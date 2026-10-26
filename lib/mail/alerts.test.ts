@@ -51,11 +51,14 @@ https://ng.indeed.com/pagead/clk/dl?mo=r&vjk=9f8e7d6c5b4a3921&from=ja`;
 test("LinkedIn alert emails become one job each, with the tracking stripped", () => {
   const jobs = parseAlert({ from: "jobalerts-noreply@linkedin.com", subject: "accessibility: 3 new jobs", text: LINKEDIN, receivedAt: "2026-10-24T08:00:00Z" });
   assert.equal(jobs.length, 3);
-  assert.deepEqual(jobs.map((j) => [j.title, j.company, j.location]), [
-    ["Senior Accessibility Engineer", "Mozilla", "Remote"],
-    ["Digital Accessibility Specialist", "Hyphen", "United States (Remote)"],
-    ["Accessibility Tester", "Acme Nigeria", "Lagos, Lagos State, Nigeria (Hybrid)"],
-  ]);
+  assert.deepEqual(
+    jobs.map((j) => [j.title, j.company, j.location]),
+    [
+      ["Senior Accessibility Engineer", "Mozilla", "Remote"],
+      ["Digital Accessibility Specialist", "Hyphen", "United States (Remote)"],
+      ["Accessibility Tester", "Acme Nigeria", "Lagos, Lagos State, Nigeria (Hybrid)"],
+    ],
+  );
   assert.equal(jobs[0].applyUrl, "https://www.linkedin.com/jobs/view/4045678901/");
   assert.equal(jobs[0].externalId, "li-4045678901");
   assert.equal(jobs[0].source, "linkedin");
@@ -65,10 +68,13 @@ test("LinkedIn alert emails become one job each, with the tracking stripped", ()
 
 test("Indeed alert emails split company and place", () => {
   const jobs = parseAlert({ from: "alert@indeed.com", subject: "New jobs", text: INDEED });
-  assert.deepEqual(jobs.map((j) => [j.title, j.company, j.location, j.url]), [
-    ["Front End Developer (Accessibility)", "Tuva", "Remote", "https://www.indeed.com/viewjob?jk=0a1b2c3d4e5f6a7b"],
-    ["UX Designer", "Beta Studio", "Abuja", "https://www.indeed.com/viewjob?jk=9f8e7d6c5b4a3921"],
-  ]);
+  assert.deepEqual(
+    jobs.map((j) => [j.title, j.company, j.location, j.url]),
+    [
+      ["Front End Developer (Accessibility)", "Tuva", "Remote", "https://www.indeed.com/viewjob?jk=0a1b2c3d4e5f6a7b"],
+      ["UX Designer", "Beta Studio", "Abuja", "https://www.indeed.com/viewjob?jk=9f8e7d6c5b4a3921"],
+    ],
+  );
 });
 
 test("only job-alert senders and real job links count", () => {
@@ -83,10 +89,12 @@ test("only job-alert senders and real job links count", () => {
 test("alert jobs score in your fields and keep US-only roles hidden", () => {
   const [open, us, lagos] = parseAlert({ from: "jobalerts-noreply@linkedin.com", subject: "a11y", text: LINKEDIN, receivedAt: "2026-10-24T08:00:00Z" });
   const now = new Date("2026-10-24T12:00:00Z");
-  assert.equal(scoreJob(open, F as unknown as Facts, DEFAULT_PREFERENCES, now).hidden, null);
-  assert.match(scoreJob(us, F as unknown as Facts, DEFAULT_PREFERENCES, now).hidden ?? "", /United States/);
-  assert.match(scoreJob(lagos, F as unknown as Facts, DEFAULT_PREFERENCES, now).hidden ?? "", /Not remote/);
-  assert.ok(scoreJob(open, F as unknown as Facts, DEFAULT_PREFERENCES, now).flags.some((f) => f.startsWith("From a job alert")));
+  // Every level, so this test checks only where you can work.
+  const ALL_LEVELS = { ...DEFAULT_PREFERENCES, levels: ["entry", "mid", "senior"] as const satisfies string[] };
+  assert.equal(scoreJob(open, F as unknown as Facts, ALL_LEVELS, now).hidden, null);
+  assert.match(scoreJob(us, F as unknown as Facts, ALL_LEVELS, now).hidden ?? "", /United States/);
+  assert.match(scoreJob(lagos, F as unknown as Facts, ALL_LEVELS, now).hidden ?? "", /Not remote/);
+  assert.ok(scoreJob(open, F as unknown as Facts, ALL_LEVELS, now).flags.some((f) => f.startsWith("From a job alert")));
 });
 
 test("the CV shows links as short clickable words, not addresses", async () => {
@@ -112,9 +120,17 @@ test("the ready check names what to fix before you apply", () => {
   assert.equal(fix.length, 1);
   assert.match(fix[0].text, /portfolio/);
   assert.equal(readySummary(checks), "1 thing to fix first");
-  const email = readyChecks(base, { person: { ...person, portfolio: "p" }, proof: [{}], problems: [], byEmail: true, mail: { email: "b@x.com", tested: true }, extension: false, minMonthlyUsd: 2000 }, now);
+  const email = readyChecks(
+    base,
+    { person: { ...person, portfolio: "p" }, proof: [{}], problems: [], byEmail: true, mail: { email: "b@x.com", tested: true }, extension: false, minMonthlyUsd: 2000 },
+    now,
+  );
   assert.equal(readySummary(email), "Ready to apply");
-  const low = readyChecks({ ...base, pay_monthly_usd: 900, eligibility: "restricted", hidden_reason: "Open only to United States" }, { person, proof: [], problems: [], byEmail: false, mail: { email: null, tested: false }, extension: false, minMonthlyUsd: 2000 }, now);
+  const low = readyChecks(
+    { ...base, pay_monthly_usd: 900, eligibility: "restricted", hidden_reason: "Open only to United States" },
+    { person, proof: [], problems: [], byEmail: false, mail: { email: null, tested: false }, extension: false, minMonthlyUsd: 2000 },
+    now,
+  );
   assert.ok(low.some((c) => c.state === "no" && /United States/.test(c.text)));
   assert.ok(low.some((c) => c.state === "no" && /\$900/.test(c.text)));
 });

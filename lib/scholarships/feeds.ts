@@ -20,6 +20,12 @@ export const FEEDS: Feed[] = [
   },
   { id: "scholars4dev", name: "Scholars4Dev", home: "https://www.scholars4dev.com", url: "https://www.scholars4dev.com/feed/", pages: 1, details: false },
   { id: "opportunitydesk", name: "Opportunity Desk", home: "https://opportunitydesk.org", url: "https://opportunitydesk.org/feed/", pages: 2, details: false },
+  // Added 26 October 2026; each robots.txt allows reading the feed.
+  { id: "scholarshipscorner", name: "Scholarships Corner", home: "https://scholarshipscorner.website", url: "https://scholarshipscorner.website/feed/", pages: 2, details: false },
+  { id: "opportunitiesforyouth", name: "Opportunities for Youth", home: "https://opportunitiesforyouth.org", url: "https://opportunitiesforyouth.org/feed/", pages: 2, details: false },
+  { id: "opportunitiescorners", name: "Opportunities Corners", home: "https://opportunitiescorners.com", url: "https://opportunitiescorners.com/feed/", pages: 2, details: false },
+  { id: "youthopportunitieshub", name: "Youth Opportunities Hub", home: "https://www.youthopportunitieshub.com", url: "https://www.youthopportunitieshub.com/feed/", pages: 1, details: false },
+  { id: "mladiinfo", name: "Mladiinfo", home: "https://mladiinfo.eu", url: "https://mladiinfo.eu/feed/", pages: 1, details: false },
 ];
 export const FEED_NAMES: Record<string, string> = { ...Object.fromEntries(FEEDS.map((f) => [f.id, f.name])), whatsapp: "Your WhatsApp groups", you: "Added by you" };
 

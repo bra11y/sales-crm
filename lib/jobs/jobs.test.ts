@@ -20,6 +20,7 @@ const FIXTURE_URL: Record<string, [string, string]> = {
   greenhouse: ["greenhouse.json", "https://boards-api.greenhouse.io/v1/boards/vercel/jobs?content=true"],
   ashby: ["ashby.json", "https://api.ashbyhq.com/posting-api/job-board/linear?includeCompensation=true"],
   lever: ["lever.json", "https://api.lever.co/v0/postings/spotify?mode=json"],
+  hotnigerianjobs: ["hnj.xml", "https://www.hotnigerianjobs.com/feed/"],
 };
 const facts = F as unknown as Facts;
 const now = new Date("2026-10-21T12:00:00Z");
@@ -149,7 +150,8 @@ test("the same job on two boards is kept once, preferring the company's own boar
 test("preferences are cleaned: bad numbers, unknown sources and unsafe board names dropped", () => {
   const p = cleanPreferences({ minMonthlyUsd: "abc", sources: ["remotive", "evil"], boards: { greenhouse: ["vercel", "../etc"] }, searches: "react, react, ux" });
   assert.equal(p.minMonthlyUsd, 2000);
-  assert.deepEqual(p.sources, ["remotive"]);
+  // Boards added later (Hot Nigerian Jobs) join a saved list unless you turned them off.
+  assert.deepEqual(p.sources, ["remotive", "hotnigerianjobs"]);
   assert.deepEqual(p.boards.greenhouse, ["vercel"]);
   assert.deepEqual(p.searches, ["react", "ux"]);
   assert.deepEqual(cleanPreferences(undefined), DEFAULT_PREFERENCES);
@@ -302,5 +304,5 @@ test("big companies join your own list once, and can be turned off", async () =>
   const on = boardsFor(cleanPreferences({ boards: { greenhouse: ["vercel", "stripe"], ashby: [], lever: [] } }));
   assert.ok(on.greenhouse.includes("openai") === false && on.ashby.includes("openai"));
   assert.equal(on.greenhouse.filter((b) => b === "stripe").length, 1);
-  assert.deepEqual(boardsFor(cleanPreferences({ bigCompanies: false, boards: { greenhouse: ["vercel"], ashby: [], lever: [] } })).greenhouse, ["vercel"]);
+  assert.deepEqual(boardsFor(cleanPreferences({ bigCompanies: false, boards: { greenhouse: ["vercel"], ashby: [], lever: [] } })).greenhouse, ["vercel", "moniepoint"]);
 });

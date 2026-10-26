@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/_ui/button";
 import Tag from "@/components/_ui/tag";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/_ui/sheet";
-import { dismissLead, findScholarshipsNow, saveScholarshipPrefs, trackLead } from "@/app/(crm)/grow-actions";
+import { dismissLead, findScholarshipsNow, saveScholarshipPrefs, startApplication, trackLead } from "@/app/(crm)/grow-actions";
 import { DOC_LABEL, type DocKind } from "@/lib/grow/documents";
 import { dueText } from "@/lib/grow/grow";
 import { LEVEL_CHOICES, type ScholarshipPrefs } from "@/lib/scholarships/fit";
@@ -323,16 +323,28 @@ function Peek({ i, have, source, now, onDone }: { i: FoundItem; have: DocKind[];
               Tracking it: see your checklist
             </a>
           ) : (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="h-11 rounded-xl px-4"
-              aria-disabled={pending}
-              onClick={() => !pending && run(() => trackLead(i.id), "Added to Tracking, with a checklist.")}
-            >
-              Track this
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                className="h-11 rounded-xl px-4"
+                aria-disabled={pending}
+                onClick={() => !pending && run(() => startApplication({ leadId: i.id }), "Application started. Your checklist and a statement draft are on the Tracking tab.")}
+              >
+                Start my application
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                className="h-11 rounded-xl px-4"
+                aria-disabled={pending}
+                onClick={() => !pending && run(() => trackLead(i.id), "Added to Tracking, with a checklist.")}
+              >
+                Only track it
+              </Button>
+            </>
           )}
           {!i.tracked_id && (
             <Button

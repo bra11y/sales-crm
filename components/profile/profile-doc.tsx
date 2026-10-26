@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { LEVEL_LABEL, LEVELS } from "@/lib/jobs/level";
 import Button from "@/components/_ui/button";
 import { saveProfile } from "@/app/(crm)/profile/actions";
 import type { StoredFacts } from "@/lib/jobs/facts";
@@ -193,6 +194,26 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
           placeholderHint="Type a site such as example.com, then press Enter. Its jobs are hidden and it is never searched, for example sites that ask you to pay before you apply."
         />
         <fieldset className="flex flex-col gap-1 px-2 pt-2">
+          <legend className="text-soft pb-1 text-[14px]">Job levels you want</legend>
+          <div className="grid grid-cols-1 sm:grid-cols-3">
+            {LEVELS.map((l) => (
+              <label key={l} className="flex min-h-11 items-center gap-3 text-[14px]">
+                <input
+                  type="checkbox"
+                  checked={prefs.levels.includes(l)}
+                  onChange={(e) => {
+                    const levels = e.target.checked ? [...prefs.levels, l] : prefs.levels.filter((x) => x !== l);
+                    if (levels.length) editPrefs({ levels });
+                  }}
+                  className="accent-primary size-5"
+                />
+                {LEVEL_LABEL[l]}
+              </label>
+            ))}
+          </div>
+          <p className="text-soft text-[13px] leading-normal">Jobs at other levels are hidden, with the reason shown. Keep at least one ticked.</p>
+        </fieldset>
+        <fieldset className="flex flex-col gap-1 px-2 pt-2">
           <legend className="text-soft pb-1 text-[14px]">Job boards to search</legend>
           <div className="grid grid-cols-1 sm:grid-cols-2">
             {sources.map((s) => (
@@ -202,7 +223,11 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
                   checked={prefs.sources.includes(s.id as Preferences["sources"][number])}
                   onChange={(e) => {
                     const id = s.id as Preferences["sources"][number];
-                    editPrefs({ sources: e.target.checked ? [...prefs.sources, id] : prefs.sources.filter((x) => x !== id) });
+                    editPrefs(
+                      e.target.checked
+                        ? { sources: [...prefs.sources, id], sourcesOff: prefs.sourcesOff.filter((x) => x !== id) }
+                        : { sources: prefs.sources.filter((x) => x !== id), sourcesOff: [...prefs.sourcesOff, id] },
+                    );
                   }}
                   className="accent-primary size-5"
                 />

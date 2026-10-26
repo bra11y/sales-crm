@@ -13,6 +13,7 @@ export type Scholarship = {
   status: ScholarshipStatus;
   steps: Step[];
   note: string | null;
+  statement?: string | null;
 };
 export type CareerGoal = { id: string; title: string; horizon: "short" | "long"; due_on: string | null; why: string | null; steps: Step[]; done_at: string | null };
 

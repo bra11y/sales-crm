@@ -1,3 +1,4 @@
+import { parseHnjFeed, readHnjPage } from "./nigeria.ts";
 import { decodeEntities, htmlToText, type Pay, parsePay } from "./text.ts";
 
 export type JobPost = {
@@ -18,7 +19,8 @@ export type JobPost = {
 };
 
 export type Boards = { greenhouse: string[]; ashby: string[]; lever: string[] };
-export type SourceQuery = { searches: string[]; boards: Boards };
+// `fits` says whether a title is in your fields, so boards that need a page read per job read only those.
+export type SourceQuery = { searches: string[]; boards: Boards; fits?: (title: string) => boolean };
 
 type Source = {
   name: string;
@@ -26,6 +28,8 @@ type Source = {
   minHoursBetween: number;
   urls: (q: SourceQuery) => string[];
   parse: (body: string, url: string) => JobPost[];
+  // Boards whose feed is only a summary: read the full post for up to `max` jobs in your fields.
+  details?: { max: number; read: (html: string, post: JobPost) => JobPost };
 };
 
 const MAX_TEXT = 20_000;
@@ -93,7 +97,10 @@ export const BIG_COMPANIES: Boards = {
   lever: [],
 };
 
-export type SourceId = "remotive" | "remoteok" | "himalayas" | "jobicy" | "weworkremotely" | "arbeitnow" | "greenhouse" | "ashby" | "lever";
+// African companies with public job boards, searched with the big companies (checked 26 October 2026).
+export const AFRICAN_COMPANIES: Boards = { greenhouse: ["moniepoint"], ashby: [], lever: [] };
+
+export type SourceId = "remotive" | "remoteok" | "himalayas" | "jobicy" | "weworkremotely" | "arbeitnow" | "greenhouse" | "ashby" | "lever" | "hotnigerianjobs";
 
 export const SOURCES: Record<SourceId, Source> = {
   remotive: {
@@ -329,5 +336,15 @@ export const SOURCES: Record<SourceId, Source> = {
         } satisfies JobPost;
       }),
   },
+  hotnigerianjobs: {
+    name: "Hot Nigerian Jobs",
+    home: "https://www.hotnigerianjobs.com",
+    minHoursBetween: 3,
+    urls: () => ["https://www.hotnigerianjobs.com/feed/"],
+    parse: (body) => parseHnjFeed(body),
+    details: { max: 25, read: readHnjPage },
+  },
 };
 export const SOURCE_IDS = Object.keys(SOURCES) as SourceId[];
+// Boards added after people saved their list: searched for everyone unless they turn them off.
+export const LATER_SOURCES: SourceId[] = ["hotnigerianjobs"];

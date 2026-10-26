@@ -101,9 +101,11 @@ export default function Documents({ docs, userId, need, now }: { docs: Doc[]; us
         </p>
       )}
 
+      <BulkAdd userId={userId} />
+
       <section aria-labelledby={`${id}-add`} className="flex flex-col gap-4 rounded-2xl bg-white/[0.04] p-5">
         <h2 id={`${id}-add`} className="text-[20px] font-semibold tracking-[-0.015em]">
-          Add a document
+          Add one document
         </h2>
         <form onSubmit={upload} aria-busy={busy} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div
@@ -201,6 +203,125 @@ export default function Documents({ docs, userId, need, now }: { docs: Doc[]; us
         )}
       </section>
     </div>
+  );
+}
+
+type Queued = { file: File; kind: DocKind; state: "waiting" | "done" | "failed"; why?: string };
+
+// Pick a whole folder of files at once. Each one gets its type from its name, which you can change.
+function BulkAdd({ userId }: { userId: string }) {
+  const id = useId();
+  const router = useRouter();
+  const [queue, setQueue] = useState<Queued[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+
+  function pick(list: FileList | null) {
+    if (!list) return;
+    const next = [...list].map((file): Queued => {
+      if (!ALLOWED.includes(file.type)) return { file, kind: "other", state: "failed", why: "Not a PDF, photo or Word file" };
+      if (file.size > MAX_BYTES) return { file, kind: "other", state: "failed", why: "Over 10 MB" };
+      return { file, kind: kindFromName(file.name), state: "waiting" };
+    });
+    setQueue(next);
+    setStatus(`${next.filter((q) => q.state === "waiting").length} of ${next.length} files ready. Check each type, then press Upload all.`);
+  }
+
+  async function uploadAll() {
+    if (busy) return;
+    setBusy(true);
+    const sb = supabaseBrowser();
+    const out = [...queue];
+    let done = 0;
+    for (let i = 0; i < out.length; i++) {
+      const q = out[i];
+      if (q.state !== "waiting") continue;
+      setStatus(`Uploading ${i + 1} of ${out.length}: ${q.file.name}`);
+      const path = `${userId}/${Date.now()}-${safeName(q.file.name)}`;
+      const up = await sb.storage.from("documents").upload(path, q.file, { contentType: q.file.type, upsert: false });
+      const title =
+        q.file.name
+          .replace(/\.[a-z0-9]+$/i, "")
+          .replace(/[_-]+/g, " ")
+          .trim()
+          .slice(0, 200) || DOC_LABEL[q.kind];
+      const row = up.error ? null : await sb.from("documents").insert({ kind: q.kind, title, path, mime: q.file.type, size_bytes: q.file.size });
+      if (up.error || row?.error) {
+        if (!up.error) await sb.storage.from("documents").remove([path]);
+        out[i] = { ...q, state: "failed", why: "Did not upload. Try it again." };
+      } else {
+        out[i] = { ...q, state: "done" };
+        done++;
+      }
+      setQueue([...out]);
+    }
+    setBusy(false);
+    const failed = out.filter((q) => q.state === "failed").length;
+    setStatus(`${done} saved.${failed ? ` ${failed} did not upload: see the list.` : ""}`);
+    router.refresh();
+  }
+
+  const waiting = queue.filter((q) => q.state === "waiting").length;
+  return (
+    <section aria-labelledby={`${id}-h`} className="flex flex-col gap-4 rounded-2xl bg-white/[0.04] p-5">
+      <h2 id={`${id}-h`} className="text-[20px] font-semibold tracking-[-0.015em]">
+        Add all your documents at once
+      </h2>
+      <p className="text-soft leading-normal">
+        Pick every file together: CV, transcript, certificates, passport, ID, local government certificate. Each one is sorted by its file name, and you can change the type before uploading. Only you
+        can open them.
+      </p>
+      <label htmlFor={`${id}-files`} className="text-[15px] font-medium">
+        Files
+      </label>
+      <input
+        id={`${id}-files`}
+        type="file"
+        multiple
+        accept={ALLOWED.join(",")}
+        onChange={(e) => pick(e.target.files)}
+        className="text-soft file:bg-secondary file:text-foreground focus-visible:ring-ring file:border-line-strong min-h-11 w-full rounded-lg text-[15px] outline-none file:mr-3 file:h-11 file:cursor-pointer file:rounded-xl file:border file:px-4 file:text-[15px] focus-visible:ring-2"
+      />
+      {queue.length > 0 && (
+        <ul className="flex flex-col divide-y divide-white/[0.06] overflow-hidden rounded-xl bg-white/[0.03]">
+          {queue.map((q, i) => (
+            <li key={`${q.file.name}-${i}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+              <span className="min-w-0 flex-1 break-words">{q.file.name}</span>
+              {q.state === "waiting" ? (
+                <>
+                  <label htmlFor={`${id}-k-${i}`} className="sr-only">
+                    Type of {q.file.name}
+                  </label>
+                  <select
+                    id={`${id}-k-${i}`}
+                    value={q.kind}
+                    disabled={busy}
+                    onChange={(e) => setQueue((all) => all.map((x, j) => (j === i ? { ...x, kind: e.target.value as DocKind } : x)))}
+                    className={cn(FIELD, "w-auto cursor-pointer")}
+                  >
+                    {DOC_KINDS.map((k) => (
+                      <option key={k} value={k}>
+                        {DOC_LABEL[k]}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <span className={cn("text-[14px]", q.state === "done" ? "text-success" : "text-danger")}>{q.state === "done" ? `Saved as ${DOC_LABEL[q.kind]}` : q.why}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {waiting > 0 && (
+        <Button type="button" variant="primary" size="md" aria-disabled={busy} onClick={uploadAll} className="h-12 rounded-xl px-6 text-[15px] sm:self-start">
+          {busy ? "Uploading…" : `Upload all ${waiting}`}
+        </Button>
+      )}
+      <p role="status" aria-live="polite" className="text-soft empty:hidden">
+        {status}
+      </p>
+    </section>
   );
 }
 

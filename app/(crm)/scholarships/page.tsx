@@ -21,7 +21,7 @@ export default async function ScholarshipsPage({ searchParams }: { searchParams:
   const today = now.toISOString().slice(0, 10);
   const [profile, { data: tracked, error }, { data: leadRows }, { data: docRows }] = await Promise.all([
     loadProfile(),
-    supabase.from("scholarships").select("id, name, provider, url, level, country, amount, deadline, status, steps, note"),
+    supabase.from("scholarships").select("id, name, provider, url, level, country, amount, deadline, status, steps, note, statement"),
     supabase
       .from("scholarship_leads")
       .select("id, title, url, place, eligible, level, benefits, needs, deadline, deadline_text, source, fully_funded, summary, tracked_id, created_at")

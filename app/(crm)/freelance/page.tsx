@@ -1,22 +1,32 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import AuditOutreach, { type Prospect, type Suggestion } from "@/components/grow/audit-outreach";
+import GigList, { type GigItem } from "@/components/grow/gig-list";
 import { Page, PageHead, ViewTabs } from "@/components/workspace/parts";
+import { loadGigs } from "@/lib/gigs/load";
+import { gigMatch } from "@/lib/gigs/reply";
+import { jobLevel } from "@/lib/jobs/level";
+import { loadProfile } from "@/lib/jobs/profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Freelance and audits · Sales CRM", robots: { index: false } };
 
-const CONTRACT = /\b(contract|contractor|freelance|freelancer|part[- ]time|short[- ]term|temporary|temp|consultant|consulting|project[- ]based|audit|audits|gig|retainer)\b/i;
-
 export default async function FreelancePage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const view = (await searchParams).view === "audits" ? "audits" : "jobs";
+  const view = (await searchParams).view === "audits" ? "audits" : "gigs";
   const supabase = await createSupabaseServerClient();
-  const [{ data: jobs }, { data: prospects }] = await Promise.all([
-    supabase.from("job_posts").select("id, title, company, employment_type, description, band, hidden_reason, status, company_info").order("score", { ascending: false }).limit(800),
+  const [{ data: jobs }, { data: prospects }, { data: replies }, profile, feed] = await Promise.all([
+    supabase.from("job_posts").select("company, company_info").not("company_info", "is", null).order("score", { ascending: false }).limit(200),
     supabase.from("audit_prospects").select("id, company, url, contact_name, contact_email, score, findings, status, checked_at").order("checked_at", { ascending: false, nullsFirst: false }),
+    supabase.from("gig_replies").select("gig_id, status"),
+    loadProfile(supabase),
+    loadGigs(),
   ]);
-  // The job type or title says it: an "audits" duty inside a full-time post is not freelance work.
-  const contract = (jobs ?? []).filter((j) => j.status !== "dismissed" && CONTRACT.test(`${j.employment_type ?? ""} ${j.title}`));
+  const stage = new Map((replies ?? []).map((r) => [r.gig_id as string, r.status as string]));
+  const levels = profile?.preferences.levels ?? ["entry", "mid", "senior"];
+  const gigs: GigItem[] = feed.gigs.map((g) => {
+    const matched = profile ? gigMatch(g, profile.facts) : [];
+    // Fits when it asks for your skills at a level you chose in Profile.
+    return { ...g, matched, fits: matched.length > 0 && levels.includes(jobLevel(g.title, g.text).level), status: stage.get(g.id) ?? null };
+  });
   const checked = new Set((prospects ?? []).map((p) => p.url.replace(/^https:\/\/(www\.)?/, "").replace(/\/.*$/, "")));
   const suggestions: Suggestion[] = [];
   for (const j of jobs ?? []) {
@@ -26,7 +36,7 @@ export default async function FreelancePage({ searchParams }: { searchParams: Pr
     if (suggestions.length >= 12) break;
   }
   const views = [
-    { href: "/freelance", label: "Contract and freelance jobs", count: contract.length },
+    { href: "/freelance", label: "Gigs people posted", count: gigs.filter((g) => g.fits && g.status !== "not_for_me").length },
     { href: "/freelance?view=audits", label: "Audit outreach", count: (prospects ?? []).length },
   ];
 
@@ -34,32 +44,10 @@ export default async function FreelancePage({ searchParams }: { searchParams: Pr
     <Page>
       <PageHead
         title="Freelance and audits"
-        intro="Short-term work: contract and freelance jobs from your job search, and companies whose websites fail basic accessibility checks, with an outreach email drafted for you to send."
+        intro="Short-term work you get by answering a person, not a job board: posts from people who need help, and companies whose websites fail basic accessibility checks."
         views={<ViewTabs label="Freelance views" views={views} current={view === "audits" ? "/freelance?view=audits" : "/freelance"} />}
       />
-      {view === "audits" ? (
-        <AuditOutreach prospects={(prospects ?? []) as Prospect[]} suggestions={suggestions} />
-      ) : contract.length === 0 ? (
-        <p className="text-soft rounded-2xl bg-white/[0.04] p-5 leading-normal">No contract or freelance jobs yet. They show here as the job search finds them.</p>
-      ) : (
-        <ul className="flex flex-col divide-y divide-white/[0.06] overflow-hidden rounded-2xl bg-white/[0.04]">
-          {contract.map((j) => (
-            <li key={j.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-              <div className="flex min-w-0 flex-col">
-                <Link href={`/jobs?open=${j.id}`} className="font-medium break-words underline-offset-2 hover:underline">
-                  {j.title}
-                </Link>
-                <span className="text-soft text-[14px]">
-                  {j.company || "Company not named"}
-                  {j.employment_type ? ` · ${j.employment_type}` : ""}
-                  {j.hidden_reason ? ` · Hidden: ${j.hidden_reason}` : ""}
-                </span>
-              </div>
-              <span className="text-soft text-[13px] capitalize">{j.band} fit</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {view === "audits" ? <AuditOutreach prospects={(prospects ?? []) as Prospect[]} suggestions={suggestions} /> : <GigList gigs={gigs} failed={feed.failed} />}
     </Page>
   );
 }

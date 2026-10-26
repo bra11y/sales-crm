@@ -1,5 +1,6 @@
 import E from "../apply/engine.js";
 import type { Facts } from "./facts.ts";
+import { jobLevel, LEVEL_LABEL } from "./level.ts";
 import { blocked, type Preferences } from "./preferences.ts";
 import type { JobPost } from "./sources.ts";
 import { monthlyUsd } from "./text.ts";
@@ -64,6 +65,7 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
   const ageDays = post.postedAt ? Math.max(0, Math.floor((now.getTime() - Date.parse(post.postedAt)) / DAY)) : null;
   const reasons: string[] = [];
   const flags: string[] = [];
+  const level = jobLevel(post.title, post.description);
 
   const titled = Object.values(facts.tracks).some((t) => new RegExp(`\\b(?:${t.titleOk.source})`, "i").test(post.title));
   let hidden: string | null = null;
@@ -72,9 +74,11 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
   else if (!titled) hidden = "Outside your fields";
   else if (where.eligibility === "restricted") hidden = where.why;
   else if (pay !== null && pay < prefs.minMonthlyUsd) hidden = `Pays about ${usd(pay)} a month, under your ${usd(prefs.minMonthlyUsd)} floor`;
+  else if (!prefs.levels.includes(level.level)) hidden = `${LEVEL_LABEL[level.level]} role: ${level.why.charAt(0).toLowerCase()}${level.why.slice(1)}`;
 
   if (matched.length) reasons.push(`Matches ${matched.length} of your skills: ${matched.slice(0, 5).join(", ")}${matched.length > 5 ? " and more" : ""}`);
   reasons.push(where.why);
+  if (level.level !== "mid") reasons.push(level.level === "entry" ? "Entry level: open to graduates" : level.why);
   if (pay !== null) reasons.push(`Pays up to about ${usd(pay)} a month`);
   if (ageDays !== null) reasons.push(ageDays === 0 ? "Posted today" : `Posted ${ageDays} day${ageDays === 1 ? "" : "s"} ago`);
 

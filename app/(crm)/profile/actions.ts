@@ -3,6 +3,7 @@
 import { cleanFacts, type StoredFacts } from "@/lib/jobs/facts";
 import { cleanPreferences, type Preferences } from "@/lib/jobs/preferences";
 import { loadProfile } from "@/lib/jobs/profile";
+import { rescoreSaved } from "@/lib/jobs/search";
 import { createExtensionToken } from "@/lib/apply/kit";
 import { connectGmail, sendTestEmail } from "@/lib/apply/outbox";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -19,6 +20,10 @@ export async function saveProfile(input: { facts: StoredFacts; preferences: Pref
   const savedAt = new Date().toISOString();
   const { error } = await supabase.from("job_profiles").update({ facts, preferences, updated_at: savedAt }).eq("user_id", current.userId);
   if (error) return { ok: false, error: "Your changes were not saved. Check your connection and try again." };
+  // Score your saved jobs again, so a new level or pay floor shows straight away.
+  const admin = createSupabaseAdminClient();
+  const fresh = admin ? await loadProfile(admin, current.userId) : null;
+  if (admin && fresh) await rescoreSaved(admin, current.userId, fresh).catch(() => 0);
   return { ok: true, savedAt };
 }
 

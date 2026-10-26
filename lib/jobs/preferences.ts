@@ -1,5 +1,6 @@
 import { cleanScholarshipPrefs, DEFAULT_SCHOLARSHIP_PREFS, type ScholarshipPrefs } from "../scholarships/fit.ts";
-import { BIG_COMPANIES, type Boards, SOURCE_IDS, type SourceId } from "./sources.ts";
+import { type JobLevel, LEVELS } from "./level.ts";
+import { AFRICAN_COMPANIES, BIG_COMPANIES, type Boards, LATER_SOURCES, SOURCE_IDS, type SourceId } from "./sources.ts";
 
 export type Preferences = {
   minMonthlyUsd: number;
@@ -9,6 +10,10 @@ export type Preferences = {
   searches: string[];
   boards: Boards;
   sources: SourceId[];
+  // Boards you turned off. Boards added to the app later are searched unless they are here.
+  sourcesOff: SourceId[];
+  // The job levels you want. Others are hidden, with the reason shown.
+  levels: JobLevel[];
   // "on" lets a small AI model write the 'why this company' lines; "off" keeps everything free and rule-based.
   ai: "on" | "off";
   // Sites whose jobs are hidden and never searched, such as ones that ask you to pay before you apply.
@@ -22,11 +27,15 @@ export type Preferences = {
   autoApply: { on: boolean; perDay: number };
 };
 
-// Your own company list plus, when on, the big companies: each board asked once.
+// Your own company list, African companies, and, when on, the big companies: each board asked once.
 export function boardsFor(p: Preferences): Boards {
-  if (!p.bigCompanies) return p.boards;
-  const join = (a: string[], b: string[]) => [...new Set([...a, ...b])];
-  return { greenhouse: join(p.boards.greenhouse, BIG_COMPANIES.greenhouse), ashby: join(p.boards.ashby, BIG_COMPANIES.ashby), lever: join(p.boards.lever, BIG_COMPANIES.lever) };
+  const join = (...lists: string[][]) => [...new Set(lists.flat())];
+  const big = p.bigCompanies ? BIG_COMPANIES : { greenhouse: [], ashby: [], lever: [] };
+  return {
+    greenhouse: join(p.boards.greenhouse, AFRICAN_COMPANIES.greenhouse, big.greenhouse),
+    ashby: join(p.boards.ashby, AFRICAN_COMPANIES.ashby, big.ashby),
+    lever: join(p.boards.lever, AFRICAN_COMPANIES.lever, big.lever),
+  };
 }
 
 // Himalayas asks you to sign up, upload your CV, then pay before you can apply.
@@ -58,6 +67,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
     lever: ["spotify"],
   },
   sources: SOURCE_IDS,
+  sourcesOff: [],
+  levels: ["entry", "mid"],
   ai: "on",
   blockedSites: DEFAULT_BLOCKED,
   scholarship: DEFAULT_SCHOLARSHIP_PREFS,
@@ -75,7 +86,9 @@ export function cleanPreferences(input: unknown): Preferences {
   const p = (input ?? {}) as Partial<Record<keyof Preferences, unknown>>;
   const boards = (p.boards ?? {}) as Partial<Record<keyof Boards, unknown>>;
   const min = Number(p.minMonthlyUsd);
-  const sources = Array.isArray(p.sources) ? SOURCE_IDS.filter((id) => (p.sources as unknown[]).includes(id)) : DEFAULT_PREFERENCES.sources;
+  const sourcesOff = Array.isArray(p.sourcesOff) ? SOURCE_IDS.filter((id) => (p.sourcesOff as unknown[]).includes(id)) : [];
+  const sources = Array.isArray(p.sources) ? SOURCE_IDS.filter((id) => (p.sources as unknown[]).includes(id) || (LATER_SOURCES.includes(id) && !sourcesOff.includes(id))) : DEFAULT_PREFERENCES.sources;
+  const levels = Array.isArray(p.levels) ? LEVELS.filter((l) => (p.levels as unknown[]).includes(l)) : DEFAULT_PREFERENCES.levels;
   return {
     minMonthlyUsd: Number.isFinite(min) && min >= 0 ? Math.min(Math.round(min), 1_000_000) : DEFAULT_PREFERENCES.minMonthlyUsd,
     remoteOnly: p.remoteOnly === undefined ? DEFAULT_PREFERENCES.remoteOnly : Boolean(p.remoteOnly),
@@ -88,6 +101,8 @@ export function cleanPreferences(input: unknown): Preferences {
       lever: boards.lever === undefined ? DEFAULT_PREFERENCES.boards.lever : slugs(boards.lever),
     },
     sources,
+    sourcesOff,
+    levels: levels.length ? levels : DEFAULT_PREFERENCES.levels,
     ai: p.ai === "off" ? "off" : "on",
     blockedSites:
       p.blockedSites === undefined

@@ -3,7 +3,7 @@
 import { type FormEvent, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/_ui/button";
-import { addScholarship, removeScholarship, updateScholarship } from "@/app/(crm)/grow-actions";
+import { addScholarship, removeScholarship, startApplication, updateScholarship } from "@/app/(crm)/grow-actions";
 import { daysLeft, dueText, LEVEL_LABEL, LEVELS, type Scholarship, STATUS_LABEL, STATUSES } from "@/lib/grow/grow";
 import { DOC_LABEL, type DocKind, readiness, SCHOLARSHIP_NEEDS } from "@/lib/grow/documents";
 import Checklist from "./checklist";
@@ -144,7 +144,7 @@ function Card({ s, have, now }: { s: Scholarship; have: DocKind[]; now: string }
   const [stage, setStage] = useState(s.status);
   const [msg, setMsg] = useState("");
   const [sure, setSure] = useState(false);
-  const [, start] = useTransition();
+  const [pending, start] = useTransition();
   const left = daysLeft(s.deadline, new Date(now));
   const open = s.status !== "won" && s.status !== "lost";
   const urgent = open && left !== null && left >= 0 && left <= 14;
@@ -156,6 +156,19 @@ function Card({ s, have, now }: { s: Scholarship; have: DocKind[]; now: string }
       const r = await updateScholarship(s.id, { status: next });
       setMsg(r.ok ? `Moved to ${STATUS_LABEL[next as Scholarship["status"]]}.` : r.error);
       if (!r.ok) setStage(before);
+    });
+  }
+
+  function begin() {
+    if (pending) return;
+    start(async () => {
+      setMsg("Starting your application…");
+      const r = await startApplication({ scholarshipId: s.id });
+      setMsg(r.ok ? "Started. Your checklist is updated and a statement draft is below." : r.error);
+      if (r.ok) {
+        setStage("preparing");
+        router.refresh();
+      }
     });
   }
 
@@ -217,12 +230,82 @@ function Card({ s, have, now }: { s: Scholarship; have: DocKind[]; now: string }
           </Button>
         )}
       </div>
+      {open && stage === "interested" && (
+        <div className="flex flex-col gap-1">
+          <Button type="button" variant="primary" size="md" className="h-11 self-start rounded-xl px-4" aria-disabled={pending} onClick={begin}>
+            Start my application
+          </Button>
+          <p className="text-soft text-[13px]">Builds your checklist from what it asks for and writes a first draft of your personal statement.</p>
+        </div>
+      )}
       {open && <DocsLine have={have} />}
-      <Checklist label={`Checklist for ${s.name}`} initial={s.steps} save={(steps) => updateScholarship(s.id, { steps })} />
+      {/* A new checklist from "Start my application" replaces the old one on screen. */}
+      <Checklist key={s.steps.map((x) => x.text).join("|")} label={`Checklist for ${s.name}`} initial={s.steps} save={(steps) => updateScholarship(s.id, { steps })} />
+      {s.statement && <Statement id={s.id} name={s.name} initial={s.statement} />}
       <p role="status" aria-live="polite" className="text-soft text-[14px] empty:hidden">
         {msg}
       </p>
     </li>
+  );
+}
+
+// Your personal statement draft: edit it here, then copy it into the application form.
+function Statement({ id, name, initial }: { id: string; name: string; initial: string }) {
+  const field = useId();
+  const [text, setText] = useState(initial);
+  const [msg, setMsg] = useState("");
+  const [pending, start] = useTransition();
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const blanks = (text.match(/\[[^\]]+\]/g) ?? []).length;
+  return (
+    <details className="rounded-xl bg-white/[0.03] p-3" open={blanks > 0}>
+      <summary className="focus-visible:ring-ring min-h-6 cursor-pointer rounded font-medium outline-none focus-visible:ring-2">
+        Personal statement{" "}
+        <span className="text-soft font-normal">
+          · {words} words{blanks ? ` · ${blanks} parts in [brackets] for you to write` : ""}
+        </span>
+      </summary>
+      <div className="mt-3 flex flex-col gap-2">
+        <label htmlFor={field} className="text-soft text-[13px]">
+          Statement for {name}. Replace each part in [square brackets] with your own words.
+        </label>
+        <textarea id={field} value={text} onChange={(e) => setText(e.target.value)} rows={14} className={cn(FIELD, "h-auto py-3 leading-relaxed")} />
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            className="h-11 rounded-xl px-4"
+            aria-disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const r = await updateScholarship(id, { statement: text });
+                setMsg(r.ok ? "Saved." : r.error);
+              })
+            }
+          >
+            Save statement
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            className="h-11 px-3"
+            onClick={() =>
+              navigator.clipboard.writeText(text).then(
+                () => setMsg(blanks ? `Copied. ${blanks} parts in brackets still need your words.` : "Copied."),
+                () => setMsg("Copy did not work. Select the text and copy it."),
+              )
+            }
+          >
+            Copy
+          </Button>
+        </div>
+        <p role="status" aria-live="polite" className="text-soft text-[14px] empty:hidden">
+          {msg}
+        </p>
+      </div>
+    </details>
   );
 }
 

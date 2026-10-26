@@ -11,6 +11,10 @@ const ACCOUNT_FIRST: [RegExp, string][] = [
   [/(^|\.)indeed\.[a-z.]+$/, "Indeed"],
   [/(^|\.)himalayas\.app$/, "Himalayas"],
   [/(^|\.)ziprecruiter\.com$/, "ZipRecruiter"],
+  // Checked 26 October 2026: "Sign in or create a free account to continue to the employer's application."
+  [/(^|\.)jobicy\.com$/, "Jobicy"],
+  // Reported 26 October 2026: asks you to sign in before it shows the employer's link.
+  [/(^|\.)weworkremotely\.com$/, "We Work Remotely"],
 ];
 
 // The name of the system when the apply link needs an account first, else null.
