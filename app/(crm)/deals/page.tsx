@@ -41,7 +41,15 @@ export default async function DealsPage({ searchParams }: { searchParams: Search
   const stages = view ? [...new Set(slipping.map((c) => c.stage))] : [...(product?.stages ?? []), ...new Set(shown.map((c) => c.stage).filter((s) => !product?.stages.includes(s)))];
 
   const currencies = [...new Set(shown.map((c) => c.currency))];
-  const money = (pick: (c: Card) => number) => currencies.map((cur) => formatMoney(shown.filter((c) => c.currency === cur).reduce((s, c) => s + pick(c), 0), cur)).join(" · ") || "—";
+  const money = (pick: (c: Card) => number) =>
+    currencies
+      .map((cur) =>
+        formatMoney(
+          shown.filter((c) => c.currency === cur).reduce((s, c) => s + pick(c), 0),
+          cur,
+        ),
+      )
+      .join(" · ") || "—";
   const current = view ? "/deals?view=slipping" : `/deals?product=${product?.slug}`;
 
   return (
@@ -55,7 +63,11 @@ export default async function DealsPage({ searchParams }: { searchParams: Search
               ? "Each column is a stage. Use “Move to” on a card to change its stage, or drag the card. Open a card to see its full record."
               : `${product?.name ?? "This pipeline"} sets each stage from its own billing events, so this board is read-only. Open a card to see payments and the timeline.`
         }
-        actions={<Button variant="secondary" size="md" className="h-11 px-4" href="/forecast">See the forecast</Button>}
+        actions={
+          <Button variant="secondary" size="md" className="h-11 px-4" href="/forecast">
+            See the forecast
+          </Button>
+        }
         views={
           <ViewTabs
             label="Pipelines"

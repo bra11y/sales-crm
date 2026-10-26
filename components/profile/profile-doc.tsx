@@ -100,11 +100,21 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
         ))}
       </div>
 
-      <Section id="applying" title="Sending applications" hint="Applications send from your own Gmail, at most 40 a day, inside the employer's work hours. Two follow-ups go 5 days apart, and stop when they reply.">
+      <Section
+        id="applying"
+        title="Sending applications"
+        hint="Applications send from your own Gmail, at most 40 a day, inside the employer's work hours. Two follow-ups go 5 days apart, and stop when they reply."
+      >
         <MailSection mail={mail} suggested={facts.person.email ?? ""} />
         <div className="border-line-strong flex flex-col gap-2 border-t pt-3">
           <label className="flex min-h-11 items-center gap-2 text-[14px]">
-            <input type="checkbox" checked={prefs.ai === "on"} onChange={(e) => editPrefs({ ai: e.target.checked ? "on" : "off" })} className="accent-primary size-5" aria-describedby="profile-ai-hint" />
+            <input
+              type="checkbox"
+              checked={prefs.ai === "on"}
+              onChange={(e) => editPrefs({ ai: e.target.checked ? "on" : "off" })}
+              className="accent-primary size-5"
+              aria-describedby="profile-ai-hint"
+            />
             Let AI write the &ldquo;why this company&rdquo; lines
           </label>
           <p id="profile-ai-hint" className="caption-style text-soft leading-normal">
@@ -134,7 +144,19 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
         </fieldset>
         <Chips label="Your cities" items={prefs.cities} onChange={(cities) => editPrefs({ cities })} placeholderHint="Type a city, then press Enter. On-site jobs here are kept." />
         <h3 className="px-2 pt-2 font-medium">Search words</h3>
-        <Chips label="Search words" items={prefs.searches} onChange={(searches) => editPrefs({ searches })} placeholderHint="Words sent to Himalayas and Jobicy, such as accessibility or react." />
+        <Chips
+          label="Search words"
+          items={prefs.searches}
+          onChange={(searches) => editPrefs({ searches })}
+          placeholderHint="Words sent to the job boards that take a search, such as accessibility or react."
+        />
+        <h3 className="px-2 pt-2 font-medium">Sites to skip</h3>
+        <Chips
+          label="Sites to skip"
+          items={prefs.blockedSites}
+          onChange={(blockedSites) => editPrefs({ blockedSites })}
+          placeholderHint="Type a site such as example.com, then press Enter. Its jobs are hidden and it is never searched, for example sites that ask you to pay before you apply."
+        />
         <fieldset className="flex flex-col gap-1 px-2 pt-2">
           <legend className="text-soft pb-1 text-[14px]">Job boards to search</legend>
           <div className="grid grid-cols-1 sm:grid-cols-2">
@@ -161,7 +183,12 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
         {(["greenhouse", "ashby", "lever"] as const).map((b) => (
           <div key={b} className="flex flex-col gap-1">
             <h4 className="text-soft px-2 pt-1 font-normal capitalize">{b}</h4>
-            <Chips label={`${b} companies`} items={prefs.boards[b]} onChange={(list) => editPrefs({ boards: { ...prefs.boards, [b]: list.map((x) => x.toLowerCase()) } })} placeholderHint="Lower case, no spaces." />
+            <Chips
+              label={`${b} companies`}
+              items={prefs.boards[b]}
+              onChange={(list) => editPrefs({ boards: { ...prefs.boards, [b]: list.map((x) => x.toLowerCase()) } })}
+              placeholderHint="Lower case, no spaces."
+            />
           </div>
         ))}
       </Section>
@@ -206,7 +233,17 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
                   <Property
                     label="Tags"
                     value={b.tags.join(", ")}
-                    onChange={(v) => edit((f) => ((f.jobs[ji].bullets[bi].tags = v.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)), f))}
+                    onChange={(v) =>
+                      edit(
+                        (f) => (
+                          (f.jobs[ji].bullets[bi].tags = v
+                            .split(",")
+                            .map((x) => x.trim().toLowerCase())
+                            .filter(Boolean)),
+                          f
+                        ),
+                      )
+                    }
                   />
                   <Button variant="ghost" size="md" className="text-soft h-11 self-start px-3" onClick={() => edit((f) => (f.jobs[ji].bullets.splice(bi, 1), f))}>
                     Remove result {bi + 1}
@@ -228,7 +265,7 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
       >
         <ul className="flex flex-col gap-3">
           {(facts.work ?? []).map((w, wi) => (
-            <li key={wi} className="bg-white/[0.035] flex flex-col gap-1 rounded-2xl p-3">
+            <li key={wi} className="flex flex-col gap-1 rounded-2xl bg-white/[0.035] p-3">
               <Property label="Title" value={w.title} onChange={(v) => edit((f) => ((f.work[wi].title = v), f))} />
               <TextBlock label="What you did" rows={2} value={w.what} onChange={(v) => edit((f) => ((f.work[wi].what = v), f))} />
               <TextBlock label="Result (a number if you have one)" rows={2} value={w.result} onChange={(v) => edit((f) => ((f.work[wi].result = v), f))} />
@@ -239,32 +276,81 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
                 hint={w.url ? "Employers can open this." : "No link yet. Add a live site, case study or repo starting with https://."}
                 onChange={(v) => edit((f) => ((f.work[wi].url = v.trim()), f))}
               />
-              <Property label="Tags" value={w.tags.join(", ")} hint="Words in a job post that make this relevant." onChange={(v) => edit((f) => ((f.work[wi].tags = v.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)), f))} />
+              <Property
+                label="Tags"
+                value={w.tags.join(", ")}
+                hint="Words in a job post that make this relevant."
+                onChange={(v) =>
+                  edit(
+                    (f) => (
+                      (f.work[wi].tags = v
+                        .split(",")
+                        .map((x) => x.trim().toLowerCase())
+                        .filter(Boolean)),
+                      f
+                    ),
+                  )
+                }
+              />
               <Button variant="ghost" size="md" className="text-soft h-11 self-start px-3" onClick={() => edit((f) => (f.work.splice(wi, 1), f))}>
                 Remove {w.title || `proof ${wi + 1}`}
               </Button>
             </li>
           ))}
         </ul>
-        <Button variant="secondary" size="md" className="h-11 self-start rounded-xl px-4" onClick={() => edit((f) => ((f.work = [...(f.work ?? []), { title: "", what: "", result: "", url: "", tags: [] }]), f))}>
+        <Button
+          variant="secondary"
+          size="md"
+          className="h-11 self-start rounded-xl px-4"
+          onClick={() => edit((f) => ((f.work = [...(f.work ?? []), { title: "", what: "", result: "", url: "", tags: [] }]), f))}
+        >
           Add proof of work
         </Button>
       </Section>
 
-      <Section id="answers" title="Saved answers" hint="Answers to questions forms ask again and again. Fill each once and the Chrome extension pastes it whenever a form asks. Words are what a form's question might say.">
+      <Section
+        id="answers"
+        title="Saved answers"
+        hint="Answers to questions forms ask again and again. Fill each once and the Chrome extension pastes it whenever a form asks. Words are what a form's question might say."
+      >
         <ul className="flex flex-col gap-3">
           {(facts.answers ?? []).map((a, ai) => (
-            <li key={ai} className="bg-white/[0.035] flex flex-col gap-1 rounded-2xl p-3">
+            <li key={ai} className="flex flex-col gap-1 rounded-2xl bg-white/[0.035] p-3">
               <Property label="Question" value={a.question} onChange={(v) => edit((f) => ((f.answers[ai].question = v), f))} />
-              <TextBlock label="Your answer" rows={2} value={a.answer} hint={a.answer ? undefined : "Empty. Forms that ask this will be listed for you to fill."} onChange={(v) => edit((f) => ((f.answers[ai].answer = v), f))} />
-              <Property label="Words" value={a.words.join(", ")} onChange={(v) => edit((f) => ((f.answers[ai].words = v.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean)), f))} />
+              <TextBlock
+                label="Your answer"
+                rows={2}
+                value={a.answer}
+                hint={a.answer ? undefined : "Empty. Forms that ask this will be listed for you to fill."}
+                onChange={(v) => edit((f) => ((f.answers[ai].answer = v), f))}
+              />
+              <Property
+                label="Words"
+                value={a.words.join(", ")}
+                onChange={(v) =>
+                  edit(
+                    (f) => (
+                      (f.answers[ai].words = v
+                        .split(",")
+                        .map((x) => x.trim().toLowerCase())
+                        .filter(Boolean)),
+                      f
+                    ),
+                  )
+                }
+              />
               <Button variant="ghost" size="md" className="text-soft h-11 self-start px-3" onClick={() => edit((f) => (f.answers.splice(ai, 1), f))}>
                 Remove the {a.question || `answer ${ai + 1}`} answer
               </Button>
             </li>
           ))}
         </ul>
-        <Button variant="secondary" size="md" className="h-11 self-start rounded-xl px-4" onClick={() => edit((f) => ((f.answers = [...(f.answers ?? []), { question: "", words: [], answer: "" }]), f))}>
+        <Button
+          variant="secondary"
+          size="md"
+          className="h-11 self-start rounded-xl px-4"
+          onClick={() => edit((f) => ((f.answers = [...(f.answers ?? []), { question: "", words: [], answer: "" }]), f))}
+        >
           Add an answer
         </Button>
       </Section>
@@ -285,7 +371,18 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
                 rows={2}
                 value={track.titleOk.split("|").join(", ")}
                 hint="Separate with commas. A job is in your field when its title starts a word with one of these."
-                onChange={(v) => edit((f) => ((f.tracks[t].titleOk = v.split(",").map((w) => w.replace(/^\s+/, "")).filter((w) => w.trim()).join("|")), f))}
+                onChange={(v) =>
+                  edit(
+                    (f) => (
+                      (f.tracks[t].titleOk = v
+                        .split(",")
+                        .map((w) => w.replace(/^\s+/, ""))
+                        .filter((w) => w.trim())
+                        .join("|")),
+                      f
+                    ),
+                  )
+                }
               />
               <TextBlock label="CV profile" rows={4} value={track.profile} onChange={(v) => edit((f) => ((f.tracks[t].profile = v), f))} />
               <TextBlock label="Cover letter opening" rows={2} value={track.hook} onChange={(v) => edit((f) => ((f.tracks[t].hook = v), f))} />

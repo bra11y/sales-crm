@@ -21,17 +21,12 @@ export default async function OverviewPage({ searchParams }: { searchParams: Sea
   const scope = product ? productNames[product] : "All products";
 
   return (
-    <PageShell
-      title="Overview"
-      intro={`${scope}, ${label.toLowerCase()}, in ${currency}. Amounts in other currencies are kept apart, never added in.`}
-    >
+    <PageShell title="Overview" intro={`${scope}, ${label.toLowerCase()}, in ${currency}. Amounts in other currencies are kept apart, never added in.`}>
       <PeriodForm period={key} product={product ?? ""} currency={currency} products={data.products} currencies={currencies} />
       <section aria-labelledby="sales-heading" className="flex flex-col gap-5">
         <h2 id="sales-heading">Sales</h2>
         <Figures figures={figures} currency={currency} />
-        {data.payments.length >= PAYMENT_CAP && (
-          <p className="caption-style text-subtle">Figures use the latest {PAYMENT_CAP.toLocaleString()} payments.</p>
-        )}
+        {data.payments.length >= PAYMENT_CAP && <p className="caption-style text-subtle">Figures use the latest {PAYMENT_CAP.toLocaleString()} payments.</p>}
       </section>
       <section aria-labelledby="goals-heading" className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

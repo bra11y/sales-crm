@@ -10,6 +10,7 @@ export const DOC_KINDS = [
   "certificate",
   "passport",
   "national_id",
+  "lga_certificate",
   "birth_certificate",
   "recommendation",
   "personal_statement",
@@ -31,6 +32,7 @@ export const DOC_LABEL: Record<DocKind, string> = {
   certificate: "Professional certificate",
   passport: "International passport",
   national_id: "National ID (NIN)",
+  lga_certificate: "Local government ID (certificate of origin)",
   birth_certificate: "Birth certificate",
   recommendation: "Recommendation letter",
   personal_statement: "Personal statement or essay",
@@ -62,6 +64,7 @@ const WORDS: [DocKind, RegExp][] = [
   ["admission", /\b(admission|offer) letter\b/i],
   ["nysc", /\bnysc\b/i],
   ["birth_certificate", /\bbirth certificate\b|\bage declaration\b/i],
+  ["lga_certificate", /\b(local government (id|identification|certificate)|lga (certificate|identification|id)|certificate of (state of )?origin|state of origin certificate|certificate of indigen)/i],
   ["proof_of_funds", /\b(proof of funds|bank statement)\b/i],
 ];
 
@@ -80,6 +83,7 @@ export function kindFromName(name: string): DocKind {
   if (/passport.?(photo|pic)|headshot/.test(n)) return "photo";
   if (/passport/.test(n)) return "passport";
   if (/\bnin\b|national.?id|nimc/.test(n)) return "national_id";
+  if (/\blga\b|local.?gov|state.?of.?origin|certificate.?of.?origin|indigene|origin/.test(n)) return "lga_certificate";
   if (/birth/.test(n)) return "birth_certificate";
   if (/recommend|reference/.test(n)) return "recommendation";
   if (/statement.?of.?purpose|personal.?statement|\bsop\b|essay|motivation/.test(n)) return "personal_statement";

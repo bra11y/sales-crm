@@ -20,10 +20,7 @@ export default async function IntegrationsPage() {
   const now = new Date();
 
   return (
-    <PageShell
-      title="Integrations"
-      intro="The apps that send sales to this CRM, and the services it can connect to. Each app keeps its own database; it only sends signed events here."
-    >
+    <PageShell title="Integrations" intro="The apps that send sales to this CRM, and the services it can connect to. Each app keeps its own database; it only sends signed events here.">
       <section aria-labelledby="apps-heading" className="flex flex-col gap-4">
         <h2 id="apps-heading">Your apps</h2>
         <ul className="flex flex-col">
@@ -53,9 +50,7 @@ export default async function IntegrationsPage() {
                     </li>
                     <li>
                       Set <code>CRM_INGEST_SECRET</code> to the same value as <code>{secretName(app.slug)}</code> here.{" "}
-                      <span className="text-subtle">
-                        {secretSet ? "This CRM has its secret set." : "This CRM does not have its secret yet."}
-                      </span>
+                      <span className="text-subtle">{secretSet ? "This CRM has its secret set." : "This CRM does not have its secret yet."}</span>
                     </li>
                     {app.slug === "lux" && (
                       <li>
@@ -88,9 +83,7 @@ export default async function IntegrationsPage() {
             <AppMark name="Another app" />
             <div className="flex min-w-0 flex-1 flex-col">
               <h3 className="font-medium">Connect another app</h3>
-              <span className="caption-style text-subtle">
-                Add a new app and get its signing secret from this page. Until then, new apps are added in code.
-              </span>
+              <span className="caption-style text-subtle">Add a new app and get its signing secret from this page. Until then, new apps are added in code.</span>
             </div>
             <span className="font-medium">Coming soon</span>
           </li>

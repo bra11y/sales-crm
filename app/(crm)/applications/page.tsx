@@ -27,6 +27,7 @@ export default async function ApplicationsPage() {
     .in("status", ["saved", "applied", "replied", "interview", "offer", "rejected", "no_reply"])
     .order("status_changed_at", { ascending: false, nullsFirst: false })
     .limit(500);
+  const { count: waiting } = await supabase.from("applications_outbox").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "queued");
   const ids = (jobs ?? []).map((j) => j.id as string);
   const { data: events } = ids.length ? await supabase.from("application_events").select("job_id, kind, title, at").in("job_id", ids).order("at", { ascending: false }).limit(2000) : { data: [] };
   const latest = new Map<string, Latest>();
@@ -47,7 +48,7 @@ export default async function ApplicationsPage() {
     <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="flex w-full flex-col gap-5 px-4 py-8 md:px-8">
         {error && <p className="text-danger">Your applications could not be loaded. Refresh the page to try again.</p>}
-        <ApplicationsBoard initial={items} sources={sources} />
+        <ApplicationsBoard waiting={waiting ?? 0} initial={items} sources={sources} />
       </div>
     </div>
   );

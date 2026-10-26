@@ -40,7 +40,10 @@ export async function moveCompany(companyId: string, stage: string, note = ""): 
     update = { stage };
     summary = `Moved to ${stage}`;
   }
-  const { error } = await supabase.from("companies").update({ ...update, updated_at: now }).eq("id", companyId);
+  const { error } = await supabase
+    .from("companies")
+    .update({ ...update, updated_at: now })
+    .eq("id", companyId);
   if (error) return { ok: false, error: "The stage could not be saved. Only the workspace owner can move companies." };
   await Promise.all([
     supabase.from("deals").update({ stage, status: dealStatus, updated_at: now }).eq("company_id", companyId),

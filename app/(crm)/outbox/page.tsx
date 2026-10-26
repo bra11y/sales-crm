@@ -16,19 +16,25 @@ export default async function OutboxPage() {
       .neq("kind", "test")
       .order("created_at", { ascending: false })
       .limit(400),
-    supabase.from("application_replies").select("id, job_id, outbox_id, from_email, subject, received_at, snippet, suggested_stage, confirmed").eq("user_id", userId).order("received_at", { ascending: false }).limit(200),
+    supabase
+      .from("application_replies")
+      .select("id, job_id, outbox_id, from_email, subject, received_at, snippet, suggested_stage, confirmed")
+      .eq("user_id", userId)
+      .order("received_at", { ascending: false })
+      .limit(200),
     supabase.from("mail_accounts").select("email, last_checked_at").eq("user_id", userId).maybeSingle(),
   ]);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="mx-auto flex w-full max-w-[44em] flex-col gap-8 px-4 py-8 md:px-8">
-        <OutboxView
-          items={(out.data ?? []) as unknown as OutItem[]}
-          replies={(replies.data ?? []) as ReplyItem[]}
-          account={account.data ?? null}
-          loadError={Boolean(out.error || replies.error)}
-        />
+        <a
+          href="/applications"
+          className="text-soft hover:text-foreground focus-visible:ring-ring -mb-4 self-start rounded text-[14px] underline-offset-2 outline-none hover:underline focus-visible:ring-2"
+        >
+          <span aria-hidden>‹ </span>Applications
+        </a>
+        <OutboxView items={(out.data ?? []) as unknown as OutItem[]} replies={(replies.data ?? []) as ReplyItem[]} account={account.data ?? null} loadError={Boolean(out.error || replies.error)} />
       </div>
     </div>
   );

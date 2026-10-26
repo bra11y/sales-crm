@@ -32,13 +32,11 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
       </section>
       <section aria-labelledby="manage-heading" className="flex flex-col gap-2">
         <h2 id="manage-heading">Changing a plan</h2>
-        <p className="text-subtle max-w-[40em]">
-          For now, plan changes are made inside each app. Managing them from here comes in the next phase.
-        </p>
+        <p className="text-subtle max-w-[40em]">For now, plan changes are made inside each app. Managing them from here comes in the next phase.</p>
         <ul className="flex flex-wrap gap-x-5 gap-y-2">
           {hosts.map((p) => (
             <li key={p.slug}>
-              <a href={`https://${p.host}`} className="underline underline-offset-4 focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:outline-none">
+              <a href={`https://${p.host}`} className="focus-visible:ring-ring rounded-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none">
                 Open {p.name}
               </a>
             </li>

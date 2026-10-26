@@ -42,15 +42,26 @@ export default async function ForecastPage({ searchParams }: { searchParams: Sea
       <PageHead
         title="Forecast"
         intro={`What is coming in, in ${currency}. Recurring revenue is what active plans bring each month. Expected revenue adds trials, at the rate trials have turned into paying customers so far.`}
-        actions={<Button variant="secondary" size="md" className="h-11 px-4" href="/goals">Set a goal</Button>}
-        views={currencies.length > 1 ? <ViewTabs label="Currency" current={`/forecast?currency=${currency}`} views={currencies.map((c) => ({ href: `/forecast?currency=${c}`, label: c }))} /> : undefined}
+        actions={
+          <Button variant="secondary" size="md" className="h-11 px-4" href="/goals">
+            Set a goal
+          </Button>
+        }
+        views={
+          currencies.length > 1 ? <ViewTabs label="Currency" current={`/forecast?currency=${currency}`} views={currencies.map((c) => ({ href: `/forecast?currency=${c}`, label: c }))} /> : undefined
+        }
       />
       <Stats
         label="Forecast figures"
         stats={[
           { label: "Monthly recurring revenue", value: money(next.mrrMinor), sub: `${money(next.mrrMinor * 12)} a year at this rate` },
           { label: "Expected next month", value: money(next.months[0].minor), sub: next.trialMinor ? `Includes ${money(next.trialMinor)} from trials` : "No trials expected to convert yet" },
-          { label: "Collected this month", value: money(thisMonth.paidMinor), sub: change === null ? `${thisMonth.count} payments` : change === 0 ? `Same as ${lastMonth.label}` : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)}% on ${lastMonth.label}`, tone: !change ? undefined : change > 0 ? "good" : "bad" },
+          {
+            label: "Collected this month",
+            value: money(thisMonth.paidMinor),
+            sub: change === null ? `${thisMonth.count} payments` : change === 0 ? `Same as ${lastMonth.label}` : `${change > 0 ? "Up" : "Down"} ${Math.abs(change)}% on ${lastMonth.label}`,
+            tone: !change ? undefined : change > 0 ? "good" : "bad",
+          },
           { label: "Weighted pipeline", value: money(pipeline.weightedMinor), sub: `Of ${money(pipeline.valueMinor)} open value` },
         ]}
       />
@@ -65,7 +76,10 @@ export default async function ForecastPage({ searchParams }: { searchParams: Sea
         />
         <p className="text-soft mt-2 text-[13px]">
           Trials have turned into paying customers {next.rate ? `${Math.round(next.rate * 100)}% of the time` : "— no history yet"}. Failed payments are left out. See every payment in{" "}
-          <Link href="/payments" className={LINK}>Payments</Link>.
+          <Link href="/payments" className={LINK}>
+            Payments
+          </Link>
+          .
         </p>
       </section>
 
@@ -73,36 +87,58 @@ export default async function ForecastPage({ searchParams }: { searchParams: Sea
         {renewals.map((r) => (
           <li key={`${r.companyId}-${r.product}`} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3">
             <span>
-              <Link href={`/?company=${r.companyId}`} className={`${LINK} font-medium no-underline hover:underline`}>{r.companyName}</Link>
-              <span className="text-soft"> · {names[r.product] ?? r.product} · {r.plan}</span>
+              <Link href={`/?company=${r.companyId}`} className={`${LINK} font-medium no-underline hover:underline`}>
+                {r.companyName}
+              </Link>
+              <span className="text-soft">
+                {" "}
+                · {names[r.product] ?? r.product} · {r.plan}
+              </span>
             </span>
             <span className="text-[14px] tabular-nums">
-              {money(r.amountMinor)} <span className="text-soft">{r.trial ? "trial ends" : "renews"} {date(r.renewsAt)}</span>
+              {money(r.amountMinor)}{" "}
+              <span className="text-soft">
+                {r.trial ? "trial ends" : "renews"} {date(r.renewsAt)}
+              </span>
             </span>
           </li>
         ))}
       </Group>
 
       <section aria-labelledby="weighted" className="flex flex-col gap-2">
-        <h2 id="weighted" className="px-4 text-[17px] font-semibold tracking-[-0.01em]">Pipeline by stage</h2>
+        <h2 id="weighted" className="px-4 text-[17px] font-semibold tracking-[-0.01em]">
+          Pipeline by stage
+        </h2>
         {pipeline.byStage.length ? (
           <div className="overflow-x-auto rounded-2xl bg-white/[0.04]">
             <table className="w-full min-w-[32em] text-[14px]">
               <caption className="sr-only">Open value and weighted value by pipeline and stage, in {currency}</caption>
               <thead>
                 <tr className="text-soft text-left text-[13px]">
-                  <th scope="col" className="px-4 py-2.5 font-normal">Pipeline</th>
-                  <th scope="col" className="py-2.5 font-normal">Stage</th>
-                  <th scope="col" className="py-2.5 text-right font-normal">Companies</th>
-                  <th scope="col" className="py-2.5 text-right font-normal">Value</th>
-                  <th scope="col" className="px-4 py-2.5 text-right font-normal">Weighted</th>
+                  <th scope="col" className="px-4 py-2.5 font-normal">
+                    Pipeline
+                  </th>
+                  <th scope="col" className="py-2.5 font-normal">
+                    Stage
+                  </th>
+                  <th scope="col" className="py-2.5 text-right font-normal">
+                    Companies
+                  </th>
+                  <th scope="col" className="py-2.5 text-right font-normal">
+                    Value
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-normal">
+                    Weighted
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.06]">
                 {pipeline.byStage.map((t) => (
                   <tr key={`${t.product}-${t.stage}`}>
                     <td className="px-4 py-2.5">
-                      <Link href={`/deals?product=${t.product}`} className={LINK}>{names[t.product] ?? t.product}</Link>
+                      <Link href={`/deals?product=${t.product}`} className={LINK}>
+                        {names[t.product] ?? t.product}
+                      </Link>
                     </td>
                     <td className="py-2.5">{t.stage}</td>
                     <td className="py-2.5 text-right tabular-nums">{t.count}</td>

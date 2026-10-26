@@ -14,5 +14,10 @@ export async function updateSession(request: NextRequest) {
     },
   });
   const { data } = await supabase.auth.getClaims();
-  return { response, signedIn: Boolean(data?.claims?.sub) };
+  return {
+    response: () => response,
+    signedIn: Boolean(data?.claims?.sub),
+    // Asked only for page requests that need a role, so most requests make no extra call.
+    role: async () => (await supabase.rpc("my_role")).data as unknown,
+  };
 }

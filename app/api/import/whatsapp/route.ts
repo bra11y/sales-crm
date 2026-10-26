@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       deadline: p.deadline,
       deadline_text: p.deadlineText || null,
       shared_at: p.sharedAt,
+      fully_funded: /fully[- ]funded|full scholarship|full tuition/i.test(`${p.title} ${p.benefits.join(" ")}`),
     }));
   let leadsAdded = 0;
   for (let i = 0; i < leads.length; i += 500) {

@@ -25,13 +25,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Sea
   const { from, to, label, key } = periodFrom({ period: one(params.period) });
   const rows = data.payments.filter((p) => {
     const t = Date.parse(p.paid_at);
-    return (
-      p.currency === currency &&
-      (!product || p.product === product) &&
-      (!status || p.status === status) &&
-      t >= from.getTime() &&
-      t < to.getTime()
-    );
+    return p.currency === currency && (!product || p.product === product) && (!status || p.status === status) && t >= from.getTime() && t < to.getTime();
   });
 
   const paid = rows.filter((p) => p.status === "succeeded");
@@ -71,7 +65,12 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Sea
         label="Payment totals for these filters"
         stats={[
           { label: "Collected", value: money(total), sub: `${paid.length} paid ${paid.length === 1 ? "payment" : "payments"}` },
-          { label: "Failed", value: String(failed.length), sub: failed.length ? `${money(failed.reduce((s, p) => s + p.amount_minor, 0))} not collected` : "None failed", tone: failed.length ? "bad" : "good" },
+          {
+            label: "Failed",
+            value: String(failed.length),
+            sub: failed.length ? `${money(failed.reduce((s, p) => s + p.amount_minor, 0))} not collected` : "None failed",
+            tone: failed.length ? "bad" : "good",
+          },
           { label: "Average payment", value: paid.length ? money(Math.round(total / paid.length)) : "—" },
           { label: "Top customer", value: top ? money(top.minor) : "—", sub: top?.name },
         ]}
@@ -90,9 +89,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Sea
           </h2>
           {rows.length > 0 && <CsvButton csv={csv} name={`payments-${currency}-${key}.csv`} />}
         </div>
-        {data.payments.length >= PAYMENT_CAP && (
-          <p className="caption-style text-subtle">Showing the latest {PAYMENT_CAP.toLocaleString()} payments.</p>
-        )}
+        {data.payments.length >= PAYMENT_CAP && <p className="caption-style text-subtle">Showing the latest {PAYMENT_CAP.toLocaleString()} payments.</p>}
         {rows.length > 0 ? <PaymentsTable rows={rows} productNames={productNames} /> : <p className="text-subtle">No payments match these filters.</p>}
       </section>
     </PageShell>

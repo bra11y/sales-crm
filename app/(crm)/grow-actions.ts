@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { DOC_LABEL, type DocKind } from "@/lib/grow/documents";
 import { cleanSteps, goalSteps, LEVELS, SCHOLARSHIP_STEPS, STATUSES, type Step, steps } from "@/lib/grow/grow";
+import { currentUserId, loadProfile } from "@/lib/jobs/profile";
+import { cleanScholarshipPrefs } from "@/lib/scholarships/fit";
+import { searchScholarships } from "@/lib/scholarships/search";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // Scholarships and your own goals. Row-level security keeps every row to its owner.
@@ -85,7 +89,7 @@ export async function addCareerGoal(form: FormData): Promise<Result> {
     .select("id")
     .single();
   if (error || !data) return { ok: false, error: "The goal could not be saved. Sign in again and retry." };
-  revalidatePath("/plans");
+  revalidatePath("/goals");
   return { ok: true, id: data.id };
 }
 
@@ -100,7 +104,7 @@ export async function updateCareerGoal(id: string, patch: { steps?: Step[]; done
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from("career_goals").update(update).eq("id", id);
   if (error) return { ok: false, error: "That change could not be saved. Reload and try again." };
-  revalidatePath("/plans");
+  revalidatePath("/goals");
   return { ok: true };
 }
 
@@ -108,7 +112,7 @@ export async function removeCareerGoal(id: string): Promise<Result> {
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from("career_goals").delete().eq("id", id);
   if (error) return { ok: false, error: "It could not be removed. Reload and try again." };
-  revalidatePath("/plans");
+  revalidatePath("/goals");
   return { ok: true };
 }
 
@@ -134,7 +138,7 @@ export async function trackLead(id: string): Promise<Result> {
     .select("id")
     .single();
   if (error || !data) return { ok: false, error: "It could not be added. Try again." };
-  await supabase.from("scholarship_leads").update({ dismissed: true }).eq("id", id);
+  await supabase.from("scholarship_leads").update({ tracked_id: data.id }).eq("id", id);
   revalidatePath("/scholarships");
   return { ok: true, id: data.id };
 }
@@ -143,6 +147,31 @@ export async function dismissLead(id: string): Promise<Result> {
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from("scholarship_leads").update({ dismissed: true }).eq("id", id);
   if (error) return { ok: false, error: "That change was not saved. Reload and try again." };
+  revalidatePath("/scholarships");
+  return { ok: true };
+}
+
+// "Find scholarships now": the same search the daily run does, for you, right away.
+export async function findScholarshipsNow(): Promise<{ ok: true; added: number; errors: string[] } | { ok: false; error: string }> {
+  const userId = await currentUserId();
+  const admin = createSupabaseAdminClient();
+  if (!userId || !admin) return { ok: false, error: "Sign in again to search." };
+  const r = await searchScholarships(admin, userId, "manual");
+  revalidatePath("/scholarships");
+  return r.ok ? { ok: true, added: r.added, errors: r.errors } : r;
+}
+
+export async function saveScholarshipPrefs(input: unknown): Promise<Result> {
+  const userId = await currentUserId();
+  const admin = createSupabaseAdminClient();
+  if (!userId || !admin) return { ok: false, error: "Sign in again to save." };
+  // A first visit makes your profile, so a new job seeker can save these straight away.
+  await loadProfile(admin, userId);
+  const { data } = await admin.from("job_profiles").select("preferences").eq("user_id", userId).maybeSingle();
+  const preferences = { ...((data?.preferences as Record<string, unknown>) ?? {}), scholarship: cleanScholarshipPrefs(input) };
+  if (!data) return { ok: false, error: "Save your Profile once first, then set these." };
+  const { error } = await admin.from("job_profiles").update({ preferences }).eq("user_id", userId);
+  if (error) return { ok: false, error: "Your choices could not be saved. Try again." };
   revalidatePath("/scholarships");
   return { ok: true };
 }

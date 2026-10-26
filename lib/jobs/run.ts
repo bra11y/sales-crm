@@ -1,16 +1,19 @@
 import type { Facts } from "./facts.ts";
 import { dedupe, type Fit, scoreJob } from "./fit.ts";
-import type { Preferences } from "./preferences.ts";
+import { blocked, type Preferences } from "./preferences.ts";
 import { type JobPost, SOURCES, type SourceId } from "./sources.ts";
 
 const HOUR = 3_600_000;
 export const USER_AGENT = "SalesCRM-JobFinder/1.0 (+https://sales-crm-virid-ten.vercel.app)";
 
 export function dueSources(prefs: Preferences, state: Record<string, string>, now = new Date()): SourceId[] {
-  return prefs.sources.filter((id) => {
-    const last = Date.parse(state[id] ?? "");
-    return !Number.isFinite(last) || now.getTime() - last >= SOURCES[id].minHoursBetween * HOUR;
-  });
+  // A job board on your skip list is never searched.
+  return prefs.sources
+    .filter((id) => !blocked(SOURCES[id].home, prefs.blockedSites))
+    .filter((id) => {
+      const last = Date.parse(state[id] ?? "");
+      return !Number.isFinite(last) || now.getTime() - last >= SOURCES[id].minHoursBetween * HOUR;
+    });
 }
 
 export type JobRow = ReturnType<typeof toRows>[number];

@@ -7,9 +7,7 @@ import { supabaseCrmDb } from "@/lib/crm/supabase-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function saveApplication(
-  input: ApplicationInput & { jobId?: string },
-): Promise<{ ok: true; companyName: string } | { ok: false; error: string }> {
+export async function saveApplication(input: ApplicationInput & { jobId?: string }): Promise<{ ok: true; companyName: string } | { ok: false; error: string }> {
   const supabase = await createSupabaseServerClient();
   const { data: owner } = await supabase.rpc("is_owner", { ws: 1 });
   if (!owner) return { ok: false, error: "Only the workspace owner can save applications." };

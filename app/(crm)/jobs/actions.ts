@@ -25,18 +25,15 @@ export async function findJobsNow(): Promise<SearchResult> {
 export async function setJobStatus(id: string, status: JobStatus): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!STATUSES.includes(status)) return { ok: false, error: "Pick a valid status." };
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("job_posts")
-    .update({ status, status_changed_at: new Date().toISOString() })
-    .eq("id", id)
-    .select("id, user_id");
+  const { data, error } = await supabase.from("job_posts").update({ status, status_changed_at: new Date().toISOString() }).eq("id", id).select("id, user_id");
   if (error || !data?.length) return { ok: false, error: "That job could not be updated." };
   // Moves you make by hand go in the job's history too.
   const admin = createSupabaseAdminClient();
   if (admin) {
     const userId = data[0].user_id as string;
     if (status === "applied") await noteApplied(admin, userId, id, MANUAL_PROOF);
-    else if (!["new", "saved", "dismissed"].includes(status)) await admin.from("application_events").insert({ user_id: userId, job_id: id, kind: "moved", title: `You moved it to ${MOVE_LABEL[status] ?? status}`, detail: "" });
+    else if (!["new", "saved", "dismissed"].includes(status))
+      await admin.from("application_events").insert({ user_id: userId, job_id: id, kind: "moved", title: `You moved it to ${MOVE_LABEL[status] ?? status}`, detail: "" });
   }
   revalidatePath("/jobs");
   revalidatePath("/applications");

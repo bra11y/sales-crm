@@ -15,9 +15,7 @@ export async function signOut() {
   redirect("/login");
 }
 
-export async function createCompany(
-  input: NewCompanyInput & { ownerName: string },
-): Promise<{ ok: true; company: Company } | { ok: false; error: string }> {
+export async function createCompany(input: NewCompanyInput & { ownerName: string }): Promise<{ ok: true; company: Company } | { ok: false; error: string }> {
   const supabase = await createSupabaseServerClient();
   const { data: owner } = await supabase.from("profiles").select("user_id").eq("name", input.ownerName).maybeSingle();
   const rows = newCompanyRows(input, {
@@ -59,22 +57,13 @@ export type ApplicationEntry = {
 type ActivityRow = { id: number; kind: string; summary: string; at: string; event_id: string | null };
 type EventRow = { event_id: string; payload: { data?: { application?: ApplicationData } } };
 
-export async function getApplicationHistory(
-  companyId: string,
-): Promise<{ ok: true; entries: ApplicationEntry[] } | { ok: false; error: string }> {
+export async function getApplicationHistory(companyId: string): Promise<{ ok: true; entries: ApplicationEntry[] } | { ok: false; error: string }> {
   const supabase = await createSupabaseServerClient();
-  const { data: activities, error } = await supabase
-    .from("activities")
-    .select("id, kind, summary, at, event_id")
-    .eq("company_id", companyId)
-    .order("at", { ascending: false })
-    .limit(50);
+  const { data: activities, error } = await supabase.from("activities").select("id, kind, summary, at, event_id").eq("company_id", companyId).order("at", { ascending: false }).limit(50);
   if (error || !activities) return { ok: false, error: "The history could not be loaded. Reload the page." };
 
   const ids = (activities as ActivityRow[]).map((a) => a.event_id).filter((id): id is string => Boolean(id));
-  const { data: events } = ids.length
-    ? await supabase.from("events").select("event_id, payload").in("event_id", ids)
-    : { data: [] };
+  const { data: events } = ids.length ? await supabase.from("events").select("event_id, payload").in("event_id", ids) : { data: [] };
   const sent = new Map(((events ?? []) as EventRow[]).map((e) => [e.event_id, e.payload.data?.application]));
 
   return {
@@ -94,21 +83,13 @@ export async function getApplicationHistory(
   };
 }
 
-export async function moveApplication(
-  companyId: string,
-  stage: string,
-  note: string,
-): Promise<{ ok: true; company: Company } | { ok: false; error: string }> {
+export async function moveApplication(companyId: string, stage: string, note: string): Promise<{ ok: true; company: Company } | { ok: false; error: string }> {
   const change = stageChange(stage, note);
   if (!change.ok) return change;
   const supabase = await createSupabaseServerClient();
   const now = new Date().toISOString();
 
-  const { error } = await supabase
-    .from("companies")
-    .update({ stage: change.stage, win_probability: change.winProbability, updated_at: now })
-    .eq("id", companyId)
-    .eq("product", "applications");
+  const { error } = await supabase.from("companies").update({ stage: change.stage, win_probability: change.winProbability, updated_at: now }).eq("id", companyId).eq("product", "applications");
   if (error) return { ok: false, error: "The stage could not be saved. Only the workspace owner can move applications." };
 
   const results = await Promise.all([

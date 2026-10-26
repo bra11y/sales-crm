@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/_ui/scroll-area";
 import SidebarNavItem from "./sidebar-nav-item";
 import SidebarSection from "./sidebar-section";
 import { useCompaniesStore } from "@/stores/companies-store";
+import { can, type Role } from "@/lib/auth/permissions";
 import Logo from "@/public/assets/images/_common/logo.svg";
 import BuildingIcon from "@/public/assets/images/companies/sidebar/building.svg";
 import ClipboardIcon from "@/public/assets/images/companies/sidebar/clipboard.svg";
@@ -25,6 +26,7 @@ import MessageQuestionIcon from "@/public/assets/images/companies/sidebar/messag
 import WalletIcon from "@/public/assets/images/companies/sidebar/wallet.svg";
 
 export type SidebarData = {
+  role: Role;
   pipelines: { slug: string; name: string; count: number }[];
   trialsEnding: number;
   queued: number;
@@ -69,6 +71,7 @@ export default function SidebarContent({ data }: { data: SidebarData }) {
   const hydrated = useCompaniesStore((state) => state.hydrated);
   const pathname = usePathname();
   const at = (href: string) => pathname === href;
+  const has = (p: Parameters<typeof can>[1]) => can(data.role, p);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -76,7 +79,7 @@ export default function SidebarContent({ data }: { data: SidebarData }) {
         <Logo aria-hidden className="size-8 shrink-0 overflow-visible" />
         <div className="flex min-w-0 flex-col gap-1">
           <span className="lead-style block truncate font-medium tracking-[-0.01em]">Sales CRM</span>
-          <span className="caption-style text-subtle block truncate">Your apps and job search</span>
+          <span className="caption-style text-subtle block truncate">{data.role === "seeker" ? "Jobs, scholarships and goals" : "Your apps and job search"}</span>
         </div>
       </div>
 
@@ -84,64 +87,69 @@ export default function SidebarContent({ data }: { data: SidebarData }) {
 
       <ScrollArea className="min-h-0 flex-1">
         <nav aria-label="Primary">
-          <SidebarSection title="Workspace" className="border-sidebar-border border-b">
-            <SidebarNavItem icon={BuildingIcon} label="Companies" count={hydrated && pathname === "/" ? companyCount : undefined} href="/" active={at("/")} />
-            <SidebarNavItem icon={ClipboardIcon} label="Deals board" href="/deals" active={at("/deals")} />
-            <SidebarNavItem icon={BarChartIcon} label="Forecast" href="/forecast" active={at("/forecast")} />
-            <SidebarNavItem icon={ListIcon} label="Activity" href="/activity" active={at("/activity")} />
-            <SidebarNavItem icon={BookClosedIcon} label="Contacts" href="/contacts" active={at("/contacts")} />
-            <SidebarNavItem icon={TargetAltIcon} label="Goals" href="/goals" active={at("/goals")} />
-          </SidebarSection>
+          {has("crm:use") && (
+            <SidebarSection title="Workspace" className="border-sidebar-border border-b">
+              <SidebarNavItem icon={BuildingIcon} label="Companies" count={hydrated && pathname === "/" ? companyCount : undefined} href="/" active={at("/")} />
+              <SidebarNavItem icon={ClipboardIcon} label="Deals board" href="/deals" active={at("/deals")} />
+              <SidebarNavItem icon={BarChartIcon} label="Forecast" href="/forecast" active={at("/forecast")} />
+              <SidebarNavItem icon={ListIcon} label="Activity" href="/activity" active={at("/activity")} />
+              <SidebarNavItem icon={BookClosedIcon} label="Contacts" href="/contacts" active={at("/contacts")} />
+            </SidebarSection>
+          )}
 
           <SidebarSection title="Job search" className="border-sidebar-border border-b">
             <SidebarNavItem icon={TargetIcon} label="Jobs" href="/jobs" active={at("/jobs")} />
-            <SidebarNavItem icon={ClipboardIcon} label="Applications" count={data.applications || undefined} href="/applications" active={at("/applications")} />
-            <SidebarNavItem icon={MailIcon} label="Apply" href="/apply" active={at("/apply")} />
-            <SidebarNavItem icon={ListIcon} label="Outbox" count={data.queued || undefined} href="/outbox" active={at("/outbox")} />
+            {/* Outbox lives inside Applications: one place for everything you sent. */}
+            <SidebarNavItem icon={ClipboardIcon} label="Applications" count={data.applications || undefined} href="/applications" active={at("/applications") || at("/outbox")} />
+            <SidebarNavItem icon={MailIcon} label="CV and letter" href="/apply" active={at("/apply")} />
             <SidebarNavItem icon={UsersIcon} label="Profile" href="/profile" active={at("/profile")} />
           </SidebarSection>
 
           <SidebarSection title="Grow" className="border-sidebar-border border-b">
             <SidebarNavItem icon={BookClosedIcon} label="Scholarships" href="/scholarships" active={at("/scholarships")} />
             <SidebarNavItem icon={ClipboardIcon} label="Documents" href="/documents" active={at("/documents")} />
-            <SidebarNavItem icon={TargetAltIcon} label="Career goals" href="/plans" active={at("/plans")} />
-            <SidebarNavItem icon={MessageQuestionIcon} label="Study and interviews" href="/study" active={at("/study")} />
-            <SidebarNavItem icon={BarChartAltIcon} label="Labs" href="/labs" active={at("/labs")} />
+            <SidebarNavItem icon={TargetAltIcon} label="Goals" href="/goals" active={at("/goals")} />
           </SidebarSection>
 
-          <SidebarSection title="Money" className="border-sidebar-border border-b">
-            <SidebarNavItem icon={BarChartAltIcon} label="Overview" href="/overview" active={at("/overview")} />
-            <SidebarNavItem icon={ClipboardIcon} label="Payments" href="/payments" active={at("/payments")} />
-            <SidebarNavItem icon={WalletIcon} label="Subscriptions" href="/subscriptions" active={at("/subscriptions")} />
-            <SidebarNavItem icon={ListIcon} label="Integrations" href="/integrations" active={at("/integrations")} />
-          </SidebarSection>
+          {has("money:use") && (
+            <SidebarSection title="Money" className="border-sidebar-border border-b">
+              <SidebarNavItem icon={BarChartAltIcon} label="Overview" href="/overview" active={at("/overview")} />
+              <SidebarNavItem icon={ClipboardIcon} label="Payments" href="/payments" active={at("/payments")} />
+              <SidebarNavItem icon={WalletIcon} label="Subscriptions" href="/subscriptions" active={at("/subscriptions")} />
+              <SidebarNavItem icon={ListIcon} label="Integrations" href="/integrations" active={at("/integrations")} />
+            </SidebarSection>
+          )}
 
-          <SidebarSection title="Pipelines">
-            {/* Reading the URL query needs a Suspense boundary; the plain list shows meanwhile. */}
-            <Suspense fallback={<PipelineLinks data={data} />}>
-              <PipelineLinks data={data} read />
-            </Suspense>
-          </SidebarSection>
+          {has("crm:use") && (
+            <SidebarSection title="Pipelines">
+              {/* Reading the URL query needs a Suspense boundary; the plain list shows meanwhile. */}
+              <Suspense fallback={<PipelineLinks data={data} />}>
+                <PipelineLinks data={data} read />
+              </Suspense>
+            </SidebarSection>
+          )}
         </nav>
       </ScrollArea>
 
       <SidebarSection className="border-sidebar-border shrink-0 border-t border-b">
-        <SidebarNavItem icon={UserPlusIcon} label="Team and invites" tone="quiet" href="/team" active={at("/team")} />
+        {has("team:manage") && <SidebarNavItem icon={UserPlusIcon} label="Team and invites" tone="quiet" href="/team" active={at("/team")} />}
         <SidebarNavItem icon={MessageQuestionIcon} label="Help" tone="quiet" href="/help" active={at("/help")} />
       </SidebarSection>
 
-      <div className="border-sidebar-border bg-sidebar-accent flex shrink-0 items-center justify-between gap-2 border-b p-4">
-        <div className="flex flex-col gap-2">
-          <span className="lead-style block font-medium tracking-[-0.01em] tabular-nums">
-            {data.trialsEnding} {data.trialsEnding === 1 ? "trial" : "trials"}
-          </span>
-          <span className="caption-style text-subtle block">End in the next 7 days</span>
+      {has("money:use") && (
+        <div className="border-sidebar-border bg-sidebar-accent flex shrink-0 items-center justify-between gap-2 border-b p-4">
+          <div className="flex flex-col gap-2">
+            <span className="lead-style block font-medium tracking-[-0.01em] tabular-nums">
+              {data.trialsEnding} {data.trialsEnding === 1 ? "trial" : "trials"}
+            </span>
+            <span className="caption-style text-subtle block">End in the next 7 days</span>
+          </div>
+          <Button variant="muted" size="md" href="/subscriptions?status=Trial">
+            <WalletIcon aria-hidden className="size-3.5" />
+            See trials
+          </Button>
         </div>
-        <Button variant="muted" size="md" href="/subscriptions?status=Trial">
-          <WalletIcon aria-hidden className="size-3.5" />
-          See trials
-        </Button>
-      </div>
+      )}
     </div>
   );
 }

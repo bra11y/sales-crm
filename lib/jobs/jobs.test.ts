@@ -166,7 +166,7 @@ test("a source is skipped until its wait is over, so Remotive is asked at most 4
   const due = dueSources(DEFAULT_PREFERENCES, state, new Date("2026-10-21T12:00:00Z"));
   assert.ok(!due.includes("remotive"), "remotive waits 6 hours");
   assert.ok(due.includes("remoteok"), "remote ok waits 3 hours");
-  assert.ok(due.includes("himalayas"), "never fetched means due");
+  assert.ok(due.includes("jobicy"), "never fetched means due");
 });
 
 test("rows keep hidden jobs with the reason but drop jobs outside your fields", async () => {
@@ -252,4 +252,17 @@ test("contract terms like Temp to Perm stay out of the CV headline", () => {
   const a = E.analyze("Senior Product Designer (Webflow) Temp to Perm\nFigma, prototypes, usability testing", facts);
   const cv = E.makeCV(a, { jd: "Figma", role: "Senior Product Designer (Webflow) Temp to Perm" }, facts);
   assert.match(cv, /\n\nProduct Designer \(CPACC\)\n/);
+});
+
+test("sites you skip are never searched and their jobs are hidden", async () => {
+  const { blocked, cleanPreferences, siteOf } = await import("./preferences.ts");
+  const { dueSources } = await import("./run.ts");
+  const prefs = cleanPreferences({});
+  assert.deepEqual(prefs.blockedSites, ["himalayas.app"]);
+  assert.ok(!dueSources(prefs, {}).includes("himalayas"));
+  assert.equal(blocked("https://jobs.himalayas.app/x", prefs.blockedSites), "himalayas.app");
+  assert.equal(blocked("https://remotive.com/x", prefs.blockedSites), null);
+  assert.equal(siteOf("https://www.Example.com/jobs?x=1"), "example.com");
+  assert.deepEqual(cleanPreferences({ blockedSites: ["https://www.foo.io/a", "not a site"] }).blockedSites, ["foo.io"]);
+  assert.ok(dueSources(cleanPreferences({ blockedSites: [] }), {}).includes("himalayas"), "you can take it off the list");
 });

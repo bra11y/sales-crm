@@ -44,10 +44,7 @@ export default async function ContactsPage() {
 
   return (
     <Page>
-      <PageHead
-        title="Contacts"
-        intro="People at your customers, from each app's sign-up events, and the employer addresses found in job posts you applied to."
-      />
+      <PageHead title="Contacts" intro="People at your customers, from each app's sign-up events, and the employer addresses found in job posts you applied to." />
       <ContactsList people={people} loadError={Boolean(contacts.error)} />
     </Page>
   );

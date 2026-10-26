@@ -1,6 +1,6 @@
 import E from "../apply/engine.js";
 import type { Facts } from "./facts.ts";
-import type { Preferences } from "./preferences.ts";
+import { blocked, type Preferences } from "./preferences.ts";
 import type { JobPost } from "./sources.ts";
 import { monthlyUsd } from "./text.ts";
 
@@ -22,9 +22,14 @@ export type Fit = {
 const DAY = 86_400_000;
 const OPEN = /^(worldwide|anywhere|anywhere in the world|global|globally|international|world)$/i;
 const NEAR = /^(.*\bnigeria\b.*|africa|west africa|sub-saharan africa|emea|europe,? middle east (and|&) africa|wat|(gmt|utc) ?\+ ?1)$/i;
-const place = (p: string) => p.replace(/\b(fully remote|remote|hybrid|anywhere in)\b|[-–()]/gi, " ").replace(/\s+/g, " ").trim();
+const place = (p: string) =>
+  p
+    .replace(/\b(fully remote|remote|hybrid|anywhere in)\b|[-–()]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 const NOT_REMOTE = /\b(hybrid|on-?site|in[- ]office|office[- ]based)\b/i;
-const LOCKED = /\b(must|need to|required to)\s+(be\s+)?(based|located|reside|residing|living|live)\s+in\s+(the\s+)?(us|u\.s\.|usa|united states|uk|united kingdom|canada|eu|europe|australia)\b|\b(us|usa|u\.s\.|uk|eu|canada)[- ]only\b|\bauthori[sz]ed to work in the (us|united states|uk|united kingdom)\b/i;
+const LOCKED =
+  /\b(must|need to|required to)\s+(be\s+)?(based|located|reside|residing|living|live)\s+in\s+(the\s+)?(us|u\.s\.|usa|united states|uk|united kingdom|canada|eu|europe|australia)\b|\b(us|usa|u\.s\.|uk|eu|canada)[- ]only\b|\bauthori[sz]ed to work in the (us|united states|uk|united kingdom)\b/i;
 const VISA = /\bvisa sponsorship\b|\bsponsor (your|a|the) (work )?visa\b|\brelocation (support|package|assistance)\b|\bwe (can|will) sponsor\b/i;
 const NO_VISA = /\b(no|not|unable to|cannot|can't|won't|do not|does not|don't)\s+(offer\s+|provide\s+)?(visa\s+)?sponsor/i;
 const ALERT = /^(linkedin|indeed|glassdoor|seek|emailalert)$/;
@@ -41,8 +46,7 @@ export function eligibility(post: JobPost, prefs: Preferences): { eligibility: E
   const visa = prefs.visa && VISA.test(post.description) && !NO_VISA.test(post.description);
   if (visa) return { eligibility: "visa", why: "Offers visa sponsorship or relocation" };
   if (LOCKED.test(post.description)) return { eligibility: "restricted", why: "The post says you must live in a set country" };
-  if (prefs.remoteOnly && NOT_REMOTE.test(post.location) && !/\bremote\b/i.test(post.location))
-    return { eligibility: "restricted", why: `Not remote: ${post.location}` };
+  if (prefs.remoteOnly && NOT_REMOTE.test(post.location) && !/\bremote\b/i.test(post.location)) return { eligibility: "restricted", why: `Not remote: ${post.location}` };
   const places = post.restrictions.map(place).filter(Boolean);
   if (!places.length || places.some((p) => OPEN.test(p)))
     return post.location || post.source !== "greenhouse" ? { eligibility: "worldwide", why: "Open worldwide" } : { eligibility: "unknown", why: "Location not stated" };
@@ -63,7 +67,9 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
 
   const titled = Object.values(facts.tracks).some((t) => new RegExp(`\\b(?:${t.titleOk.source})`, "i").test(post.title));
   let hidden: string | null = null;
-  if (!titled) hidden = "Outside your fields";
+  const skip = blocked(post.url, prefs.blockedSites) ?? blocked(post.applyUrl, prefs.blockedSites);
+  if (skip) hidden = `From ${skip}, a site you skip`;
+  else if (!titled) hidden = "Outside your fields";
   else if (where.eligibility === "restricted") hidden = where.why;
   else if (pay !== null && pay < prefs.minMonthlyUsd) hidden = `Pays about ${usd(pay)} a month, under your ${usd(prefs.minMonthlyUsd)} floor`;
 

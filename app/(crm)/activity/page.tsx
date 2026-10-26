@@ -13,7 +13,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Sea
   const [sales, userId] = await Promise.all([loadSales(), currentUserId()]);
   const items = await loadHistory(sales.payments, userId);
   const company = one(params.company) ?? null;
-  const companyName = company ? items.find((i) => i.companyId === company)?.companyName ?? null : null;
+  const companyName = company ? (items.find((i) => i.companyId === company)?.companyName ?? null) : null;
 
   return (
     <Page>

@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 
 const FIELD = "w-full rounded-xl border border-line-strong bg-secondary px-3 h-11 text-[15px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring";
 
-export default function Scholarships({ list, have, now }: { list: Scholarship[]; have: DocKind[]; now: string }) {
+// part "add" is the form on the Add tab; part "list" is the Tracking tab.
+export default function Scholarships({ list, have, now, part }: { list: Scholarship[]; have: DocKind[]; now: string; part: "add" | "list" }) {
   const id = useId();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -40,89 +41,99 @@ export default function Scholarships({ list, have, now }: { list: Scholarship[];
 
   return (
     <div className="flex flex-col gap-8">
-      <section aria-labelledby={`${id}-add`} className="flex flex-col gap-4 rounded-2xl bg-white/[0.04] p-5">
-        <h2 id={`${id}-add`} className="text-[20px] font-semibold tracking-[-0.015em]">
-          Add a scholarship
-        </h2>
-        <form ref={formRef} onSubmit={add} aria-busy={pending} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <label htmlFor={`${id}-name`} className="text-[15px] font-medium">
-              Name (required)
-            </label>
-            <input id={`${id}-name`} name="name" required maxLength={200} aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-err` : undefined} className={FIELD} />
-          </div>
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <label htmlFor={`${id}-url`} className="text-[15px] font-medium">
-              Link to the official page
-            </label>
-            <input id={`${id}-url`} name="url" type="url" inputMode="url" placeholder="https://" className={FIELD} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={`${id}-deadline`} className="text-[15px] font-medium">
-              Deadline
-            </label>
-            <input id={`${id}-deadline`} name="deadline" type="date" className={FIELD} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={`${id}-level`} className="text-[15px] font-medium">
-              Level
-            </label>
-            <select id={`${id}-level`} name="level" defaultValue="any" className={cn(FIELD, "cursor-pointer")}>
-              {LEVELS.map((l) => (
-                <option key={l} value={l}>
-                  {LEVEL_LABEL[l]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={`${id}-country`} className="text-[15px] font-medium">
-              Country
-            </label>
-            <input id={`${id}-country`} name="country" maxLength={100} autoComplete="off" className={FIELD} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={`${id}-amount`} className="text-[15px] font-medium">
-              What it pays
-            </label>
-            <input id={`${id}-amount`} name="amount" maxLength={120} placeholder="Full tuition and living costs" className={FIELD} />
-          </div>
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <label htmlFor={`${id}-provider`} className="text-[15px] font-medium">
-              Who gives it
-            </label>
-            <input id={`${id}-provider`} name="provider" maxLength={200} autoComplete="organization" className={FIELD} />
-          </div>
-          <div className="flex flex-col gap-2 sm:col-span-2">
-            <Button type="submit" variant="primary" size="md" aria-disabled={pending} className="h-12 rounded-xl px-6 text-[15px] sm:self-start">
-              {pending ? "Saving…" : "Add scholarship"}
-            </Button>
-            <p role="status" aria-live="polite" className="text-soft empty:hidden">
-              {status}
-            </p>
-            {error && (
-              <p id={`${id}-err`} role="alert" className="text-danger">
-                {error}
+      {part === "add" && (
+        <section aria-labelledby={`${id}-add`} className="flex flex-col gap-4 rounded-2xl bg-white/[0.04] p-5">
+          <h2 id={`${id}-add`} className="text-[20px] font-semibold tracking-[-0.015em]">
+            Add a scholarship
+          </h2>
+          <form ref={formRef} onSubmit={add} aria-busy={pending} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <label htmlFor={`${id}-name`} className="text-[15px] font-medium">
+                Name (required)
+              </label>
+              <input id={`${id}-name`} name="name" required maxLength={200} aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-err` : undefined} className={FIELD} />
+            </div>
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <label htmlFor={`${id}-url`} className="text-[15px] font-medium">
+                Link to the official page
+              </label>
+              <input id={`${id}-url`} name="url" type="url" inputMode="url" placeholder="https://" className={FIELD} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={`${id}-deadline`} className="text-[15px] font-medium">
+                Deadline
+              </label>
+              <input id={`${id}-deadline`} name="deadline" type="date" className={FIELD} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={`${id}-level`} className="text-[15px] font-medium">
+                Level
+              </label>
+              <select id={`${id}-level`} name="level" defaultValue="any" className={cn(FIELD, "cursor-pointer")}>
+                {LEVELS.map((l) => (
+                  <option key={l} value={l}>
+                    {LEVEL_LABEL[l]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={`${id}-country`} className="text-[15px] font-medium">
+                Country
+              </label>
+              <input id={`${id}-country`} name="country" maxLength={100} autoComplete="off" className={FIELD} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={`${id}-amount`} className="text-[15px] font-medium">
+                What it pays
+              </label>
+              <input id={`${id}-amount`} name="amount" maxLength={120} placeholder="Full tuition and living costs" className={FIELD} />
+            </div>
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <label htmlFor={`${id}-provider`} className="text-[15px] font-medium">
+                Who gives it
+              </label>
+              <input id={`${id}-provider`} name="provider" maxLength={200} autoComplete="organization" className={FIELD} />
+            </div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Button type="submit" variant="primary" size="md" aria-disabled={pending} className="h-12 rounded-xl px-6 text-[15px] sm:self-start">
+                {pending ? "Saving…" : "Add scholarship"}
+              </Button>
+              <p role="status" aria-live="polite" className="text-soft empty:hidden">
+                {status}
               </p>
-            )}
-          </div>
-        </form>
-      </section>
+              {error && (
+                <p id={`${id}-err`} role="alert" className="text-danger">
+                  {error}
+                </p>
+              )}
+            </div>
+          </form>
+        </section>
+      )}
 
-      <section aria-labelledby={`${id}-list`} className="flex flex-col gap-3">
-        <h2 id={`${id}-list`} className="px-1 text-[20px] font-semibold tracking-[-0.015em]">
-          Your scholarships <span className="text-soft font-normal tabular-nums">{list.length}</span>
-        </h2>
-        {list.length === 0 ? (
-          <p className="text-soft rounded-2xl bg-white/[0.04] p-5 leading-normal">None yet. Add one above, or start from the list of big programmes below.</p>
-        ) : (
-          <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {list.map((s) => (
-              <Card key={s.id} s={s} have={have} now={now} />
-            ))}
-          </ul>
-        )}
-      </section>
+      {part === "list" && (
+        <section aria-labelledby={`${id}-list`} className="flex flex-col gap-3">
+          <h2 id={`${id}-list`} className="px-1 text-[20px] font-semibold tracking-[-0.015em]">
+            Tracking <span className="text-soft font-normal tabular-nums">{list.length}</span>
+          </h2>
+          {list.length === 0 ? (
+            <p className="text-soft rounded-2xl bg-white/[0.04] p-5 leading-normal">
+              Nothing yet. Open one on the{" "}
+              <a href="/scholarships" className="text-foreground underline underline-offset-2">
+                For you
+              </a>{" "}
+              tab and press Track this.
+            </p>
+          ) : (
+            <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {list.map((s) => (
+                <Card key={s.id} s={s} have={have} now={now} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   );
 }

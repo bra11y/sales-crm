@@ -11,12 +11,15 @@ test("guesses a document's kind from the file names found on this computer", () 
   assert.equal(kindFromName("SLTWTR_Cover_Letter_Bryan_Temple.pdf"), "cover_letter");
   assert.equal(kindFromName("AC_ONYENGHAN_APRIL 2026_FullStmt.pdf"), "proof_of_funds");
   assert.equal(kindFromName("image2birth.jpeg"), "birth_certificate");
+  assert.equal(kindFromName("Bryan LGA identification.pdf"), "lga_certificate");
+  assert.equal(kindFromName("certificate of origin.jpg"), "lga_certificate");
 });
 
 test("reads which documents a post asks for", () => {
   const t = "Requirements: Academic transcripts, two letters of recommendation, IELTS score, a valid international passport and a statement of purpose.";
   assert.deepEqual(needsFromText(t).sort(), ["language_test", "passport", "personal_statement", "recommendation", "transcript"]);
   assert.deepEqual(needsFromText("Upload a passport photograph"), ["photo"]);
+  assert.deepEqual(needsFromText("Attach your local government identification letter"), ["lga_certificate"]);
 });
 
 test("readiness says what is missing and what expires soon", () => {

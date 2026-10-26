@@ -149,7 +149,7 @@ const collide: CollisionDetection = (args) => {
 
 const CHIP = "inline-flex h-[22px] items-center rounded-[4px] bg-white/[0.07] px-1.5 text-[12px] leading-none text-[#d4d4d4] whitespace-nowrap";
 
-export default function ApplicationsBoard({ initial, sources }: { initial: AppItem[]; sources: SourceNames }) {
+export default function ApplicationsBoard({ initial, sources, waiting = 0 }: { initial: AppItem[]; sources: SourceNames; waiting?: number }) {
   const [changes, setChanges] = useState<Record<string, Partial<AppItem>>>({});
   const [view, setView] = useState<"board" | "table">("board");
   const [query, setQuery] = useState("");
@@ -281,6 +281,13 @@ export default function ApplicationsBoard({ initial, sources }: { initial: AppIt
           ))}
         </div>
         <div className="flex items-center gap-2 pb-1.5">
+          {/* Emails waiting to send and follow-ups: part of the same story, so they live here. */}
+          <a
+            href="/outbox"
+            className="text-soft hover:text-foreground focus-visible:ring-ring inline-flex min-h-9 items-center rounded-md px-2 text-[14px] whitespace-nowrap underline-offset-2 outline-none hover:underline focus-visible:ring-2"
+          >
+            Outbox{waiting ? ` · ${waiting} waiting` : ""}
+          </a>
           <label htmlFor="apps-search" className="sr-only">
             Search applications
           </label>
