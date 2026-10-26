@@ -1,5 +1,5 @@
 import { cleanScholarshipPrefs, DEFAULT_SCHOLARSHIP_PREFS, type ScholarshipPrefs } from "../scholarships/fit.ts";
-import { type Boards, SOURCE_IDS, type SourceId } from "./sources.ts";
+import { BIG_COMPANIES, type Boards, SOURCE_IDS, type SourceId } from "./sources.ts";
 
 export type Preferences = {
   minMonthlyUsd: number;
@@ -15,7 +15,19 @@ export type Preferences = {
   blockedSites: string[];
   // What scholarships to look for: level, funding, places.
   scholarship: ScholarshipPrefs;
+  // Also search the job boards of big companies (Stripe, OpenAI, Cloudflare and more).
+  bigCompanies: boolean;
+  // Off unless you turn it on: strong-fit jobs that take email, with nothing for you to answer,
+  // are queued for you and held 2 hours in the Outbox so you can cancel any of them.
+  autoApply: { on: boolean; perDay: number };
 };
+
+// Your own company list plus, when on, the big companies: each board asked once.
+export function boardsFor(p: Preferences): Boards {
+  if (!p.bigCompanies) return p.boards;
+  const join = (a: string[], b: string[]) => [...new Set([...a, ...b])];
+  return { greenhouse: join(p.boards.greenhouse, BIG_COMPANIES.greenhouse), ashby: join(p.boards.ashby, BIG_COMPANIES.ashby), lever: join(p.boards.lever, BIG_COMPANIES.lever) };
+}
 
 // Himalayas asks you to sign up, upload your CV, then pay before you can apply.
 export const DEFAULT_BLOCKED = ["himalayas.app"];
@@ -49,6 +61,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   ai: "on",
   blockedSites: DEFAULT_BLOCKED,
   scholarship: DEFAULT_SCHOLARSHIP_PREFS,
+  bigCompanies: true,
+  autoApply: { on: false, perDay: 5 },
 };
 
 const words = (v: unknown, max: number) => [...new Set((Array.isArray(v) ? v : String(v ?? "").split(/[,\n]/)).map((s) => String(s).trim()).filter(Boolean))].map((s) => s.slice(0, 60)).slice(0, max);
@@ -82,5 +96,11 @@ export function cleanPreferences(input: unknown): Preferences {
             .map(siteOf)
             .filter((s) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(s)),
     scholarship: cleanScholarshipPrefs(p.scholarship),
+    bigCompanies: p.bigCompanies === undefined ? true : Boolean(p.bigCompanies),
+    autoApply: (() => {
+      const a = (p.autoApply ?? {}) as { on?: unknown; perDay?: unknown };
+      const n = Number(a.perDay);
+      return { on: a.on === true, perDay: Number.isFinite(n) ? Math.min(10, Math.max(1, Math.round(n))) : 5 };
+    })(),
   };
 }

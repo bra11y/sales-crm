@@ -27,8 +27,34 @@ export function htmlToText(html: string): string {
 
 export type Pay = { min: number; max: number; currency: string; period: "hour" | "day" | "week" | "month" | "year" };
 
-const USD_PER: Record<string, number> = { USD: 1, EUR: 1.08, GBP: 1.27, CAD: 0.73, AUD: 0.66, NZD: 0.6, CHF: 1.13, SGD: 0.75, INR: 0.012, NGN: 0.00065, ZAR: 0.055, BRL: 0.18, PLN: 0.25, SEK: 0.095, NOK: 0.093, DKK: 0.145 };
-const SYMBOL: [RegExp, string][] = [[/€|\beur\b/i, "EUR"], [/£|\bgbp\b/i, "GBP"], [/₦|\bngn\b|\bnaira\b/i, "NGN"], [/\bcad\b|c\$/i, "CAD"], [/\baud\b|a\$/i, "AUD"], [/₹|\binr\b/i, "INR"], [/\bchf\b/i, "CHF"], [/\bpln\b|zł/i, "PLN"]];
+const USD_PER: Record<string, number> = {
+  USD: 1,
+  EUR: 1.08,
+  GBP: 1.27,
+  CAD: 0.73,
+  AUD: 0.66,
+  NZD: 0.6,
+  CHF: 1.13,
+  SGD: 0.75,
+  INR: 0.012,
+  NGN: 0.00065,
+  ZAR: 0.055,
+  BRL: 0.18,
+  PLN: 0.25,
+  SEK: 0.095,
+  NOK: 0.093,
+  DKK: 0.145,
+};
+const SYMBOL: [RegExp, string][] = [
+  [/€|\beur\b/i, "EUR"],
+  [/£|\bgbp\b/i, "GBP"],
+  [/₦|\bngn\b|\bnaira\b/i, "NGN"],
+  [/\bcad\b|c\$/i, "CAD"],
+  [/\baud\b|a\$/i, "AUD"],
+  [/₹|\binr\b/i, "INR"],
+  [/\bchf\b/i, "CHF"],
+  [/\bpln\b|zł/i, "PLN"],
+];
 const PER_MONTH = { hour: 160, day: 21, week: 4.33, month: 1, year: 1 / 12 };
 
 function num(raw: string, k: boolean): number {
@@ -42,19 +68,24 @@ export function parsePay(text: string | null | undefined): Pay | null {
   if (!text) return null;
   const t = text.toLowerCase();
   if (/per (task|project|article|word|piece)|\/task/.test(t)) return null;
-  const nums = [...t.matchAll(/(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d{1,2})?)\s*(k)?\b/g)]
-    .map((m) => num(m[1], Boolean(m[2])))
-    .filter((n) => n >= 5);
+  const nums = [...t.matchAll(/(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d{1,2})?)\s*(k)?\b/g)].map((m) => num(m[1], Boolean(m[2]))).filter((n) => n >= 5);
   if (!nums.length) return null;
   const min = Math.min(nums[0], nums[1] ?? nums[0]);
   const max = Math.max(nums[0], nums[1] ?? nums[0]);
   const currency = SYMBOL.find(([re]) => re.test(text))?.[1] ?? "USD";
-  const period: Pay["period"] = /hour|\bhr\b|\/h\b/.test(t) ? "hour"
-    : /\bday\b|daily/.test(t) ? "day"
-    : /week/.test(t) ? "week"
-    : /month|\bmo\b|\/m\b/.test(t) ? "month"
-    : /year|annual|\byr\b|p\.?a\.?\b/.test(t) || min >= 15_000 ? "year"
-    : min <= 300 ? "hour" : "month";
+  const period: Pay["period"] = /hour|\bhr\b|\/h\b/.test(t)
+    ? "hour"
+    : /\bday\b|daily/.test(t)
+      ? "day"
+      : /week/.test(t)
+        ? "week"
+        : /month|\bmo\b|\/m\b/.test(t)
+          ? "month"
+          : /year|annual|\byr\b|p\.?a\.?\b/.test(t) || min >= 15_000
+            ? "year"
+            : min <= 300
+              ? "hour"
+              : "month";
   return { min, max, currency, period };
 }
 

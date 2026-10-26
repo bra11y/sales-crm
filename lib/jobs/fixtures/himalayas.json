@@ -10,22 +10,10 @@
       "minSalary": 115400,
       "maxSalary": 192300,
       "salaryPeriod": "annual",
-      "seniority": [
-        "Senior"
-      ],
+      "seniority": ["Senior"],
       "currency": "USD",
-      "locationRestrictions": [
-        "United States"
-      ],
-      "timezoneRestrictions": [
-        -10,
-        -9,
-        -8,
-        -7,
-        -6,
-        -5,
-        14
-      ],
+      "locationRestrictions": ["United States"],
+      "timezoneRestrictions": [-10, -9, -8, -7, -6, -5, 14],
       "categories": [
         "Accessibility-Product-Management",
         "Digital-Accessibility",
@@ -42,9 +30,7 @@
         "Senior-Accessibility-Lead",
         "Product-Manager"
       ],
-      "parentCategories": [
-        "Product"
-      ],
+      "parentCategories": ["Product"],
       "description": "<h3>Sr. Accessibility Product Manager</h3><p>Are you passionate about building accessible products that serve a diverse community of clinicians and healthcare professionals?</p><p>Do you thrive in leading complex, cross-functional programs that drive meaningful, measurable impact across a global product portfolio?</p><p><b>About the Role</b><br>In this role, you will lead the accessibility program for a broad portfolio of Clinical Solutions products, ensuring they meet evolving accessibility standards and support the needs of a diverse user base. You will set strategy, oversee execution, and guide teams to embed accessibility into product development practices. This position operates with high visibility and contributes directly to product quality, compliance, and customer trust.</p><h3>Responsibilties</h3><h3>Own the Accessibility Program</h3><ul>\n<li><p>Assess the current compliance posture, identify gaps, and drive the program from where it is to where it needs to be</p></li>\n<li><p>Own conformance documentation (VPATs/ACRs) across all active products — ensuring everything is current, accurate, and ready for enterprise procurement</p></li>\n<li><p>Partner with Legal on ADA Title III obligations, contractual commitments, and customer inquiries; be the person who knows where the risks are before they become escalations</p></li>\n<li><p>Stay ahead of the legal and regulatory landscape — enforcement trends, emerging state statutes, and international equivalents for our global cu",
       "pubDate": 1789989905,
       "expiryDate": 1795173904,
@@ -61,22 +47,10 @@
       "minSalary": null,
       "maxSalary": null,
       "salaryPeriod": "annual",
-      "seniority": [
-        "Mid-level"
-      ],
+      "seniority": ["Mid-level"],
       "currency": null,
-      "locationRestrictions": [
-        "United States"
-      ],
-      "timezoneRestrictions": [
-        -10,
-        -9,
-        -8,
-        -7,
-        -6,
-        -5,
-        14
-      ],
+      "locationRestrictions": ["United States"],
+      "timezoneRestrictions": [-10, -9, -8, -7, -6, -5, 14],
       "categories": [
         "Digital-Accessibility-Specialist",
         "Web-Accessibility",
@@ -108,22 +82,10 @@
       "minSalary": 115400,
       "maxSalary": 192300,
       "salaryPeriod": "annual",
-      "seniority": [
-        "Senior"
-      ],
+      "seniority": ["Senior"],
       "currency": "USD",
-      "locationRestrictions": [
-        "United States"
-      ],
-      "timezoneRestrictions": [
-        -10,
-        -9,
-        -8,
-        -7,
-        -6,
-        -5,
-        14
-      ],
+      "locationRestrictions": ["United States"],
+      "timezoneRestrictions": [-10, -9, -8, -7, -6, -5, 14],
       "categories": [
         "Accessibility-Product-Management",
         "Digital-Accessibility",
@@ -139,9 +101,7 @@
         "Product-Manager",
         "Product"
       ],
-      "parentCategories": [
-        "Product"
-      ],
+      "parentCategories": ["Product"],
       "description": "<h3>Sr. Accessibility Product Manager</h3><p>Are you passionate about building accessible products that serve a diverse community of clinicians and healthcare professionals?</p><p>Do you thrive in leading complex, cross-functional programs that drive meaningful, measurable impact across a global product portfolio?</p><p><b>About the Role</b><br>In this role, you will lead the accessibility program for a broad portfolio of Clinical Solutions products, ensuring they meet evolving accessibility standards and support the needs of a diverse user base. You will set strategy, oversee execution, and guide teams to embed accessibility into product development practices. This position operates with high visibility and contributes directly to product quality, compliance, and customer trust.</p><h3>Responsibilties</h3><h3>Own the Accessibility Program</h3><ul>\n<li><p>Assess the current compliance posture, identify gaps, and drive the program from where it is to where it needs to be</p></li>\n<li><p>Own conformance documentation (VPATs/ACRs) across all active products — ensuring everything is current, accurate, and ready for enterprise procurement</p></li>\n<li><p>Partner with Legal on ADA Title III obligations, contractual commitments, and customer inquiries; be the person who knows where the risks are before they become escalations</p></li>\n<li><p>Stay ahead of the legal and regulatory landscape — enforcement trends, emerging state statutes, and international equivalents for our global cu",
       "pubDate": 1790006904,
       "expiryDate": 1795190903,

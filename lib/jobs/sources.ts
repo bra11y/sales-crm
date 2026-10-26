@@ -34,8 +34,18 @@ const iso = (v: unknown) => {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 };
 const text = (html: unknown) => htmlToText(String(html ?? "")).slice(0, MAX_TEXT);
-const list = (v: unknown) => (Array.isArray(v) ? v.map(String).map((s) => s.trim()).filter(Boolean) : []);
-const splitPlaces = (s: string) => s.split(/\s*[,;/|]\s*/).map((p) => p.trim()).filter(Boolean);
+const list = (v: unknown) =>
+  Array.isArray(v)
+    ? v
+        .map(String)
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
+const splitPlaces = (s: string) =>
+  s
+    .split(/\s*[,;/|]\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 const boardSlug = (url: string, marker: string) => url.split(marker)[1]?.split(/[/?]/)[0] ?? "";
 const titleCase = (slug: string) => slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -54,6 +64,34 @@ function payFrom(min: unknown, max: unknown, currency: unknown, period: unknown)
 
 // Accessibility companies, always searched: their roles rarely reach the general boards.
 export const ACCESSIBILITY_BOARDS = { greenhouse: ["levelaccess", "audioeye", "accessibe"] };
+
+// Big companies with public job boards (checked 26 October 2026). Many hire in the US only;
+// those jobs are kept but hidden with the reason, so you can still look.
+export const BIG_COMPANIES: Boards = {
+  greenhouse: [
+    "stripe",
+    "airbnb",
+    "gitlab",
+    "cloudflare",
+    "datadog",
+    "figma",
+    "discord",
+    "reddit",
+    "coinbase",
+    "dropbox",
+    "twilio",
+    "okta",
+    "mongodb",
+    "elastic",
+    "duolingo",
+    "instacart",
+    "robinhood",
+    "pinterest",
+    "canonical",
+  ],
+  ashby: ["openai", "notion", "ramp", "cursor", "replit", "zapier"],
+  lever: [],
+};
 
 export type SourceId = "remotive" | "remoteok" | "himalayas" | "jobicy" | "weworkremotely" | "arbeitnow" | "greenhouse" | "ashby" | "lever";
 
@@ -157,10 +195,7 @@ export const SOURCES: Record<SourceId, Source> = {
     name: "We Work Remotely",
     home: "https://weworkremotely.com",
     minHoursBetween: 3,
-    urls: () =>
-      ["remote-front-end-programming-jobs", "remote-full-stack-programming-jobs", "remote-design-jobs"].map(
-        (c) => `https://weworkremotely.com/categories/${c}.rss`,
-      ),
+    urls: () => ["remote-front-end-programming-jobs", "remote-full-stack-programming-jobs", "remote-design-jobs"].map((c) => `https://weworkremotely.com/categories/${c}.rss`),
     parse: (body) =>
       [...body.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(([, item]) => {
         const tag = (name: string) => decodeEntities(item.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1]?.trim() ?? "");
@@ -275,7 +310,7 @@ export const SOURCES: Record<SourceId, Source> = {
       (JSON.parse(body) as Record<string, unknown>[]).map((j) => {
         const cat = (j.categories ?? {}) as { location?: string; allLocations?: string[]; commitment?: string; team?: string };
         const range = j.salaryRange as { min?: number; max?: number; currency?: string; interval?: string } | undefined;
-        const places = cat.allLocations?.length ? cat.allLocations : [cat.location].filter(Boolean) as string[];
+        const places = cat.allLocations?.length ? cat.allLocations : ([cat.location].filter(Boolean) as string[]);
         return {
           source: "lever",
           externalId: String(j.id),

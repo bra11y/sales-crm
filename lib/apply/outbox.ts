@@ -11,6 +11,7 @@ import { type Contact, findContactEmail, isEmail } from "@/lib/mail/extract";
 import { alertBoard, parseAlert } from "@/lib/mail/alerts";
 import { type MailLogin, readInbox, sendMail, testLogin } from "@/lib/mail/gmail";
 import { isAutoReply, matchReply, snippet, suggestStage } from "@/lib/mail/reply";
+import { autoApply } from "./auto";
 import { followUpTimes, guessZone, inWindow, nextWindow, sendBudget, zoneTime } from "@/lib/mail/schedule";
 import { cvPdf } from "@/lib/pdf/cv";
 import { classifyMail, companyDomains, EVENT_TITLE, isJobSender, matchJob, nextStatus, type Status, type TrackedJob } from "./track";
@@ -362,7 +363,7 @@ export async function applyByEmail(
   db: Db,
   userId: string,
   jobId: string,
-  input: { to: string; subject: string; body: string; anyway: boolean; oidc?: string | null },
+  input: { to: string; subject: string; body: string; anyway: boolean; oidc?: string | null; holdUntil?: Date },
 ): Promise<Result<{ status: "sent" | "queued"; note: string }>> {
   const login = await loadLogin(db, userId);
   if (!login) return { ok: false, error: "Connect your Gmail in Profile first. The app sends from your own address." };
@@ -388,7 +389,8 @@ export async function applyByEmail(
   const d = draftApplication({ title: job.title, company: job.company, description: job.description, track: job.track }, facts, p.why.why, p.why.manager);
   const now = new Date();
   const zone = guessZone(job.location);
-  const sendAfter = input.anyway ? now : nextWindow(now, zone);
+  // Auto-apply holds each email first, so you can cancel it in the Outbox.
+  const sendAfter = input.holdUntil ? nextWindow(input.holdUntil, zone) : input.anyway ? now : nextWindow(now, zone);
   const { data: row, error } = await db
     .from("applications_outbox")
     .insert({
@@ -402,6 +404,7 @@ export async function applyByEmail(
       attachment_name: p.attachment,
       send_after: sendAfter.toISOString(),
       ai_note: p.why.provider ?? p.why.note ?? null,
+      auto: Boolean(input.holdUntil),
     })
     .select("id")
     .single();
@@ -553,8 +556,10 @@ export async function tick(db: Db, deadline: number) {
   for (const { user_id } of accounts ?? []) {
     const replies = await checkReplies(db, user_id);
     const sends = await sendDue(db, user_id, new Date(), deadline);
+    // Only for people who turned auto-apply on; it queues, it never sends straight away.
+    const auto = await autoApply(db, user_id, new Date());
     await markNoReply(db, user_id, new Date());
-    report.push({ replies: replies.found, sent: sends.sent, errors: sends.errors.length + (replies.error ? 1 : 0) });
+    report.push({ replies: replies.found, sent: sends.sent, autoQueued: auto.queued, errors: sends.errors.length + (replies.error ? 1 : 0) });
   }
   return report;
 }

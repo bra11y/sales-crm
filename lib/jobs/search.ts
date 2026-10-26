@@ -33,28 +33,45 @@ export async function searchJobs(admin: SupabaseClient, userId: string, trigger:
   });
   const rows = toRows([...result.posts, ...(alerts?.posts ?? [])], profile.facts, profile.preferences, userId, now);
 
-  const { data: existing } = await admin.from("job_posts").select("source, external_id").eq("user_id", userId).in("source", [...new Set(rows.map((r) => r.source))]);
+  const { data: existing } = await admin
+    .from("job_posts")
+    .select("source, external_id")
+    .eq("user_id", userId)
+    .in("source", [...new Set(rows.map((r) => r.source))]);
   const known = new Set((existing ?? []).map((r) => `${r.source}|${r.external_id}`));
   const added = rows.filter((r) => !known.has(`${r.source}|${r.external_id}`)).length;
 
   for (let i = 0; i < rows.length; i += 200) {
     const { error } = await admin.from("job_posts").upsert(rows.slice(i, i + 200), { onConflict: "user_id,source,external_id" });
     if (error) {
-      await admin.from("job_runs").update({ finished_at: new Date().toISOString(), errors: [{ error: error.message }] }).eq("id", run?.id);
+      await admin
+        .from("job_runs")
+        .update({ finished_at: new Date().toISOString(), errors: [{ error: error.message }] })
+        .eq("id", run?.id);
       return { ok: false, error: "Jobs were found but could not be saved. Try again." };
     }
   }
 
-  await admin.from("job_posts").delete().eq("user_id", userId).eq("status", "new").lt("last_seen_at", new Date(now.getTime() - 30 * DAY).toISOString());
+  await admin
+    .from("job_posts")
+    .delete()
+    .eq("user_id", userId)
+    .eq("status", "new")
+    .lt("last_seen_at", new Date(now.getTime() - 30 * DAY).toISOString());
 
   const sourceState = { ...profile.sourceState };
   for (const id of result.fetched) sourceState[id] = now.toISOString();
   if (alerts?.lastUid) sourceState.email_alerts_uid = String(alerts.lastUid);
   await admin.from("job_profiles").update({ source_state: sourceState }).eq("user_id", userId);
-  await admin
-    .from("job_runs")
-    .update({ finished_at: new Date().toISOString(), fetched: result.posts.length, kept: rows.length, added, errors: result.errors })
-    .eq("id", run?.id);
+  await admin.from("job_runs").update({ finished_at: new Date().toISOString(), fetched: result.posts.length, kept: rows.length, added, errors: result.errors }).eq("id", run?.id);
 
-  return { ok: true, fetched: result.posts.length, kept: rows.filter((r) => !r.hidden_reason).length, added, skipped, errors: result.errors.length + alertError, fromEmail: alerts ? alerts.posts.length : null };
+  return {
+    ok: true,
+    fetched: result.posts.length,
+    kept: rows.filter((r) => !r.hidden_reason).length,
+    added,
+    skipped,
+    errors: result.errors.length + alertError,
+    fromEmail: alerts ? alerts.posts.length : null,
+  };
 }

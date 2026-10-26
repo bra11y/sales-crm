@@ -7,19 +7,50 @@ import Tag from "@/components/_ui/tag";
 import { cancelEmail, checkRepliesNow, confirmReply, retryEmail, sendEmailNow } from "@/app/(crm)/outbox/actions";
 
 export type OutItem = {
-  id: string; job_id: string | null; parent_id: string | null; kind: "application" | "follow_up_1" | "follow_up_2";
-  to_email: string; subject: string; body: string; status: "queued" | "sent" | "cancelled" | "failed";
-  send_after: string; sent_at: string | null; error: string | null; ai_note: string | null;
+  id: string;
+  job_id: string | null;
+  parent_id: string | null;
+  kind: "application" | "follow_up_1" | "follow_up_2";
+  to_email: string;
+  subject: string;
+  body: string;
+  status: "queued" | "sent" | "cancelled" | "failed";
+  send_after: string;
+  sent_at: string | null;
+  error: string | null;
+  ai_note: string | null;
+  auto?: boolean;
   job_posts: { title: string; company: string } | null;
 };
-export type ReplyItem = { id: string; job_id: string | null; outbox_id: string | null; from_email: string; subject: string; received_at: string; snippet: string; suggested_stage: "interview" | "closed" | "replied"; confirmed: boolean };
+export type ReplyItem = {
+  id: string;
+  job_id: string | null;
+  outbox_id: string | null;
+  from_email: string;
+  subject: string;
+  received_at: string;
+  snippet: string;
+  suggested_stage: "interview" | "closed" | "replied";
+  confirmed: boolean;
+};
 
 const KIND = { application: "Application", follow_up_1: "Follow-up 1", follow_up_2: "Follow-up 2" } as const;
 const STAGE = { interview: "Interview", replied: "Replied", closed: "Closed" } as const;
-const when = (iso: string) => new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+const when = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 const jobName = (i: { job_posts: OutItem["job_posts"] }) => (i.job_posts ? `${i.job_posts.title} at ${i.job_posts.company || "a company"}` : "A deleted job");
 
-export default function OutboxView({ items, replies, account, loadError }: { items: OutItem[]; replies: ReplyItem[]; account: { email: string; last_checked_at: string | null } | null; loadError: boolean }) {
+export default function OutboxView({
+  items,
+  replies,
+  account,
+  loadError,
+}: {
+  items: OutItem[];
+  replies: ReplyItem[];
+  account: { email: string; last_checked_at: string | null } | null;
+  loadError: boolean;
+}) {
   const router = useRouter();
   const [note, setNote] = useState("");
   const [alert, setAlert] = useState("");
@@ -52,7 +83,9 @@ export default function OutboxView({ items, replies, account, loadError }: { ite
   const repliedRoots = new Set(replies.map((r) => r.outbox_id));
   const apps = items.filter((i) => i.kind === "application" && i.status === "sent");
   const followUpsOf = (id: string) => items.filter((i) => i.parent_id === id);
-  const noReply = apps.filter((a) => !repliedRoots.has(a.id) && followUpsOf(a.id).some((f) => f.kind === "follow_up_2" && f.status === "sent" && f.sent_at && now - Date.parse(f.sent_at) > 5 * 86_400_000));
+  const noReply = apps.filter(
+    (a) => !repliedRoots.has(a.id) && followUpsOf(a.id).some((f) => f.kind === "follow_up_2" && f.status === "sent" && f.sent_at && now - Date.parse(f.sent_at) > 5 * 86_400_000),
+  );
   const waiting = apps.filter((a) => !repliedRoots.has(a.id) && !noReply.includes(a));
   const today = items.filter((i) => i.status === "sent" && i.sent_at && now - Date.parse(i.sent_at) < 86_400_000).length;
 
@@ -128,6 +161,7 @@ export default function OutboxView({ items, replies, account, loadError }: { ite
               {KIND[i.kind]}: {jobName(i)}
             </p>
             <p className="caption-style text-soft">
+              {i.auto && <strong className="font-semibold text-(--tag-amber-text)">Auto-applied, cancel it if you don&rsquo;t want it · </strong>}
               To {i.to_email} · sends {when(i.send_after)} (Abuja time)
             </p>
             <details>
@@ -136,10 +170,16 @@ export default function OutboxView({ items, replies, account, loadError }: { ite
             </details>
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" size="md" className="h-11 px-4" onClick={() => act(() => sendEmailNow(i.id))} aria-disabled={busy}>
-                Send now<span className="sr-only">, {KIND[i.kind]} for {jobName(i)}</span>
+                Send now
+                <span className="sr-only">
+                  , {KIND[i.kind]} for {jobName(i)}
+                </span>
               </Button>
               <Button variant="ghost" size="md" className="text-soft h-11 px-3" onClick={() => act(() => cancelEmail(i.id))} aria-disabled={busy}>
-                Cancel<span className="sr-only">, {KIND[i.kind]} for {jobName(i)}</span>
+                Cancel
+                <span className="sr-only">
+                  , {KIND[i.kind]} for {jobName(i)}
+                </span>
               </Button>
             </div>
           </li>

@@ -121,6 +121,41 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
             {aiProvider}. Everything else in your CV and letter comes from this page by plain rules, at no cost. Turn this off to keep every application free.
           </p>
         </div>
+        <div className="border-line-strong flex flex-col gap-2 border-t pt-3">
+          <label className="flex min-h-11 items-center gap-2 text-[14px] font-medium">
+            <input
+              type="checkbox"
+              checked={prefs.autoApply.on}
+              onChange={(e) => editPrefs({ autoApply: { ...prefs.autoApply, on: e.target.checked } })}
+              className="accent-primary size-5"
+              aria-describedby="profile-auto-hint"
+            />
+            Auto-apply to jobs that need nothing from me
+          </label>
+          <p id="profile-auto-hint" className="caption-style text-soft leading-normal">
+            Only strong fits you can apply to by email, with every ready check passing, no question in the post and no gap in the letter. Each one waits 2 hours in the Outbox, marked Auto-applied, so
+            you can cancel it. Then it sends from your Gmail inside the employer&rsquo;s work hours. Jobs with a form are left for you.
+          </p>
+          {prefs.autoApply.on && (
+            <div className="flex items-center gap-3 px-2">
+              <label htmlFor="profile-auto-per-day" className="text-[14px]">
+                Most a day
+              </label>
+              <select
+                id="profile-auto-per-day"
+                value={prefs.autoApply.perDay}
+                onChange={(e) => editPrefs({ autoApply: { ...prefs.autoApply, perDay: Number(e.target.value) } })}
+                className="border-line-strong bg-secondary focus-visible:ring-ring h-11 rounded-lg border px-3 text-[15px] outline-none focus-visible:ring-2"
+              >
+                {[1, 3, 5, 8, 10].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </Section>
 
       <Section id="find" title="Jobs to find" hint="The job finder uses these rules. Jobs that break them are hidden, and the reason is shown on the Jobs page.">
@@ -176,6 +211,10 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
             ))}
           </div>
         </fieldset>
+        <label className="flex min-h-11 items-center gap-3 px-2 pt-2 text-[14px]">
+          <input type="checkbox" checked={prefs.bigCompanies} onChange={(e) => editPrefs({ bigCompanies: e.target.checked })} className="accent-primary size-5" />
+          Also search big companies: Stripe, OpenAI, Cloudflare, GitLab, Figma, Notion and 19 more
+        </label>
         <h3 className="px-2 pt-2 font-medium">Company career pages</h3>
         <p className="text-soft px-2 leading-normal">
           Add a company by the name in its careers link. For jobs.ashbyhq.com/<strong>linear</strong>, add <strong>linear</strong> under Ashby.

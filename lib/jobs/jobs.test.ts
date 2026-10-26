@@ -26,11 +26,21 @@ const now = new Date("2026-10-21T12:00:00Z");
 
 function post(over: Partial<JobPost>): JobPost {
   return {
-    source: "remotive", externalId: "1", title: "Frontend Developer", company: "Kola Pay", companyLogo: null,
-    url: "https://example.com/job", applyUrl: "https://example.com/job",
+    source: "remotive",
+    externalId: "1",
+    title: "Frontend Developer",
+    company: "Kola Pay",
+    companyLogo: null,
+    url: "https://example.com/job",
+    applyUrl: "https://example.com/job",
     description: "We build a merchant dashboard in React, Next.js and TypeScript. You care about WCAG, screen readers and Core Web Vitals. ".repeat(5),
-    location: "Worldwide", restrictions: ["Worldwide"], pay: { min: 60_000, max: 80_000, currency: "USD", period: "year" },
-    employmentType: "Full time", postedAt: "2026-10-20T09:00:00Z", tags: ["react"], ...over,
+    location: "Worldwide",
+    restrictions: ["Worldwide"],
+    pay: { min: 60_000, max: 80_000, currency: "USD", period: "year" },
+    employmentType: "Full time",
+    postedAt: "2026-10-20T09:00:00Z",
+    tags: ["react"],
+    ...over,
   };
 }
 
@@ -173,7 +183,10 @@ test("rows keep hidden jobs with the reason but drop jobs outside your fields", 
   const { toRows } = await import("./run.ts");
   const rows = toRows(
     [post({}), post({ externalId: "2", title: "Warehouse Lead", company: "B" }), post({ externalId: "3", company: "C", restrictions: ["United States"], location: "United States" })],
-    facts, DEFAULT_PREFERENCES, "u1", now,
+    facts,
+    DEFAULT_PREFERENCES,
+    "u1",
+    now,
   );
   assert.equal(rows.length, 2);
   assert.equal(rows[0].hidden_reason, null);
@@ -183,8 +196,7 @@ test("rows keep hidden jobs with the reason but drop jobs outside your fields", 
 
 test("one failing board never stops the others", async () => {
   const { fetchSources } = await import("./run.ts");
-  const fake = (async (url: string) =>
-    url.includes("remoteok") ? new Response("down", { status: 503 }) : new Response(fixture("remotive.json"))) as unknown as typeof fetch;
+  const fake = (async (url: string) => (url.includes("remoteok") ? new Response("down", { status: 503 }) : new Response(fixture("remotive.json")))) as unknown as typeof fetch;
   const out = await fetchSources(["remotive", "remoteok"], DEFAULT_PREFERENCES, fake);
   assert.deepEqual(out.fetched, ["remotive"]);
   assert.equal(out.errors.length, 1);
@@ -194,7 +206,9 @@ test("one failing board never stops the others", async () => {
 
 test("company pages give a summary, and unsafe or job-board hosts are never fetched", async () => {
   const { readCompanyPage, safeDomain, domainFromApplyUrl, lookUpCompany } = await import("./company.ts");
-  const page = readCompanyPage('<html><head><title>Kola Pay &amp; Co</title><meta content="Payments for African merchants." name="description"><meta property="og:image" content="https://kola.test/og.png"></head></html>');
+  const page = readCompanyPage(
+    '<html><head><title>Kola Pay &amp; Co</title><meta content="Payments for African merchants." name="description"><meta property="og:image" content="https://kola.test/og.png"></head></html>',
+  );
   assert.deepEqual(page, { title: "Kola Pay & Co", description: "Payments for African merchants.", image: "https://kola.test/og.png" });
   assert.equal(safeDomain("localhost"), null);
   assert.equal(safeDomain("127.0.0.1"), null);
@@ -221,7 +235,13 @@ test("profile saves are cleaned: unknown keys dropped, regex characters stripped
   const { cleanFacts } = await import("./facts.ts");
   const base = storeFacts(facts);
   const out = cleanFacts(
-    { person: { name: "  Bryan  ", evil: "x" }, tracks: { frontend: { titleOk: "react|(.*)+|front" } }, gaps: ["Vue", "", "PHP"], skills: [{ group: "Front-end", items: [{ label: "Astro" }] }], jobs: [{ org: "Acme", bullets: [{ text: "Shipped it", tags: ["Ship"] }, { text: "" }] }] },
+    {
+      person: { name: "  Bryan  ", evil: "x" },
+      tracks: { frontend: { titleOk: "react|(.*)+|front" } },
+      gaps: ["Vue", "", "PHP"],
+      skills: [{ group: "Front-end", items: [{ label: "Astro" }] }],
+      jobs: [{ org: "Acme", bullets: [{ text: "Shipped it", tags: ["Ship"] }, { text: "" }] }],
+    },
     base,
   );
   assert.equal(out.person.name, "Bryan");
@@ -265,4 +285,22 @@ test("sites you skip are never searched and their jobs are hidden", async () => 
   assert.equal(siteOf("https://www.Example.com/jobs?x=1"), "example.com");
   assert.deepEqual(cleanPreferences({ blockedSites: ["https://www.foo.io/a", "not a site"] }).blockedSites, ["foo.io"]);
   assert.ok(dueSources(cleanPreferences({ blockedSites: [] }), {}).includes("himalayas"), "you can take it off the list");
+});
+
+test("apply links that need an account first are named, others are not", async () => {
+  const { needsAccount } = await import("./account.ts");
+  assert.equal(needsAccount("https://acme.wd5.myworkdayjobs.com/en-US/careers/job/123"), "Workday");
+  assert.equal(needsAccount("https://acme.taleo.net/careersection/2/jobdetail.ftl"), "Taleo");
+  assert.equal(needsAccount("https://boards.greenhouse.io/acme/jobs/1"), null);
+  assert.equal(needsAccount("https://careers.gofasti.com/job-application/6233771004?gh_jid=6233771004"), null);
+  assert.equal(needsAccount("mailto:jobs@acme.com"), null);
+  assert.equal(needsAccount("not a url"), null);
+});
+
+test("big companies join your own list once, and can be turned off", async () => {
+  const { boardsFor, cleanPreferences } = await import("./preferences.ts");
+  const on = boardsFor(cleanPreferences({ boards: { greenhouse: ["vercel", "stripe"], ashby: [], lever: [] } }));
+  assert.ok(on.greenhouse.includes("openai") === false && on.ashby.includes("openai"));
+  assert.equal(on.greenhouse.filter((b) => b === "stripe").length, 1);
+  assert.deepEqual(boardsFor(cleanPreferences({ bigCompanies: false, boards: { greenhouse: ["vercel"], ashby: [], lever: [] } })).greenhouse, ["vercel"]);
 });

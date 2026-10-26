@@ -14,7 +14,10 @@ export type CompanyInfo = {
 const BOARD_HOSTS = /(^|\.)(greenhouse\.io|lever\.co|ashbyhq\.com|remotive\.com|remoteok\.com|himalayas\.app|jobicy\.com|weworkremotely\.com|arbeitnow\.com|workable\.com|linkedin\.com|indeed\.com)$/i;
 
 export function safeDomain(host: string | null | undefined): string | null {
-  const h = String(host ?? "").toLowerCase().replace(/^www\./, "").trim();
+  const h = String(host ?? "")
+    .toLowerCase()
+    .replace(/^www\./, "")
+    .trim();
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(h) || /^\d+(\.\d+)+$/.test(h) || /(^|\.)(local|internal|localhost)$/.test(h)) return null;
   return h;
 }

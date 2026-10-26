@@ -1,5 +1,7 @@
 "use client";
 
+import { needsAccount } from "@/lib/jobs/account";
+
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import Button from "@/components/_ui/button";
@@ -56,15 +58,35 @@ const WHERE_FILTERS = [
   { value: "worldwide", label: "Worldwide only" },
   { value: "region", label: "Africa or EMEA" },
   { value: "local", label: "In my city" },
+  { value: "nigeria", label: "In Nigeria (on-site too)" },
   { value: "visa", label: "Visa sponsorship" },
 ];
+// Nigerian jobs, on-site included: the place they name, or the start of the post.
+const NIGERIA =
+  /\bnigeria|\blagos\b|\babuja\b|port harcourt|\bibadan\b|\bkano\b|\benugu\b|\bkaduna\b|\bbenin city\b|\bwarri\b|\babeokuta\b|\buyo\b|\bcalabar\b|\bowerri\b|\bjos\b|\bilorin\b|\bakure\b|\bonitsha\b|\baba\b|\bfct\b/i;
+const inNigeria = (j: { location?: string | null; title: string; description?: string | null }) => NIGERIA.test(`${j.location ?? ""} ${j.title} ${(j.description ?? "").slice(0, 400)}`);
+
 const BOARD: Status[] = ["new", "saved", "applied", "replied", "interview"];
 
-export default function JobsBoard({ initialJobs, lastRun, sources, loadError, openFirst = null }: { initialJobs: JobItem[]; lastRun: LastRun | null; sources: SourceNames; loadError: boolean; openFirst?: string | null }) {
+export default function JobsBoard({
+  initialJobs,
+  lastRun,
+  sources,
+  loadError,
+  openFirst = null,
+}: {
+  initialJobs: JobItem[];
+  lastRun: LastRun | null;
+  sources: SourceNames;
+  loadError: boolean;
+  openFirst?: string | null;
+}) {
   const [changes, setChanges] = useState<Record<string, Partial<JobItem>>>({});
   const [query, setQuery] = useState("");
   const [fit, setFit] = useState("");
   const [where, setWhere] = useState("");
+  // Jobs whose form makes you create an account first stay out of the way unless you ask.
+  const [noAccount, setNoAccount] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
   const [emailOnly, setEmailOnly] = useState(false);
@@ -79,14 +101,17 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError, op
     const q = query.trim().toLowerCase();
     return jobs.filter(
       (j) =>
-        (showHidden || !j.hidden_reason) &&
+        // "In Nigeria" shows on-site and lower-paid Nigerian jobs too, each with its hidden reason.
+        (showHidden || !j.hidden_reason || (where === "nigeria" && !/outside your fields|a site you skip/i.test(j.hidden_reason))) &&
         (showDismissed || j.status !== "dismissed") &&
         (!fit || (fit === "strong" ? j.band === "strong" : j.band !== "maybe")) &&
-        (!where || j.eligibility === where) &&
+        (!where || (where === "nigeria" ? inNigeria(j) : j.eligibility === where)) &&
         (!emailOnly || Boolean(j.apply_email)) &&
+        (!noAccount || Boolean(j.apply_email) || !needsAccount(j.apply_url)) &&
         (!q || `${j.title} ${j.company} ${j.matched.join(" ")}`.toLowerCase().includes(q)),
     );
-  }, [jobs, query, fit, where, showHidden, showDismissed, emailOnly]);
+  }, [jobs, query, fit, where, showHidden, showDismissed, emailOnly, noAccount]);
+  const accountCount = jobs.filter((j) => !j.apply_email && needsAccount(j.apply_url)).length;
   const open = jobs.find((j) => j.id === openId) ?? null;
 
   function say(text: string) {
@@ -150,7 +175,7 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError, op
           </p>
         </div>
         <div className="flex flex-wrap gap-2 self-start md:self-auto">
-          <Link href="/jobs/add" className="bg-secondary focus-visible:ring-ring inline-flex h-11 items-center rounded-lg border border-line-strong px-4 text-[15px] outline-none focus-visible:ring-2">
+          <Link href="/jobs/add" className="bg-secondary focus-visible:ring-ring border-line-strong inline-flex h-11 items-center rounded-lg border px-4 text-[15px] outline-none focus-visible:ring-2">
             Add from a screenshot
           </Link>
           <Button variant="primary" size="md" className="h-11 px-4" onClick={search} aria-disabled={searching}>
@@ -204,6 +229,10 @@ export default function JobsBoard({ initialJobs, lastRun, sources, loadError, op
           <label className="text-foreground flex min-h-11 items-center gap-2 text-[14px]">
             <input type="checkbox" checked={showDismissed} onChange={(e) => setShowDismissed(e.target.checked)} className="accent-primary size-5" />
             Show &ldquo;Not for me&rdquo;
+          </label>
+          <label className="text-foreground flex min-h-11 items-center gap-2 text-[14px]">
+            <input type="checkbox" checked={noAccount} onChange={(e) => setNoAccount(e.target.checked)} className="accent-primary size-5" />
+            No sign-up needed (hides {accountCount} that make you create an account)
           </label>
           <label className="text-foreground flex min-h-11 items-center gap-2 text-[14px]">
             <input type="checkbox" checked={emailOnly} onChange={(e) => setEmailOnly(e.target.checked)} className="accent-primary size-5" />

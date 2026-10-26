@@ -44,11 +44,28 @@ export function blankFacts(seed: Facts): Facts {
   const tracks: Record<string, Track> = {};
   for (const [id, t] of Object.entries(seed.tracks)) tracks[id] = { ...t, profile: "", hook: "", story: "" };
   const person = Object.fromEntries(Object.keys(seed.person).map((k) => [k, ""]));
-  return { ...seed, person, tracks, skills: seed.skills.map((g) => ({ group: g.group, items: [] })), proofs: {}, jobs: [], projects: [], certifications: [], education: { degree: "", dates: "", school: "" }, development: [], work: [], answers: seed.answers.map((a) => ({ ...a, answer: "" })) };
+  return {
+    ...seed,
+    person,
+    tracks,
+    skills: seed.skills.map((g) => ({ group: g.group, items: [] })),
+    proofs: {},
+    jobs: [],
+    projects: [],
+    certifications: [],
+    education: { degree: "", dates: "", school: "" },
+    development: [],
+    work: [],
+    answers: seed.answers.map((a) => ({ ...a, answer: "" })),
+  };
 }
 
 const str = (v: unknown, max: number) => String(v ?? "").slice(0, max);
-const strs = (v: unknown, max: number, each: number) => (Array.isArray(v) ? v : []).map((x) => str(x, each).trim()).filter(Boolean).slice(0, max);
+const strs = (v: unknown, max: number, each: number) =>
+  (Array.isArray(v) ? v : [])
+    .map((x) => str(x, each).trim())
+    .filter(Boolean)
+    .slice(0, max);
 
 export function cleanFacts(input: unknown, base: StoredFacts): StoredFacts {
   const f = (input ?? {}) as Partial<StoredFacts>;
@@ -60,20 +77,36 @@ export function cleanFacts(input: unknown, base: StoredFacts): StoredFacts {
     const n = (f.tracks?.[id] ?? {}) as Partial<StoredFacts["tracks"][string]>;
     const titleOk = String(n.titleOk ?? t.titleOk)
       .split("|")
-      .map((w) => w.replace(/[\\^$.*+?()[\]{}]/g, "").replace(/^\s+/, "").replace(/\s+/g, " ").slice(0, 60))
+      .map((w) =>
+        w
+          .replace(/[\\^$.*+?()[\]{}]/g, "")
+          .replace(/^\s+/, "")
+          .replace(/\s+/g, " ")
+          .slice(0, 60),
+      )
       .filter((w) => w.trim())
       .slice(0, 40)
       .join("|");
-    tracks[id] = { ...t, title: str(n.title ?? t.title, 200), titleOk: titleOk || t.titleOk, profile: str(n.profile ?? t.profile, 1500), hook: str(n.hook ?? t.hook, 600), story: str(n.story ?? t.story, 900) };
+    tracks[id] = {
+      ...t,
+      title: str(n.title ?? t.title, 200),
+      titleOk: titleOk || t.titleOk,
+      profile: str(n.profile ?? t.profile, 1500),
+      hook: str(n.hook ?? t.hook, 600),
+      story: str(n.story ?? t.story, 900),
+    };
   }
 
   const skills = (Array.isArray(f.skills) ? f.skills : base.skills).slice(0, 12).map((g) => ({
     group: str(g?.group, 60) || "Skills",
-    items: (Array.isArray(g?.items) ? g.items : []).slice(0, 60).map((it) => {
-      const label = str(it?.label, 60).trim();
-      const aliases = strs(it?.aliases, 12, 60).map((a) => a.toLowerCase());
-      return { label, aliases: aliases.length ? aliases : [label.toLowerCase()] };
-    }).filter((it) => it.label),
+    items: (Array.isArray(g?.items) ? g.items : [])
+      .slice(0, 60)
+      .map((it) => {
+        const label = str(it?.label, 60).trim();
+        const aliases = strs(it?.aliases, 12, 60).map((a) => a.toLowerCase());
+        return { label, aliases: aliases.length ? aliases : [label.toLowerCase()] };
+      })
+      .filter((it) => it.label),
   }));
 
   const jobs = (Array.isArray(f.jobs) ? f.jobs : base.jobs).slice(0, 10).map((j) => {
@@ -84,7 +117,10 @@ export function cleanFacts(input: unknown, base: StoredFacts): StoredFacts {
       dates: str(j?.dates, 40),
       org: str(j?.org, 200),
       max: Math.min(Math.max(Number(j?.max) || 3, 1), 8),
-      bullets: (Array.isArray(j?.bullets) ? j.bullets : []).slice(0, 15).map((b) => ({ text: str(b?.text, 400).trim(), tags: strs(b?.tags, 20, 40).map((t) => t.toLowerCase()) })).filter((b) => b.text),
+      bullets: (Array.isArray(j?.bullets) ? j.bullets : [])
+        .slice(0, 15)
+        .map((b) => ({ text: str(b?.text, 400).trim(), tags: strs(b?.tags, 20, 40).map((t) => t.toLowerCase()) }))
+        .filter((b) => b.text),
     };
   });
 
@@ -95,21 +131,34 @@ export function cleanFacts(input: unknown, base: StoredFacts): StoredFacts {
     skills,
     gaps: strs(f.gaps ?? base.gaps, 80, 40).map((g) => g.toLowerCase()),
     jobs,
-    projects: (Array.isArray(f.projects) ? f.projects : base.projects).slice(0, 12).map((p) => ({ text: str(p?.text, 300), tracks: strs(p?.tracks, 3, 30) })).filter((p) => p.text),
+    projects: (Array.isArray(f.projects) ? f.projects : base.projects)
+      .slice(0, 12)
+      .map((p) => ({ text: str(p?.text, 300), tracks: strs(p?.tracks, 3, 30) }))
+      .filter((p) => p.text),
     certifications: strs(f.certifications ?? base.certifications, 12, 300),
-    education: { degree: str(f.education?.degree ?? base.education.degree, 120), dates: str(f.education?.dates ?? base.education.dates, 40), school: str(f.education?.school ?? base.education.school, 160) },
+    education: {
+      degree: str(f.education?.degree ?? base.education.degree, 120),
+      dates: str(f.education?.dates ?? base.education.dates, 40),
+      school: str(f.education?.school ?? base.education.school, 160),
+    },
     development: strs(f.development ?? base.development, 12, 300),
-    work: (Array.isArray(f.work) ? f.work : base.work ?? []).slice(0, 20).map((w) => ({
-      title: str(w?.title, 80).trim(),
-      what: str(w?.what, 300),
-      result: str(w?.result, 300),
-      url: /^https:\/\/[^\s]+$/.test(String(w?.url ?? "").trim()) ? String(w.url).trim().slice(0, 300) : "",
-      tags: strs(w?.tags, 20, 40).map((t) => t.toLowerCase()),
-    })).filter((w) => w.title),
-    answers: (Array.isArray(f.answers) ? f.answers : base.answers ?? []).slice(0, 30).map((a) => ({
-      question: str(a?.question, 200).trim(),
-      words: strs(a?.words, 12, 60).map((w) => w.toLowerCase()),
-      answer: str(a?.answer, 2000),
-    })).filter((a) => a.question),
+    work: (Array.isArray(f.work) ? f.work : (base.work ?? []))
+      .slice(0, 20)
+      .map((w) => ({
+        title: str(w?.title, 80).trim(),
+        what: str(w?.what, 300),
+        result: str(w?.result, 300),
+        url: /^https:\/\/[^\s]+$/.test(String(w?.url ?? "").trim()) ? String(w.url).trim().slice(0, 300) : "",
+        tags: strs(w?.tags, 20, 40).map((t) => t.toLowerCase()),
+      }))
+      .filter((w) => w.title),
+    answers: (Array.isArray(f.answers) ? f.answers : (base.answers ?? []))
+      .slice(0, 30)
+      .map((a) => ({
+        question: str(a?.question, 200).trim(),
+        words: strs(a?.words, 12, 60).map((w) => w.toLowerCase()),
+        answer: str(a?.answer, 2000),
+      }))
+      .filter((a) => a.question),
   };
 }
