@@ -10,6 +10,7 @@ import R from "@/lib/apply/render.js";
 import { PRINT_CSS } from "@/lib/apply/print-css";
 import { saveApplication } from "@/app/(crm)/apply/actions";
 import { hydrateFacts, type StoredFacts } from "@/lib/jobs/facts";
+import { atsCheck } from "@/lib/apply/ats";
 import { cn } from "@/lib/utils";
 
 // Apple-style grouped layout: the job post first, extra details one level deeper,
@@ -29,11 +30,11 @@ type DocKey = (typeof DOCS)[number]["key"];
 
 type Analysis = {
   track: "accessibility" | "frontend" | "design";
-  matched: { label: string }[];
+  matched: { label: string; said: string }[];
   gaps: string[];
   contract: boolean;
   currency: "usd" | "ngn";
-  guess: { company: string; role: string };
+  guess: { company: string; role: string; contact: { name: string; first: string } | null };
 };
 
 const stripMeta = (md: string) => md.replace(/^<!--[\s\S]*?-->\s*/, "");
@@ -55,6 +56,8 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [drafts, setDrafts] = useState<Partial<Record<DocKey, string>>>({});
   const [shown, setShown] = useState<DocKey>("cv");
+  const [shape, setShape] = useState("");
+  const [seed, setSeed] = useState(0);
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState("");
   const [alert, setAlert] = useState("");
@@ -90,7 +93,10 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
     if (!role.trim()) setRole(title);
     const nextWant = a.contract ? { ...want, proposal: true } : want;
     if (a.currency === "ngn") setCurrency("NGN");
-    const o = { jd, company: name, role: title, manager: manager.trim(), why: why.trim() };
+    // The recruiter the post names fills the Contact box, so the letter greets them.
+    const contact = manager.trim() || a.guess.contact?.name || "";
+    if (!manager.trim() && contact) setManager(contact);
+    const o = { jd, company: name, role: title, manager: contact, why: why.trim(), shape, seed };
     const next: Partial<Record<DocKey, string>> = {};
     for (const d of DOCS) if (nextWant[d.key]) next[d.key] = d.make(a, o, F);
     setWant(nextWant);
@@ -99,8 +105,19 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
     setShown((DOCS.find((d) => next[d.key] !== undefined)?.key ?? "cv") as DocKey);
     setEditing(false);
     setSaved(false);
-    say("Your documents are ready. Read each one, then save the application.");
+    say(`Your documents are ready.${!manager.trim() && contact ? ` The letter greets ${contact}, named in the post.` : ""} Read each one, then save the application.`);
     requestAnimationFrame(() => document.getElementById(`${id}-results`)?.focus());
+  }
+
+  // A new letter style or wording, keeping everything else.
+  function reword(nextShape: string, nextSeed: number) {
+    setShape(nextShape);
+    setSeed(nextSeed);
+    if (!analysis || drafts.cover === undefined) return;
+    const o = { jd, company, role, manager: manager.trim(), why: why.trim(), shape: nextShape, seed: nextSeed };
+    setDrafts((d) => ({ ...d, cover: E.makeCover(analysis, o, F) }));
+    setSaved(false);
+    say(`New cover letter: ${E.SHAPES[E.letterShape(analysis, o) as keyof typeof E.SHAPES]}.`);
   }
 
   function edit(key: DocKey, text: string) {
@@ -124,19 +141,20 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
     }
   }
 
-  function print(key: DocKey, name: string) {
-    const frame = document.createElement("iframe");
-    frame.title = `${name} print preview`;
-    frame.hidden = true;
-    document.body.append(frame);
-    const doc = frame.contentDocument!;
-    doc.open();
-    doc.write(R.toHtml(drafts[key] ?? "", PRINT_CSS));
-    doc.close();
-    frame.contentWindow!.focus();
-    frame.contentWindow!.print();
-    setTimeout(() => frame.remove(), 60_000);
-    say(`Print window opened for the ${name.toLowerCase()}. Choose Save as PDF.`);
+  // The server makes a tagged PDF: screen readers can follow it and ATS parsers read it in order.
+  async function pdf(key: DocKey, name: string) {
+    try {
+      const res = await fetch("/api/apply/pdf", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ markdown: drafts[key] ?? "", title: `${person} ${name}` }) });
+      if (!res.ok) throw new Error(res.status === 401 ? "sign in again" : "the server could not make it");
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(await res.blob());
+      link.download = `${fileName(name)}.pdf`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      say(`${name} downloaded as ${link.download}.`);
+    } catch (err) {
+      warn(`Could not make the ${name} PDF: ${(err as Error).message}. Try again.`);
+    }
   }
 
   async function copy(key: DocKey, name: string) {
@@ -189,15 +207,24 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
   const made = DOCS.filter((d) => drafts[d.key] !== undefined);
   const current = made.find((d) => d.key === shown) ?? made[0];
   const notes: string[] = current ? E.lint(drafts[current.key] ?? "") : [];
+  const ats = useMemo(
+    () => (analysis && drafts.cv ? atsCheck(drafts.cv, jd, { role, matched: analysis.matched.map((m) => m.label), said: analysis.matched.map((m) => m.said), gaps: analysis.gaps }) : null),
+    [analysis, drafts.cv, jd, role],
+  );
+  const coverShape = drafts.cover?.match(/shape:\s*(\w+)/)?.[1] ?? "";
   const fit = analysis ? Math.min(100, Math.round((analysis.matched.length / Math.max(1, analysis.matched.length + analysis.gaps.length)) * 100)) : 0;
 
   return (
     <div className={cn("grid grid-cols-1 items-start gap-8", analysis && "xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]")}>
       <form onSubmit={read} aria-labelledby={`${id}-job`} className={cn("flex w-full flex-col gap-5", !analysis && "max-w-[40rem]")}>
-        <h2 id={`${id}-job`} className="px-1 text-[20px] font-semibold tracking-[-0.015em]">1. The job</h2>
+        <h2 id={`${id}-job`} className="px-1 text-[20px] font-semibold tracking-[-0.015em]">
+          1. The job
+        </h2>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor={`${id}-jd`} className="px-1 text-[15px] font-medium">Job post or project brief (required)</label>
+          <label htmlFor={`${id}-jd`} className="px-1 text-[15px] font-medium">
+            Job post or project brief (required)
+          </label>
           <textarea
             id={`${id}-jd`}
             value={jd}
@@ -208,7 +235,9 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
             placeholder="Paste the whole post, bullet points included."
             className={`${FIELD} py-3 leading-relaxed`}
           />
-          <p id={`${id}-jd-hint`} className="text-soft px-1 text-[13px]">Only your true facts are used. Tools you have not used are left out.</p>
+          <p id={`${id}-jd-hint`} className="text-soft px-1 text-[13px]">
+            Only your true facts are used. Tools you have not used are left out.
+          </p>
         </div>
 
         <div className={GROUP}>
@@ -234,7 +263,9 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
 
         <details className="group flex flex-col">
           <summary className="text-soft hover:text-foreground focus-visible:ring-ring inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-1 text-[15px] outline-none focus-visible:ring-2">
-            <span aria-hidden className="inline-block transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none">›</span>
+            <span aria-hidden className="inline-block transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none">
+              ›
+            </span>
             More details (optional)
           </summary>
           <div className="mt-2 flex flex-col gap-4">
@@ -244,9 +275,26 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
               </Row>
               <Row label="Value" htmlFor={`${id}-value`}>
                 <span className="flex items-center gap-2">
-                  <input id={`${id}-value`} type="number" min={0} step={1} inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Salary or fee" className={ROW_INPUT} />
-                  <label htmlFor={`${id}-currency`} className="sr-only">Currency</label>
-                  <select id={`${id}-currency`} value={currency} onChange={(e) => setCurrency(e.target.value)} className="focus-visible:ring-ring rounded-md bg-transparent text-[15px] outline-none focus-visible:ring-2">
+                  <input
+                    id={`${id}-value`}
+                    type="number"
+                    min={0}
+                    step={1}
+                    inputMode="decimal"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder="Salary or fee"
+                    className={ROW_INPUT}
+                  />
+                  <label htmlFor={`${id}-currency`} className="sr-only">
+                    Currency
+                  </label>
+                  <select
+                    id={`${id}-currency`}
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="focus-visible:ring-ring rounded-md bg-transparent text-[15px] outline-none focus-visible:ring-2"
+                  >
                     <option value="USD">USD</option>
                     <option value="NGN">NGN</option>
                   </select>
@@ -262,9 +310,13 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
               </Row>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor={`${id}-why`} className="px-1 text-[15px] font-medium">Why this company, in one true sentence</label>
+              <label htmlFor={`${id}-why`} className="px-1 text-[15px] font-medium">
+                Why this company, in one true sentence
+              </label>
               <textarea id={`${id}-why`} value={why} onChange={(e) => setWhy(e.target.value)} rows={2} aria-describedby={`${id}-why-hint`} className={`${FIELD} py-2.5 leading-normal`} />
-              <p id={`${id}-why-hint`} className="text-soft px-1 text-[13px]">It makes the cover letter yours, not a template.</p>
+              <p id={`${id}-why-hint`} className="text-soft px-1 text-[13px]">
+                It makes the cover letter yours, not a template.
+              </p>
             </div>
           </div>
         </details>
@@ -274,29 +326,50 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
         </Button>
         {!analysis && (
           <>
-            <p role="status" aria-live="polite" className="text-soft empty:hidden">{status}</p>
-            {alert && <p role="alert" className="text-danger">{alert}</p>}
+            <p role="status" aria-live="polite" className="text-soft empty:hidden">
+              {status}
+            </p>
+            {alert && (
+              <p role="alert" className="text-danger">
+                {alert}
+              </p>
+            )}
           </>
         )}
       </form>
 
       {analysis && (
         <section id={`${id}-results`} tabIndex={-1} aria-labelledby={`${id}-check`} className="flex min-w-0 flex-col gap-5 outline-none">
-          <h2 id={`${id}-check`} className="px-1 text-[20px] font-semibold tracking-[-0.015em]">2. Check your documents</h2>
+          <h2 id={`${id}-check`} className="px-1 text-[20px] font-semibold tracking-[-0.015em]">
+            2. Check your documents
+          </h2>
 
           <div className="flex flex-col gap-4 rounded-2xl bg-white/[0.04] p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-[28px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
                 {analysis.matched.length} <span className="text-soft text-[17px] font-normal">of your skills match</span>
               </p>
-              <p className="text-soft text-[14px]">{F.tracks[analysis.track].label}{analysis.contract ? " · Contract" : ""}</p>
+              <p className="text-soft text-[14px]">
+                {F.tracks[analysis.track].label}
+                {analysis.contract ? " · Contract" : ""}
+              </p>
             </div>
-            <div role="meter" aria-label="How much of the post you cover" aria-valuemin={0} aria-valuemax={100} aria-valuenow={fit} aria-valuetext={`${fit}% of the skills named are yours`} className="h-2 overflow-hidden rounded-full bg-white/[0.1]">
+            <div
+              role="meter"
+              aria-label="How much of the post you cover"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={fit}
+              aria-valuetext={`${fit}% of the skills named are yours`}
+              className="h-2 overflow-hidden rounded-full bg-white/[0.1]"
+            >
               <div className={cn("h-full rounded-full", fit >= 70 ? "bg-success" : fit >= 40 ? "bg-[#3987e5]" : "bg-warning")} style={{ width: `${fit}%` }} />
             </div>
             <ul aria-label="Your skills this post asks for" className="flex flex-wrap gap-1.5">
               {analysis.matched.map((m) => (
-                <li key={m.label} className="rounded-full bg-(--tag-green-bg) px-2.5 py-1 text-[13px] text-(--tag-green-text)">{m.label}</li>
+                <li key={m.label} className="rounded-full bg-(--tag-green-bg) px-2.5 py-1 text-[13px] text-(--tag-green-text)">
+                  {m.label}
+                </li>
               ))}
             </ul>
             {analysis.matched.length < 3 && <p className="text-warning text-[14px]">Few of your skills match. This post may be outside your field.</p>}
@@ -306,6 +379,45 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
               </p>
             )}
           </div>
+
+          {ats && (
+            <section aria-labelledby={`${id}-ats`} className="flex flex-col gap-3 rounded-2xl bg-white/[0.04] p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 id={`${id}-ats`} className="text-[17px] font-semibold">
+                  ATS check for your CV
+                </h3>
+                <p className="text-[28px] leading-none font-semibold tracking-[-0.02em] tabular-nums">
+                  {ats.score}
+                  <span className="text-soft text-[17px] font-normal"> / 100</span>
+                </p>
+              </div>
+              <div
+                role="meter"
+                aria-label="ATS score"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={ats.score}
+                aria-valuetext={`${ats.score} out of 100`}
+                className="h-2 overflow-hidden rounded-full bg-white/[0.1]"
+              >
+                <div className={cn("h-full rounded-full", ats.score >= 80 ? "bg-success" : ats.score >= 60 ? "bg-[#3987e5]" : "bg-warning")} style={{ width: `${ats.score}%` }} />
+              </div>
+              <ul className="flex flex-col divide-y divide-white/[0.06] text-[14px]">
+                {ats.items.map((i) => (
+                  <li key={i.id} className="flex items-start gap-3 py-2">
+                    <span className={cn("mt-0.5 w-12 shrink-0 text-[12px] font-semibold tracking-wide uppercase", i.ok ? "text-success" : "text-warning")}>{i.ok ? "Good" : "Fix"}</span>
+                    <span className="min-w-0 flex-1 break-words">
+                      <span className="font-medium">{i.label}.</span> <span className="text-soft">{i.detail}</span>
+                    </span>
+                    <span className="text-soft shrink-0 tabular-nums">
+                      {i.points}/{i.max}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-soft text-[13px] leading-normal">The score shows what a tracking system can find. Never add a skill you do not have to raise it.</p>
+            </section>
+          )}
 
           {current && (
             <div className="flex flex-col gap-3">
@@ -326,18 +438,43 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
                 ))}
               </div>
 
+              {current.key === "cover" && analysis && (
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor={`${id}-shape`} className="px-1 text-[14px] font-medium">
+                      Letter style
+                    </label>
+                    <select id={`${id}-shape`} value={shape} onChange={(e) => reword(e.target.value, seed)} className={`${FIELD} h-11 w-auto cursor-pointer pr-8`}>
+                      <option value="">Best fit for this post{coverShape && !shape ? ` (${E.SHAPES[coverShape as keyof typeof E.SHAPES]})` : ""}</option>
+                      {Object.entries(E.SHAPES).map(([k, v]) => (
+                        <option key={k} value={k}>
+                          {v as string}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <Button type="button" variant="secondary" size="md" className="h-11 rounded-xl px-4" onClick={() => reword(shape, seed + 1)}>
+                    Try other wording
+                  </Button>
+                </div>
+              )}
+
               {notes.length > 0 && (
                 <div id={`${id}-lint`} className="rounded-xl bg-(--tag-amber-bg) px-4 py-3 text-[14px] text-(--tag-amber-text)">
                   <strong className="font-semibold">Before you send:</strong>
                   <ul className="mt-1 list-disc pl-5">
-                    {notes.map((n) => <li key={n}>{n}</li>)}
+                    {notes.map((n) => (
+                      <li key={n}>{n}</li>
+                    ))}
                   </ul>
                 </div>
               )}
 
               {editing ? (
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor={`${id}-md`} className="px-1 text-[15px] font-medium">Edit the {current.key === "cv" ? "CV" : current.name.toLowerCase()} text</label>
+                  <label htmlFor={`${id}-md`} className="px-1 text-[15px] font-medium">
+                    Edit the {current.key === "cv" ? "CV" : current.name.toLowerCase()} text
+                  </label>
                   <textarea
                     id={`${id}-md`}
                     value={drafts[current.key]}
@@ -363,7 +500,7 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
                 <Button type="button" variant="secondary" size="md" className="h-11 rounded-xl px-4" onClick={() => download(current.key, current.name)}>
                   Word file
                 </Button>
-                <Button type="button" variant="secondary" size="md" className="h-11 rounded-xl px-4" onClick={() => print(current.key, current.name)}>
+                <Button type="button" variant="secondary" size="md" className="h-11 rounded-xl px-4" onClick={() => pdf(current.key, current.name)}>
                   PDF
                 </Button>
                 <Button type="button" variant="ghost" size="md" className="text-soft h-11 px-3" onClick={() => copy(current.key, current.name)}>
@@ -374,7 +511,7 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
           )}
 
           <div className="flex flex-col gap-3 border-t border-white/[0.08] pt-5">
-            <h3 className="px-1 text-[20px] font-semibold tracking-[-0.015em]">3. Send it</h3>
+            <h2 className="px-1 text-[20px] font-semibold tracking-[-0.015em]">3. Send it</h2>
             <p className="text-soft px-1 text-[14px] leading-normal">
               This page writes your documents. It does not send them. {start?.jobId ? "Send them one of these ways:" : "Download them, send them on the company's form or by email, then mark it here."}
             </p>
@@ -394,7 +531,14 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
                 </Button>
               </div>
             )}
-            <Button type="button" variant={start?.jobId ? "ghost" : "primary"} size="md" className={cn(start?.jobId ? "h-11 self-start px-2" : PRIMARY, !start?.jobId && "w-full sm:w-auto sm:self-start")} onClick={save} aria-disabled={pending || saved}>
+            <Button
+              type="button"
+              variant={start?.jobId ? "ghost" : "primary"}
+              size="md"
+              className={cn(start?.jobId ? "h-11 self-start px-2" : PRIMARY, !start?.jobId && "w-full sm:w-auto sm:self-start")}
+              onClick={save}
+              aria-disabled={pending || saved}
+            >
               {saved ? "Marked as applied" : pending ? "Saving…" : "I already sent it: mark as applied"}
             </Button>
             {saved && (
@@ -402,8 +546,14 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
                 See it on your Applications board
               </Button>
             )}
-            <p role="status" aria-live="polite" className="text-soft empty:hidden">{status}</p>
-            {alert && <p role="alert" className="text-danger">{alert}</p>}
+            <p role="status" aria-live="polite" className="text-soft empty:hidden">
+              {status}
+            </p>
+            {alert && (
+              <p role="alert" className="text-danger">
+                {alert}
+              </p>
+            )}
           </div>
         </section>
       )}
@@ -416,7 +566,9 @@ const ROW_INPUT = "w-full min-w-0 bg-transparent text-right text-[15px] text-for
 function Row({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
     <div className="flex min-h-12 items-center gap-4 px-4">
-      <label htmlFor={htmlFor} className="w-24 shrink-0 text-[15px]">{label}</label>
+      <label htmlFor={htmlFor} className="w-24 shrink-0 text-[15px]">
+        {label}
+      </label>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

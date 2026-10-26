@@ -15,7 +15,8 @@ const facts = F as unknown as Facts;
 const job = {
   title: "Frontend Engineer (Remote)",
   company: "Kola Pay",
-  description: "Kola Pay helps market traders in Lagos take card payments. You will build our merchant dashboard in React and TypeScript, and make it work with screen readers. Send your CV to hiring@kolapay.com.",
+  description:
+    "Kola Pay helps market traders in Lagos take card payments. You will build our merchant dashboard in React and TypeScript, and make it work with screen readers. Send your CV to hiring@kolapay.com.",
 };
 
 test("finds the apply address and skips privacy, security and accommodation addresses", () => {
@@ -88,7 +89,10 @@ test("locks and unlocks the app password", () => {
 
 test("the free provider goes first, the Gateway second", () => {
   const list = aiProviders({ FREE_AI_BASE_URL: "https://api.groq.com/openai/v1/", FREE_AI_API_KEY: "k", FREE_AI_MODEL: "openai/gpt-oss-20b", VERCEL_OIDC_TOKEN: "t" });
-  assert.deepEqual(list.map((p) => p.name), ["free", "gateway"]);
+  assert.deepEqual(
+    list.map((p) => p.name),
+    ["free", "gateway"],
+  );
   assert.equal(list[0].baseUrl, "https://api.groq.com/openai/v1");
   assert.equal(aiProviders({}).length, 0);
 });
@@ -150,17 +154,22 @@ test("with AI off, the plain sentence is used at no cost", async () => {
 test("drafts the full email: subject, letter body, CV and follow-ups", () => {
   const why = rulesWhy(job, ["React"]);
   const d = draftApplication(job, { ...facts, person: { ...facts.person, email: "bryanonyenghan@gmail.com" } }, why);
-  assert.equal(d.subject, `Application: Frontend Engineer | ${facts.person.name}`);
-  assert.match(d.body, /^Hi Kola Pay team,/);
-  assert.match(d.body, /My CV is attached as a PDF\.\n\nWarm regards,/);
+  assert.match(d.subject, /Frontend Engineer/);
+  assert.match(d.subject, new RegExp(facts.person.name));
+  assert.match(d.body, /^(Hi|Hello) Kola Pay team,/);
+  assert.match(d.body, /My CV is attached as a PDF\.\n\n(Warm regards|Best regards|Thank you|Best),/);
   assert.doesNotMatch(d.body, /\]\(/);
   assert.match(d.cv, /bryanonyenghan@gmail\.com/);
   assert.match(d.cover, /I want to bring my React work to Kola Pay/);
+  // A recruiter named in the post is greeted by first name, in the letter and the subject.
+  const named = draftApplication({ ...job, description: `${job.description}\nRecruiter: Amara Okafor` }, facts, why);
+  assert.match(named.body, /^(Hi|Hello) Amara,/);
+  assert.equal(named.subject, "Amara, my application for the Frontend Engineer role");
   assert.deepEqual(d.problems, []);
   const noCompany = draftApplication({ ...job, company: "" }, facts, why);
   assert.ok(noCompany.problems.length > 0);
   const [one, two] = followUps(facts, { role: "Frontend Engineer", company: "Kola Pay", manager: "", matched: d.matched, sentAt: new Date("2026-10-20T16:00:00Z") });
-  assert.match(one, /^Hi Kola Pay team,\n\nI applied for the Frontend Engineer role on 20 October/);
+  assert.match(one, /^Hi Kola Pay team,\n\n.*Frontend Engineer.*20 October|^Hi Kola Pay team,\n\n.*20 October.*Frontend Engineer/);
   assert.match(two, /If the role is filled, no need to reply\./);
 });
 
@@ -174,11 +183,28 @@ test("renders the CV to a real PDF with safe characters", async () => {
   const pdf = await cvPdf(d.cv, "CV");
   assert.equal(Buffer.from(pdf.slice(0, 5)).toString(), "%PDF-");
   assert.ok(pdf.length > 2000);
-  assert.equal(pdfSafe("A – B — “C” ₦5 →"), "A - B - \"C\" NGN 5 ->");
+  assert.equal(pdfSafe("A – B — “C” ₦5 →"), 'A - B - "C" NGN 5 ->');
 });
 
 test("the letter quotes the post's own words, never a skill the post did not name", () => {
-  const d = draftApplication(job, facts, rulesWhy(job, ["React"]));
-  assert.doesNotMatch(d.cover, /asks for Paystack/);
-  assert.match(d.cover, /Your post asks for payments/);
+  for (const shape of ["classic", "short", "problem", "match"]) {
+    const d = draftApplication(job, facts, rulesWhy(job, ["React"]), "", { shape });
+    assert.equal(d.shape, shape);
+    assert.doesNotMatch(d.cover, /asks for Paystack|^- Paystack/m);
+    assert.match(d.cover, /Your post asks for payments|^- Payments/m, shape);
+  }
+});
+
+test("different jobs get different letters, and the same job the same letter", () => {
+  const why = rulesWhy(job, ["React"]);
+  const covers = new Set(
+    ["Kola Pay", "Paystack", "Flutterwave", "Moniepoint", "Andela", "Opay"].map((company) =>
+      draftApplication({ ...job, company }, facts, why)
+        .cover.replace(/^[\s\S]*?\n(Hi|Hello)/, "$1")
+        .replace(new RegExp("Kola Pay|Paystack|Flutterwave|Moniepoint|Andela|Opay", "g"), "X"),
+    ),
+  );
+  assert.ok(covers.size >= 3, `only ${covers.size} different letters`);
+  assert.equal(draftApplication(job, facts, why).cover, draftApplication(job, facts, why).cover);
+  assert.notEqual(draftApplication(job, facts, why, "", { seed: 1 }).cover, draftApplication(job, facts, why, "", { seed: 2 }).cover);
 });
