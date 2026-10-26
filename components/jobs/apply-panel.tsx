@@ -4,10 +4,11 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore, useTransition
 import Button from "@/components/_ui/button";
 import { markJobApplied, prepareApplication, sendApplication } from "@/app/(crm)/jobs/actions";
 import type { Prepared } from "@/lib/apply/outbox";
+import { withReadLine } from "@/lib/apply/compose";
+import ReadCheckBox from "@/components/apply/read-check";
 import { readyChecks, readySummary } from "@/lib/apply/ready";
 import { extensionVersion, noSubscribe, startWithExtension } from "./extension";
 import type { JobItem } from "./jobs-board";
-
 
 type Props = { job: JobItem; onApplied: () => void; onError: (message: string) => void };
 
@@ -18,6 +19,7 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [anyway, setAnyway] = useState(false);
+  const [readOk, setReadOk] = useState(false);
   const [note, setNote] = useState("Writing your letter for this job…");
   const [problem, setProblem] = useState("");
   const [done, setDone] = useState<"sent" | "queued" | "applied" | null>(null);
@@ -41,7 +43,7 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
         return;
       }
       setP(r.p);
-      setTo((t) => (fresh && t ? t : r.p.contact?.email ?? ""));
+      setTo((t) => (fresh && t ? t : (r.p.contact?.email ?? "")));
       setSubject(r.p.subject);
       setBody(r.p.body);
       if (r.p.outbox) setDone(r.p.outbox.status === "sent" ? "sent" : "queued");
@@ -59,6 +61,10 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
 
   function send() {
     if (busy || !p) return;
+    if (p.readCheck && !readOk) {
+      setProblem('This post checks that you read it. Read it, then tick "I read the whole post" above.');
+      return;
+    }
     if (!to.trim()) {
       setProblem("Enter the employer's email address in the Send to box.");
       document.getElementById(`${id}-to`)?.focus();
@@ -117,7 +123,20 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
     }
   }
 
-  const canSend = Boolean(p?.mail.email && p.mail.tested && !p.problems.length && !done);
+  const canSend = Boolean(p?.mail.email && p.mail.tested && !p.problems.length && !done && (!p.readCheck || readOk));
+
+  function confirmRead(read: boolean, v: { word: string; tag: string }) {
+    setReadOk(read && Boolean(v.word || v.tag));
+    const strip = (t: string) =>
+      t
+        .split("\n")
+        .filter((l) => !l.startsWith("P.S. I read the whole post"))
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n");
+    setBody((b) => (read ? withReadLine(strip(b), v) : strip(b)));
+    if (p?.readCheck?.subject && v.word) setSubject((s) => (read ? (s.includes(v.word) ? s : `${s} ${v.word}`) : s.replace(` ${v.word}`, "")));
+    setNote(read ? "Added to your email, just above the sign-off." : "Taken out of your email.");
+  }
 
   const emailJob = Boolean(p?.contact);
   const proof = p?.proof ?? [];
@@ -178,15 +197,19 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
           <label htmlFor={`${id}-body`} className="sr-only">
             Email
           </label>
-          <textarea id={`${id}-body`} rows={14} value={body} onChange={(e) => setBody(e.target.value)} className="border-line-strong bg-background/40 focus-visible:ring-ring w-full resize-y rounded-xl border p-3 text-[14px] leading-relaxed outline-none focus-visible:ring-2" />
+          <textarea
+            id={`${id}-body`}
+            rows={14}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            className="border-line-strong bg-background/40 focus-visible:ring-ring w-full resize-y rounded-xl border p-3 text-[14px] leading-relaxed outline-none focus-visible:ring-2"
+          />
         </div>
       </details>
       {p.sendsLater && (
         <Row>
           <label className="flex min-h-11 w-full items-center justify-between gap-3 text-[14px]">
-            <span>
-              Outside their work hours. Sends {p.sendsLater}.
-            </span>
+            <span>Outside their work hours. Sends {p.sendsLater}.</span>
             <span className="flex items-center gap-2">
               Send now
               <input type="checkbox" checked={anyway} onChange={(e) => setAnyway(e.target.checked)} className="accent-primary size-5" />
@@ -226,6 +249,8 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
               ))}
             </ul>
           )}
+
+          {p.readCheck && <ReadCheckBox check={p.readCheck} postUrl={p.applyUrl} onChange={confirmRead} />}
 
           <ReadyCheck job={job} p={p} extension={Boolean(extension)} id={`${id}-ready`} />
 
@@ -280,17 +305,29 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
             <>
               {extension ? (
                 <Group title="Apply on their form" id={`${id}-form`}>
-                  <Step n={1}><span>Press <strong>Apply with the extension</strong>. Their form opens in a new tab.</span></Step>
-                  <Step n={2}><span>It finds the form, presses their Apply button if needed, and fills every page with your CV and answers.</span></Step>
-                  <Step n={3}><span>You read each page and press Next or Submit. It never sends anything for you.</span></Step>
-                  <Step n={4}><span>On the thank-you page it marks the job as applied here.</span></Step>
+                  <Step n={1}>
+                    <span>
+                      Press <strong>Apply with the extension</strong>. Their form opens in a new tab.
+                    </span>
+                  </Step>
+                  <Step n={2}>
+                    <span>It finds the form, presses their Apply button if needed, and fills every page with your CV and answers.</span>
+                  </Step>
+                  <Step n={3}>
+                    <span>You read each page and press Next or Submit. It never sends anything for you.</span>
+                  </Step>
+                  <Step n={4}>
+                    <span>On the thank-you page it marks the job as applied here.</span>
+                  </Step>
                 </Group>
               ) : (
                 <Group title="Apply on their form" id={`${id}-form`}>
                   <Step n={1}>
                     <span>
                       Add the Chrome extension once, and it does the rest for you.{" "}
-                      <a href="/profile#extension" className="underline underline-offset-2">Set it up</a>
+                      <a href="/profile#extension" className="underline underline-offset-2">
+                        Set it up
+                      </a>
                     </span>
                   </Step>
                   <Step n={2}>
@@ -387,7 +424,11 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
   );
 }
 
-const MARK = { yes: { icon: "✓", label: "Ready", cls: "bg-(--tag-green-bg) text-(--tag-green-text)" }, warn: { icon: "!", label: "Check", cls: "bg-(--tag-amber-bg) text-(--tag-amber-text)" }, no: { icon: "×", label: "Fix", cls: "bg-danger/15 text-danger" } };
+const MARK = {
+  yes: { icon: "✓", label: "Ready", cls: "bg-(--tag-green-bg) text-(--tag-green-text)" },
+  warn: { icon: "!", label: "Check", cls: "bg-(--tag-amber-bg) text-(--tag-amber-text)" },
+  no: { icon: "×", label: "Fix", cls: "bg-danger/15 text-danger" },
+};
 
 // One look before you apply: where you can work, pay, freshness, CV match, profile and sending.
 function ReadyCheck({ job, p, extension, id }: { job: JobItem; p: Prepared; extension: boolean; id: string }) {

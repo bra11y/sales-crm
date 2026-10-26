@@ -181,6 +181,16 @@ async function start(jobId, openerTabId) {
   schedule(tab.id, 1500);
 }
 
+// The writing check: only on request, in the tab you are on. Needs no CRM connection.
+async function checkWriting(tabId) {
+  await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, files: ["engine.js", "write-check.js"] });
+  await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, func: () => window.__crmWriteCheck && window.__crmWriteCheck() });
+}
+
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  if (command === "check-writing" && tab?.id) await checkWriting(tab.id).catch(() => {});
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const tabId = msg.tabId ?? sender.tab?.id;
   (async () => {
@@ -206,6 +216,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     } else if (msg.type === "stop") {
       await dropRun(tabId);
       await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, func: () => window.__salesCrmPanel && window.__salesCrmPanel.remove() }).catch(() => {});
+    } else if (msg.type === "write-check") {
+      await checkWriting(tabId);
     } else if (msg.type === "status") {
       return { connected: Boolean(await settings()) };
     }

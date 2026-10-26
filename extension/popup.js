@@ -56,6 +56,13 @@ $("fill").addEventListener("click", async () => {
   else fail(reply?.error || "The helper did not start.");
 });
 
+$("write").addEventListener("click", async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const reply = await chrome.runtime.sendMessage({ type: "write-check", tabId: tab.id });
+  if (reply && reply.ok) window.close();
+  else fail(reply?.error?.includes("Cannot access") ? "Chrome does not let extensions check this page. Try it on a job site or email." : reply?.error || "The writing check did not start.");
+});
+
 $("disconnect").addEventListener("click", async () => {
   await chrome.storage.local.remove("settings");
   say("Disconnected.");

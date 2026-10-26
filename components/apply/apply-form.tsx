@@ -11,6 +11,8 @@ import { PRINT_CSS } from "@/lib/apply/print-css";
 import { saveApplication } from "@/app/(crm)/apply/actions";
 import { hydrateFacts, type StoredFacts } from "@/lib/jobs/facts";
 import { atsCheck } from "@/lib/apply/ats";
+import { findReadCheck, withReadLine } from "@/lib/apply/compose";
+import ReadCheckBox from "@/components/apply/read-check";
 import { cn } from "@/lib/utils";
 
 // Apple-style grouped layout: the job post first, extra details one level deeper,
@@ -99,6 +101,8 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
     const o = { jd, company: name, role: title, manager: contact, why: why.trim(), shape, seed };
     const next: Partial<Record<DocKey, string>> = {};
     for (const d of DOCS) if (nextWant[d.key]) next[d.key] = d.make(a, o, F);
+    // A read-check you already confirmed stays in the rebuilt letter.
+    if (readLine && next.cover) next.cover = withReadLine(next.cover, readLine);
     setWant(nextWant);
     setAnalysis(a);
     setDrafts(next);
@@ -115,7 +119,8 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
     setSeed(nextSeed);
     if (!analysis || drafts.cover === undefined) return;
     const o = { jd, company, role, manager: manager.trim(), why: why.trim(), shape: nextShape, seed: nextSeed };
-    setDrafts((d) => ({ ...d, cover: E.makeCover(analysis, o, F) }));
+    const cover = E.makeCover(analysis, o, F) as string;
+    setDrafts((d) => ({ ...d, cover: readLine ? withReadLine(cover, readLine) : cover }));
     setSaved(false);
     say(`New cover letter: ${E.SHAPES[E.letterShape(analysis, o) as keyof typeof E.SHAPES]}.`);
   }
@@ -211,6 +216,19 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
     () => (analysis && drafts.cv ? atsCheck(drafts.cv, jd, { role, matched: analysis.matched.map((m) => m.label), said: analysis.matched.map((m) => m.said), gaps: analysis.gaps }) : null),
     [analysis, drafts.cv, jd, role],
   );
+  const readCheck = useMemo(() => (analysis ? findReadCheck(jd) : null), [analysis, jd]);
+  const [readLine, setReadLine] = useState<{ word: string; tag: string } | null>(null);
+  function confirmRead(read: boolean, v: { word: string; tag: string }) {
+    setReadLine(read ? v : null);
+    const strip = (t: string) =>
+      t
+        .split("\n")
+        .filter((l) => !l.startsWith("P.S. I read the whole post"))
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n");
+    setDrafts((d) => (d.cover === undefined ? d : { ...d, cover: read ? withReadLine(strip(d.cover), v) : strip(d.cover) }));
+    say(read ? "Added to your cover letter, just above the sign-off." : "Taken out of your cover letter.");
+  }
   const coverShape = drafts.cover?.match(/shape:\s*(\w+)/)?.[1] ?? "";
   const fit = analysis ? Math.min(100, Math.round((analysis.matched.length / Math.max(1, analysis.matched.length + analysis.gaps.length)) * 100)) : 0;
 
@@ -379,6 +397,8 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
               </p>
             )}
           </div>
+
+          {readCheck && <ReadCheckBox key={jd} check={readCheck} level={3} onChange={confirmRead} />}
 
           {ats && (
             <section aria-labelledby={`${id}-ats`} className="flex flex-col gap-3 rounded-2xl bg-white/[0.04] p-5">

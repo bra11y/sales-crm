@@ -15,26 +15,63 @@ import { followUpTimes, guessZone, inWindow, nextWindow, sendBudget, zoneTime } 
 import { cvPdf } from "@/lib/pdf/cv";
 import { classifyMail, companyDomains, EVENT_TITLE, isJobSender, matchJob, nextStatus, type Status, type TrackedJob } from "./track";
 import { aiProviders, type Why, writeWhy } from "./ai";
-import { attachmentName, cleanRole, draftApplication, followUps, withEmail } from "./compose";
+import { attachmentName, cleanRole, draftApplication, findReadCheck, followUps, type ReadCheck, withEmail } from "./compose";
 
 type Db = SupabaseClient;
 type Result<T> = ({ ok: true } & T) | { ok: false; error: string };
 
 type JobRow = {
-  id: string; user_id: string; title: string; company: string; description: string; location: string; apply_url: string;
-  track: string; matched: string[]; gaps: string[]; status: string; contact_email: string | null; contact_source: string | null;
+  id: string;
+  user_id: string;
+  title: string;
+  company: string;
+  description: string;
+  location: string;
+  apply_url: string;
+  track: string;
+  matched: string[];
+  gaps: string[];
+  status: string;
+  contact_email: string | null;
+  contact_source: string | null;
   draft: (Why & { at: string }) | null;
 };
-type OutRow = { id: string; user_id: string; job_id: string | null; parent_id: string | null; kind: string; to_email: string; subject: string; body: string; cv_markdown: string | null; attachment_name: string | null; send_after: string };
+type OutRow = {
+  id: string;
+  user_id: string;
+  job_id: string | null;
+  parent_id: string | null;
+  kind: string;
+  to_email: string;
+  subject: string;
+  body: string;
+  cv_markdown: string | null;
+  attachment_name: string | null;
+  send_after: string;
+};
 
 const JOB_COLS = "id, user_id, title, company, description, location, apply_url, track, matched, gaps, status, contact_email, contact_source, draft";
 
 export type Prepared = {
-  jobId: string; contact: Contact | null; subject: string; body: string; cover: string; attachment: string;
-  why: Why; problems: string[]; notes: string[]; gaps: string[]; applyUrl: string; proof: Proof[];
+  jobId: string;
+  contact: Contact | null;
+  subject: string;
+  body: string;
+  cover: string;
+  attachment: string;
+  why: Why;
+  problems: string[];
+  notes: string[];
+  gaps: string[];
+  applyUrl: string;
+  proof: Proof[];
   person: Record<"name" | "email" | "phone" | "linkedin" | "portfolio" | "location", string>;
-  sendsLater: string | null; mail: { email: string | null; tested: boolean }; outbox: { status: string; sentAt: string | null } | null;
+  sendsLater: string | null;
+  mail: { email: string | null; tested: boolean };
+  outbox: { status: string; sentAt: string | null } | null;
   minMonthlyUsd: number;
+  // The post asks you to prove you read it (a word, a tag). Null when it does not.
+  readCheck: ReadCheck | null;
 };
 
 // ---------- Gmail login ----------
@@ -49,7 +86,9 @@ export async function connectGmail(db: Db, userId: string, email: string, passwo
   const problem = await testLogin({ email: address, password: secret });
   if (problem) return { ok: false, error: problem };
   const s = seal(secret, key);
-  const { error } = await db.from("mail_accounts").upsert({ user_id: userId, email: address, secret_ciphertext: s.ciphertext, secret_iv: s.iv, secret_tag: s.tag, connected_at: new Date().toISOString(), last_uid: null, test_sent_at: null });
+  const { error } = await db
+    .from("mail_accounts")
+    .upsert({ user_id: userId, email: address, secret_ciphertext: s.ciphertext, secret_iv: s.iv, secret_tag: s.tag, connected_at: new Date().toISOString(), last_uid: null, test_sent_at: null });
   return error ? { ok: false, error: "The connection worked, but it could not be saved. Try again." } : { ok: true };
 }
 
@@ -65,7 +104,11 @@ export async function sendTestEmail(db: Db, userId: string): Promise<Result<{ to
   const profile = await loadProfile(db, userId);
   const login = await loadLogin(db, userId, profile?.facts.person.name);
   if (!login || !profile) return { ok: false, error: "Connect Gmail first." };
-  const draft = draftApplication({ title: "Test Role", company: "Your own inbox", description: "A test of the Sales CRM apply email." }, withEmail(profile.facts, login.email), "This is a test of the email employers will get.");
+  const draft = draftApplication(
+    { title: "Test Role", company: "Your own inbox", description: "A test of the Sales CRM apply email." },
+    withEmail(profile.facts, login.email),
+    "This is a test of the email employers will get.",
+  );
   try {
     await sendMail(login, {
       to: login.email,
@@ -101,7 +144,10 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
   else {
     const providers = profile.preferences.ai === "off" ? [] : aiProviders(process.env, opts.oidc);
     why = await writeWhy({ title: job.title, company: job.company, description: job.description }, facts, job.matched, providers);
-    await db.from("job_posts").update({ draft: { ...why, at: new Date().toISOString() }, contact_email: contact?.email ?? null, contact_source: contact?.sentence ?? null }).eq("id", job.id);
+    await db
+      .from("job_posts")
+      .update({ draft: { ...why, at: new Date().toISOString() }, contact_email: contact?.email ?? null, contact_source: contact?.sentence ?? null })
+      .eq("id", job.id);
   }
   const d = draftApplication({ title: job.title, company: job.company, description: job.description, track: job.track }, facts, why.why, why.manager);
   const zone = guessZone(job.location);
@@ -110,13 +156,31 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
   return {
     ok: true,
     p: {
-      jobId: job.id, contact, subject: d.subject, body: d.body, cover: d.cover, attachment: attachmentName(facts, job.company),
-      why, problems: d.problems, notes: d.notes, gaps: d.gaps, applyUrl: job.apply_url, proof: d.proof,
-      person: { name: facts.person.name ?? "", email: facts.person.email ?? "", phone: facts.person.phone ?? "", linkedin: facts.person.linkedin ?? "", portfolio: facts.person.portfolio ?? "", location: facts.person.location ?? "" },
+      jobId: job.id,
+      contact,
+      subject: d.subject,
+      body: d.body,
+      cover: d.cover,
+      attachment: attachmentName(facts, job.company),
+      why,
+      problems: d.problems,
+      notes: d.notes,
+      gaps: d.gaps,
+      applyUrl: job.apply_url,
+      proof: d.proof,
+      person: {
+        name: facts.person.name ?? "",
+        email: facts.person.email ?? "",
+        phone: facts.person.phone ?? "",
+        linkedin: facts.person.linkedin ?? "",
+        portfolio: facts.person.portfolio ?? "",
+        location: facts.person.location ?? "",
+      },
       sendsLater: inWindow(now, zone) ? null : zoneTime(nextWindow(now, zone), zone),
       mail: { email: account?.email ?? null, tested: Boolean(account?.test_sent_at) },
       outbox: out ? { status: out.status, sentAt: out.sent_at } : null,
       minMonthlyUsd: profile.preferences.minMonthlyUsd,
+      readCheck: findReadCheck(job.description),
     },
   };
 }
@@ -136,7 +200,12 @@ export async function cvFor(db: Db, userId: string, jobId: string): Promise<{ na
 // How an application went out, kept as proof on the job's history.
 export type AppliedProof = { via: "email" | "form" | "manual"; kind: "sent_email" | "submitted_form" | "marked_applied"; title: string; detail: string; evidence?: Record<string, string> };
 
-export const MANUAL_PROOF: AppliedProof = { via: "manual", kind: "marked_applied", title: "You marked it as applied", detail: "No proof from the company yet. Their confirmation email shows here when it arrives." };
+export const MANUAL_PROOF: AppliedProof = {
+  via: "manual",
+  kind: "marked_applied",
+  title: "You marked it as applied",
+  detail: "No proof from the company yet. Their confirmation email shows here when it arrives.",
+};
 
 // Adds the proof and moves the job to Applied, unless it is already further along.
 export async function noteApplied(db: Db, userId: string, jobId: string, proof: AppliedProof) {
@@ -155,8 +224,15 @@ async function recordInCrm(db: Db, userId: string, job: JobRow, facts: Facts, do
   const { data: owner } = await db.from("workspace_members").select("role").eq("workspace_id", 1).eq("user_id", userId).eq("role", "owner").maybeSingle();
   if (owner) {
     const built = buildApplicationEvent({
-      company: job.company, role: cleanRole(job.title), manager, track: facts.tracks[job.track]?.label ?? "Accessibility", contract: false,
-      documents: docs, jd: job.description, matched: job.matched, gaps: job.gaps,
+      company: job.company,
+      role: cleanRole(job.title),
+      manager,
+      track: facts.tracks[job.track]?.label ?? "Accessibility",
+      contract: false,
+      documents: docs,
+      jd: job.description,
+      matched: job.matched,
+      gaps: job.gaps,
     });
     if (built.ok) await applyEvent(built.event, supabaseCrmDb(db));
   }
@@ -177,7 +253,13 @@ export async function markApplied(db: Db, userId: string, jobId: string, proof: 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function sentLastDay(db: Db, userId: string, now: Date): Promise<Date[]> {
-  const { data } = await db.from("applications_outbox").select("sent_at").eq("user_id", userId).eq("status", "sent").neq("kind", "test").gte("sent_at", new Date(now.getTime() - 86_400_000).toISOString());
+  const { data } = await db
+    .from("applications_outbox")
+    .select("sent_at")
+    .eq("user_id", userId)
+    .eq("status", "sent")
+    .neq("kind", "test")
+    .gte("sent_at", new Date(now.getTime() - 86_400_000).toISOString());
   return (data ?? []).map((r) => new Date(r.sent_at as string));
 }
 
@@ -188,7 +270,8 @@ async function deliver(db: Db, login: MailLogin, row: OutRow): Promise<string | 
     inReplyTo = parent?.message_id ?? undefined;
   }
   try {
-    const attachments = row.cv_markdown && row.attachment_name ? [{ filename: row.attachment_name, content: Buffer.from(await cvPdf(row.cv_markdown, row.attachment_name.replace(/\.pdf$/, ""))) }] : undefined;
+    const attachments =
+      row.cv_markdown && row.attachment_name ? [{ filename: row.attachment_name, content: Buffer.from(await cvPdf(row.cv_markdown, row.attachment_name.replace(/\.pdf$/, ""))) }] : undefined;
     const messageId = await sendMail(login, { to: row.to_email, subject: row.subject, text: row.body, attachments, inReplyTo, references: inReplyTo });
     await db.from("applications_outbox").update({ status: "sent", sent_at: new Date().toISOString(), message_id: messageId, error: null }).eq("id", row.id);
     return null;
@@ -203,7 +286,16 @@ async function afterSent(db: Db, userId: string, row: OutRow) {
   if (!row.job_id) return;
   const { data: sentRow } = await db.from("applications_outbox").select("message_id, sent_at").eq("id", row.id).maybeSingle();
   if (row.kind === "follow_up_1" || row.kind === "follow_up_2") {
-    await db.from("application_events").insert({ user_id: userId, job_id: row.job_id, kind: "follow_up", title: `Follow-up ${row.kind.slice(-1)} sent to ${row.to_email}`, detail: "Sent from your Gmail, in the same email thread.", evidence: { to: row.to_email, messageId: sentRow?.message_id ?? "" } });
+    await db
+      .from("application_events")
+      .insert({
+        user_id: userId,
+        job_id: row.job_id,
+        kind: "follow_up",
+        title: `Follow-up ${row.kind.slice(-1)} sent to ${row.to_email}`,
+        detail: "Sent from your Gmail, in the same email thread.",
+        evidence: { to: row.to_email, messageId: sentRow?.message_id ?? "" },
+      });
     return;
   }
   if (row.kind !== "application") return;
@@ -234,7 +326,14 @@ export async function sendDue(db: Db, userId: string, now: Date, deadline: numbe
   const profile = await loadProfile(db, userId);
   const login = await loadLogin(db, userId, profile?.facts.person.name);
   if (!login) return { sent: 0, errors: [], waiting: null };
-  let q = db.from("applications_outbox").select("id, user_id, job_id, parent_id, kind, to_email, subject, body, cv_markdown, attachment_name, send_after").eq("user_id", userId).eq("status", "queued").lte("send_after", now.toISOString()).order("send_after").limit(15);
+  let q = db
+    .from("applications_outbox")
+    .select("id, user_id, job_id, parent_id, kind, to_email, subject, body, cv_markdown, attachment_name, send_after")
+    .eq("user_id", userId)
+    .eq("status", "queued")
+    .lte("send_after", now.toISOString())
+    .order("send_after")
+    .limit(15);
   if (onlyId) q = q.eq("id", onlyId);
   const { data: rows } = await q;
   const recent = await sentLastDay(db, userId, now);
@@ -246,7 +345,8 @@ export async function sendDue(db: Db, userId: string, now: Date, deadline: numbe
       await sleep(budget.waitSeconds * 1000);
       budget = sendBudget(recent, new Date());
     }
-    if (!budget.ok) return { sent, errors, waiting: budget.reason === "daily_limit" ? "You reached today's limit. The rest send tomorrow." : "Waiting a few seconds between emails. The rest send on the next run." };
+    if (!budget.ok)
+      return { sent, errors, waiting: budget.reason === "daily_limit" ? "You reached today's limit. The rest send tomorrow." : "Waiting a few seconds between emails. The rest send on the next run." };
     const error = await deliver(db, login, row);
     if (error) errors.push(error);
     else {
@@ -259,7 +359,9 @@ export async function sendDue(db: Db, userId: string, now: Date, deadline: numbe
 }
 
 export async function applyByEmail(
-  db: Db, userId: string, jobId: string,
+  db: Db,
+  userId: string,
+  jobId: string,
   input: { to: string; subject: string; body: string; anyway: boolean; oidc?: string | null },
 ): Promise<Result<{ status: "sent" | "queued"; note: string }>> {
   const login = await loadLogin(db, userId);
@@ -276,6 +378,9 @@ export async function applyByEmail(
   const subject = input.subject.trim().slice(0, 200) || p.subject;
   const body = input.body.trim().slice(0, 20_000) || p.body;
   if (/\[[^\]\n]+\](?!\()/.test(body)) return { ok: false, error: "The email still has a [bracket] gap. Fill it in, then send." };
+  // The employer asked for proof the post was read. It goes in only after you confirm you read it.
+  if (p.readCheck && !(p.readCheck.word ? `${subject}\n${body}`.includes(p.readCheck.word) : body.includes("I read the whole post")))
+    return { ok: false, error: `This post asks you to mention "${p.readCheck.word || p.readCheck.tag}" to show you read it. Read the post, then tick "I read the whole post".` };
 
   const job = (await loadJob(db, userId, jobId))!;
   const profile = (await loadProfile(db, userId))!;
@@ -284,10 +389,22 @@ export async function applyByEmail(
   const now = new Date();
   const zone = guessZone(job.location);
   const sendAfter = input.anyway ? now : nextWindow(now, zone);
-  const { data: row, error } = await db.from("applications_outbox").insert({
-    user_id: userId, job_id: jobId, kind: "application", to_email: to, subject, body: body + "\n",
-    cv_markdown: d.cv, attachment_name: p.attachment, send_after: sendAfter.toISOString(), ai_note: p.why.provider ?? p.why.note ?? null,
-  }).select("id").single();
+  const { data: row, error } = await db
+    .from("applications_outbox")
+    .insert({
+      user_id: userId,
+      job_id: jobId,
+      kind: "application",
+      to_email: to,
+      subject,
+      body: body + "\n",
+      cv_markdown: d.cv,
+      attachment_name: p.attachment,
+      send_after: sendAfter.toISOString(),
+      ai_note: p.why.provider ?? p.why.note ?? null,
+    })
+    .select("id")
+    .single();
   if (error || !row) return { ok: false, error: "The application could not be queued. Try again." };
   if (to !== p.contact?.email) await db.from("job_posts").update({ contact_email: to, contact_source: "You typed this address." }).eq("id", jobId);
 
@@ -304,10 +421,23 @@ export async function checkReplies(db: Db, userId: string): Promise<{ found: num
   const login = await loadLogin(db, userId);
   if (!login) return { found: 0 };
   const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
-  const { data } = await db.from("applications_outbox").select("id, job_id, parent_id, kind, message_id, to_email").eq("user_id", userId).eq("status", "sent").neq("kind", "test").not("message_id", "is", null).gte("sent_at", since);
+  const { data } = await db
+    .from("applications_outbox")
+    .select("id, job_id, parent_id, kind, message_id, to_email")
+    .eq("user_id", userId)
+    .eq("status", "sent")
+    .neq("kind", "test")
+    .not("message_id", "is", null)
+    .gte("sent_at", since);
   const rows = data ?? [];
   // Jobs you applied to on a form: their emails come from the company or its hiring system.
-  const { data: open } = await db.from("job_posts").select("id, company, apply_url, url, status, company_info").eq("user_id", userId).in("status", ["applied", "replied", "interview", "no_reply"]).gte("applied_at", since).order("applied_at", { ascending: false });
+  const { data: open } = await db
+    .from("job_posts")
+    .select("id, company, apply_url, url, status, company_info")
+    .eq("user_id", userId)
+    .in("status", ["applied", "replied", "interview", "no_reply"])
+    .gte("applied_at", since)
+    .order("applied_at", { ascending: false });
   const applied = (open ?? []) as { id: string; company: string; apply_url: string; url: string; status: Status; company_info: { links?: { href: string }[] } | null }[];
   const tracked: TrackedJob[] = applied.map((j) => ({ id: j.id, company: j.company, domains: companyDomains([j.apply_url, j.url, ...(j.company_info?.links ?? []).map((l) => l.href)]) }));
   if (!rows.length && !tracked.length) {
@@ -336,8 +466,15 @@ export async function checkReplies(db: Db, userId: string): Promise<{ found: num
       jobId = row.job_id;
       if (kind !== "confirmed") {
         const { error } = await db.from("application_replies").insert({
-          user_id: userId, job_id: row.job_id, outbox_id: root, message_id: m.messageId, from_email: m.from, subject: m.subject.slice(0, 300),
-          received_at: m.receivedAt ?? new Date().toISOString(), snippet: snippet(m.text), suggested_stage: suggestStage(m.subject, m.text),
+          user_id: userId,
+          job_id: row.job_id,
+          outbox_id: root,
+          message_id: m.messageId,
+          from_email: m.from,
+          subject: m.subject.slice(0, 300),
+          received_at: m.receivedAt ?? new Date().toISOString(),
+          snippet: snippet(m.text),
+          suggested_stage: suggestStage(m.subject, m.text),
         });
         if (!error) await db.from("applications_outbox").update({ status: "cancelled", error: "They replied, so this follow-up was cancelled." }).eq("parent_id", root).eq("status", "queued");
       }
@@ -355,8 +492,14 @@ async function recordMail(db: Db, userId: string, jobId: string, kind: ReturnTyp
   if (!job) return false;
   const at = m.receivedAt ?? new Date().toISOString();
   const { error } = await db.from("application_events").insert({
-    user_id: userId, job_id: jobId, kind, at, title: EVENT_TITLE[kind](job.company), message_id: m.messageId,
-    detail: `${m.subject.slice(0, 200)}${m.text ? ` - "${snippet(m.text).slice(0, 240)}"` : ""}`, evidence: { from: m.from, subject: m.subject.slice(0, 300), messageId: m.messageId },
+    user_id: userId,
+    job_id: jobId,
+    kind,
+    at,
+    title: EVENT_TITLE[kind](job.company),
+    message_id: m.messageId,
+    detail: `${m.subject.slice(0, 200)}${m.text ? ` - "${snippet(m.text).slice(0, 240)}"` : ""}`,
+    evidence: { from: m.from, subject: m.subject.slice(0, 300), messageId: m.messageId },
   });
   if (error) return false; // already recorded
   const next = nextStatus(job.status as Status, kind);
@@ -378,14 +521,28 @@ export async function readJobAlerts(db: Db, userId: string, lastUid: number | nu
 }
 
 export async function markNoReply(db: Db, userId: string, now: Date) {
-  const { data } = await db.from("applications_outbox").select("job_id").eq("user_id", userId).eq("kind", "follow_up_2").eq("status", "sent").lte("sent_at", new Date(now.getTime() - 5 * 86_400_000).toISOString());
+  const { data } = await db
+    .from("applications_outbox")
+    .select("job_id")
+    .eq("user_id", userId)
+    .eq("kind", "follow_up_2")
+    .eq("status", "sent")
+    .lte("sent_at", new Date(now.getTime() - 5 * 86_400_000).toISOString());
   const ids = (data ?? []).map((r) => r.job_id).filter(Boolean);
   if (ids.length) await db.from("job_posts").update({ status: "no_reply", status_changed_at: now.toISOString() }).in("id", ids).eq("status", "applied");
   // Form applications have no follow-ups: three weeks of silence counts as no reply.
-  const { data: quiet } = await db.from("job_posts").select("id").eq("user_id", userId).eq("status", "applied").in("applied_via", ["form", "manual"]).lte("applied_at", new Date(now.getTime() - 21 * 86_400_000).toISOString());
+  const { data: quiet } = await db
+    .from("job_posts")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "applied")
+    .in("applied_via", ["form", "manual"])
+    .lte("applied_at", new Date(now.getTime() - 21 * 86_400_000).toISOString());
   for (const { id } of quiet ?? []) {
     await db.from("job_posts").update({ status: "no_reply", status_changed_at: now.toISOString() }).eq("id", id);
-    await db.from("application_events").insert({ user_id: userId, job_id: id, kind: "moved", title: "No reply after 3 weeks", detail: "Moved to No reply by itself. It moves back if they write to you." });
+    await db
+      .from("application_events")
+      .insert({ user_id: userId, job_id: id, kind: "moved", title: "No reply after 3 weeks", detail: "Moved to No reply by itself. It moves back if they write to you." });
   }
 }
 

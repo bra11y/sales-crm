@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import F from "../apply/facts.js";
 import { aiProviders, checkWhy, parseAnswer, rulesWhy, writeWhy, type Provider } from "../apply/ai.ts";
-import { draftApplication, emailBody, followUps } from "../apply/compose.ts";
+import { draftApplication, emailBody, findReadCheck, followUps, hasReadLine, withReadLine } from "../apply/compose.ts";
 import type { Facts } from "../jobs/facts.ts";
 import { cvPdf, pdfSafe } from "../pdf/cv.ts";
 import { open, readKey, seal } from "./crypto.ts";
@@ -207,4 +207,19 @@ test("different jobs get different letters, and the same job the same letter", (
   assert.ok(covers.size >= 3, `only ${covers.size} different letters`);
   assert.equal(draftApplication(job, facts, why).cover, draftApplication(job, facts, why).cover);
   assert.notEqual(draftApplication(job, facts, why, "", { seed: 1 }).cover, draftApplication(job, facts, why, "", { seed: 2 }).cover);
+});
+
+test("finds a read-check in a post and adds the line above the sign-off only once", () => {
+  const post = "We build tools.\nPlease mention the word **BLOOM** and tag RMzQuMjA0LjE4Mi42 when applying to show you read the job post completely (#RMzQuMjA0LjE4Mi42). This is a beta feature.";
+  const c = findReadCheck(post)!;
+  assert.equal(c.word, "BLOOM");
+  assert.equal(c.tag, "RMzQuMjA0LjE4Mi42");
+  assert.equal(c.subject, false);
+  assert.equal(findReadCheck("Include the code word PURPLE in your subject line.")?.subject, true);
+  assert.equal(findReadCheck("We use React and want people who read carefully."), null);
+  const body = withReadLine("Hi Ada,\n\nI build things.\n\nBest,\nBryan\n", c);
+  assert.match(body, /I build things\.\n\nP\.S\. I read the whole post: BLOOM #RMzQuMjA0LjE4Mi42\n\nBest,/);
+  assert.equal(withReadLine(body, c), body);
+  assert.ok(hasReadLine(body, c));
+  assert.ok(!hasReadLine("Hi Ada", c));
 });

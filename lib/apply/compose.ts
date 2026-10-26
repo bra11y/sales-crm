@@ -24,6 +24,28 @@ export function withEmail(facts: Facts, email?: string): Facts {
   return email ? { ...facts, person: { ...facts.person, email } } : facts;
 }
 
+export type ReadCheck = { word: string; tag: string; subject: boolean; sentence: string };
+export const findReadCheck = (description: string) => E.readCheck(description) as ReadCheck | null;
+
+const SIGNOFF = /^(Warm regards|Best regards|Best|Kind regards|Regards|Thanks|Thank you),?$/;
+
+// The line that shows the post was read, in the post's own words.
+export const readLine = (c: { word: string; tag: string }) => `P.S. I read the whole post: ${[c.word, c.tag && `#${c.tag}`].filter(Boolean).join(" ")}`;
+
+// Puts the line just above the sign-off (or at the end), once.
+export function withReadLine(text: string, c: { word: string; tag: string }): string {
+  const line = readLine(c);
+  if (text.includes(line)) return text;
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => SIGNOFF.test(l.trim()));
+  if (at < 0) return `${text.trimEnd()}\n\n${line}\n`;
+  lines.splice(at, 0, line, "");
+  return lines.join("\n");
+}
+
+// True when the email has the word and tag the post asked for.
+export const hasReadLine = (text: string, c: { word: string; tag: string }) => (!c.word || text.includes(c.word)) && (!c.tag || text.includes(c.tag));
+
 // The cover letter minus its letterhead, as plain text for the email body.
 export function emailBody(cover: string, proof = ""): string {
   const lines = cover.replace(/^<!--[\s\S]*?-->\s*/, "").split("\n");
@@ -33,7 +55,7 @@ export function emailBody(cover: string, proof = ""): string {
       .replace(/\*\*/g, "")
       .replace(/^#+\s*/, ""),
   );
-  const close = body.findIndex((l) => /^(Warm regards|Best regards|Best|Kind regards|Regards|Thanks|Thank you),?$/.test(l.trim()));
+  const close = body.findIndex((l) => SIGNOFF.test(l.trim()));
   if (close > 0) body.splice(close, 0, ...(proof ? [proof, ""] : []), "My CV is attached as a PDF.", "");
   return (
     body

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Sales CRM Apply",
-  "version": "1.3.0",
-  "description": "Follows a job application from the CRM to the thank-you page: opens the form, fills each page, and saves it as applied. You always press Submit yourself.",
+  "version": "1.4.0",
+  "description": "Follows a job application from the CRM to the thank-you page, and checks your writing in any text box when you ask. You always press Submit yourself.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Sales CRM Apply",
@@ -42,5 +42,13 @@
       ],
       "run_at": "document_start"
     }
-  ]
+  ],
+  "commands": {
+    "check-writing": {
+      "suggested_key": {
+        "default": "Alt+Shift+W"
+      },
+      "description": "Check the writing in the box you are typing in"
+    }
+  }
 }
