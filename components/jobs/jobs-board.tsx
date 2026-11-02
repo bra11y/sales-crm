@@ -9,7 +9,7 @@ import Button from "@/components/_ui/button";
 import Tag from "@/components/_ui/tag";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/_ui/tabs";
-import { findJobsNow, setJobStatus } from "@/app/(crm)/jobs/actions";
+import { findHiringContacts, findJobsNow, setJobStatus } from "@/app/(crm)/jobs/actions";
 import type { CompanyInfo } from "@/lib/jobs/company";
 import { StatusPill } from "./applications-board";
 import JobPeek from "./job-peek";
@@ -53,7 +53,14 @@ export type LastRun = {
 };
 export type SourceNames = Record<string, { name: string; home: string }>;
 // One row per job board for "Is the search working?": when it was last read and whether it answered.
-export type BoardHealth = { id: string; name: string; checkedAt: string | null; error: string | null; jobs: number; stale: boolean };
+export type BoardHealth = {
+  id: string;
+  name: string;
+  checkedAt: string | null;
+  error: string | null;
+  jobs: number;
+  stale: boolean;
+};
 
 const CONTROL =
   "h-11 rounded-lg border border-line-strong bg-secondary px-3 text-[14px] text-foreground outline-none transition-[border-color] duration-150 ease-power3-out focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none";
@@ -101,6 +108,8 @@ export default function JobsBoard({
   const [status, setStatusText] = useState("");
   const [alert, setAlert] = useState("");
   const [searching, startSearch] = useTransition();
+  const [finding, startFind] = useTransition();
+  const [searchedSites, setSearchedSites] = useState<Set<string>>(new Set());
 
   const jobs = useMemo(() => initialJobs.map((j) => ({ ...j, ...changes[j.id] })), [initialJobs, changes]);
   const hiddenCount = jobs.filter((j) => j.hidden_reason).length;
@@ -121,6 +130,41 @@ export default function JobsBoard({
   }, [jobs, query, fit, where, level, showHidden, showDismissed, emailOnly, noAccount]);
   const accountCount = jobs.filter((j) => !j.apply_email && needsAccount(j.apply_url)).length;
   const open = jobs.find((j) => j.id === openId) ?? null;
+  // The best jobs shown that have no address yet and whose website was not searched.
+  const toSearch = shown
+    .filter((j) => !j.apply_email && !j.hidden_reason && ["new", "saved"].includes(j.status) && !j.company_info?.hiring && !searchedSites.has(j.id) && (j.company || j.apply_url))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12);
+
+  function findEmails() {
+    if (finding || !toSearch.length) return;
+    const ids = toSearch.map((j) => j.id);
+    startFind(async () => {
+      say(`Searching ${ids.length} company websites for a hiring email. This takes up to a minute.`);
+      const r = await findHiringContacts(ids);
+      if (!r.ok) {
+        setStatusText("");
+        setAlert(r.error);
+        return;
+      }
+      setSearchedSites((s) => new Set([...s, ...ids]));
+      setChanges((c) => {
+        const next = { ...c };
+        for (const f of r.found)
+          next[f.id] = {
+            ...next[f.id],
+            apply_email: f.email,
+            contact_email: f.email,
+          };
+        return next;
+      });
+      say(
+        r.found.length
+          ? `Found a hiring email for ${r.found.length} of ${r.searched} jobs. They now say "Apply by email". Open one and press Apply to email them.`
+          : `None of those ${r.searched} websites shows a hiring email. Those jobs use their form.`,
+      );
+    });
+  }
 
   function say(text: string) {
     setAlert("");
@@ -265,6 +309,22 @@ export default function JobsBoard({
             <input type="checkbox" checked={emailOnly} onChange={(e) => setEmailOnly(e.target.checked)} className="accent-primary size-5" />
             Only jobs you can apply to by email ({jobs.filter((j) => j.apply_email && !j.hidden_reason).length})
           </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Button variant="secondary" size="md" className="h-11 px-4" onClick={findEmails} aria-disabled={finding || !toSearch.length} aria-describedby="jobs-find-hint">
+            {finding
+              ? "Searching their websites…"
+              : toSearch.length > 1
+                ? `Find hiring emails for the top ${toSearch.length} jobs`
+                : toSearch.length
+                  ? "Find a hiring email for this job"
+                  : "Find hiring emails"}
+          </Button>
+          <p id="jobs-find-hint" className="text-soft text-[13px] leading-normal">
+            {toSearch.length
+              ? "Reads each company's careers and contact pages for a real hiring address, so you can email them instead of filling in a form."
+              : "Every job shown already has an email, or its website was searched."}
+          </p>
         </div>
       </div>
 

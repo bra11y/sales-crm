@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Button from "@/components/_ui/button";
-import { markJobApplied, prepareApplication, sendApplication } from "@/app/(crm)/jobs/actions";
+import { findHiringContact, markJobApplied, prepareApplication, sendApplication } from "@/app/(crm)/jobs/actions";
 import type { Prepared } from "@/lib/apply/outbox";
 import { withReadLine } from "@/lib/apply/compose";
 import ReadCheckBox from "@/components/apply/read-check";
@@ -10,7 +10,11 @@ import { readyChecks, readySummary } from "@/lib/apply/ready";
 import { extensionVersion, noSubscribe, startWithExtension } from "./extension";
 import type { JobItem } from "./jobs-board";
 
-type Props = { job: JobItem; onApplied: () => void; onError: (message: string) => void };
+type Props = {
+  job: JobItem;
+  onApplied: () => void;
+  onError: (message: string) => void;
+};
 
 export default function ApplyPanel({ job, onApplied, onError }: Props) {
   const id = useId();
@@ -27,6 +31,10 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
   const latest = useRef(0);
   const extension = useSyncExternalStore(noSubscribe, extensionVersion, () => "");
   const [launched, setLaunched] = useState(false);
+  // On a form job, you chose to email them instead.
+  const [byEmail, setByEmail] = useState(false);
+  const [toNote, setToNote] = useState("");
+  const [searching, startSearch] = useTransition();
   const focusTo = (target: string) => requestAnimationFrame(() => document.getElementById(target)?.focus());
 
   function load(fresh = false) {
@@ -47,7 +55,16 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
       setSubject(r.p.subject);
       setBody(r.p.body);
       if (r.p.outbox) setDone(r.p.outbox.status === "sent" ? "sent" : "queued");
-      setNote(r.p.contact ? "Ready. Check the email, then send it." : "Ready.");
+      setToNote(r.p.contact?.sentence ?? "");
+      setNote(
+        r.p.contactFrom === "website"
+          ? `Ready. We found their hiring email on their website: ${r.p.contact?.email}. Check the email, then send it.`
+          : r.p.contact
+            ? "Ready. Check the email, then send it."
+            : r.p.searchedSite
+              ? `Ready. ${r.p.searchedSite} shows no hiring email, so this job uses their form.`
+              : "Ready.",
+      );
     });
   }
 
@@ -83,6 +100,27 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
       setNote(r.note);
       focusTo(`${id}-done`);
       onApplied();
+    });
+  }
+
+  function searchSite() {
+    if (searching) return;
+    startSearch(async () => {
+      setProblem("");
+      setNote("Searching their website for a hiring email…");
+      const r = await findHiringContact(job.id);
+      if (!r.ok) {
+        setNote("");
+        setProblem(r.error);
+        return;
+      }
+      setToNote(r.note);
+      if (r.email) {
+        setTo(r.email);
+        setByEmail(true);
+        setNote(`Found ${r.email}. It is in the To box. Check the email, then send it.`);
+        focusTo(`${id}-to`);
+      } else setNote(r.note);
     });
   }
 
@@ -138,7 +176,7 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
     setNote(read ? "Added to your email, just above the sign-off." : "Taken out of your email.");
   }
 
-  const emailJob = Boolean(p?.contact);
+  const emailJob = Boolean(p?.contact) || byEmail;
   const proof = p?.proof ?? [];
 
   const emailGroup = p && (
@@ -169,7 +207,13 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
         <div className="min-w-0 flex-1">
           <input id={`${id}-to`} type="email" autoComplete="off" value={to} onChange={(e) => setTo(e.target.value)} aria-describedby={`${id}-to-hint`} className={LINE_INPUT} />
           <p id={`${id}-to-hint`} className="text-soft pt-1 text-[13px] leading-normal">
-            {p.contact ? <>From the post: &ldquo;{p.contact.sentence}&rdquo;</> : "Only if you have a recruiter's address. The post gives none."}
+            {p.contactFrom === "post" && p.contact?.email === to.trim() ? (
+              <>From the post: &ldquo;{p.contact.sentence}&rdquo;</>
+            ) : toNote && to.trim() && !toNote.startsWith("No ") ? (
+              toNote
+            ) : (
+              "Type a recruiter's or hiring manager's address. The post gives none."
+            )}
           </p>
         </div>
       </Row>
@@ -181,7 +225,7 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
       </Row>
       <Row>
         <span className="text-soft w-20 shrink-0 text-[14px]">Attached</span>
-        <a href={`/api/jobs/${job.id}/cv`} target="_blank" rel="noopener" className="min-w-0 truncate underline underline-offset-2">
+        <a href={`/api/jobs/${job.id}/cv`} target="_blank" rel="noopener" className="relative min-w-0 truncate underline underline-offset-2">
           {p.attachment}
           <span className="sr-only"> (opens the PDF in a new tab)</span>
         </a>
@@ -226,7 +270,15 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
         <h3 id={`${id}-title`} tabIndex={-1} className="text-[22px] leading-tight font-semibold tracking-[-0.015em] outline-none">
           Apply to {job.company || "this job"}
         </h3>
-        <p className="text-soft text-[14px]">{emailJob ? "This job takes applications by email." : p ? "This job uses an application form." : job.title}</p>
+        <p className="text-soft text-[14px]">
+          {!p
+            ? job.title
+            : p.contactFrom === "post"
+              ? "This job takes applications by email."
+              : emailJob
+                ? "You are emailing them directly, instead of using their form."
+                : "This job uses an application form."}
+        </p>
       </header>
 
       <p role="status" aria-live="polite" className="text-soft leading-normal empty:hidden">
@@ -264,11 +316,13 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
                   </div>
                   {w.url ? (
                     <a href={w.url} target="_blank" rel="noopener" className="text-foreground inline-flex min-h-11 shrink-0 items-center underline underline-offset-2">
-                      Open<span className="sr-only"> {w.title} (opens in a new tab)</span>
+                      Open
+                      <span className="sr-only"> {w.title} (opens in a new tab)</span>
                     </a>
                   ) : (
                     <a href="/profile#proof" className="text-soft inline-flex min-h-11 shrink-0 items-center text-[13px] underline underline-offset-2">
-                      Add a link<span className="sr-only"> to {w.title} in Profile</span>
+                      Add a link
+                      <span className="sr-only"> to {w.title} in Profile</span>
                     </a>
                   )}
                 </Row>
@@ -300,9 +354,58 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
                   {busy ? "Working…" : "Send application"}
                 </Button>
               )}
+              {p.contactFrom !== "post" && !done && (
+                <p className="text-soft text-[14px] leading-normal">
+                  Their form is still the official way in. Many people do both: email here, then{" "}
+                  {byEmail && !p.contact ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setByEmail(false);
+                        focusTo(`${id}-search`);
+                      }}
+                      className="text-foreground focus-visible:ring-ring rounded-sm underline underline-offset-2 outline-none focus-visible:ring-2"
+                    >
+                      go back to their form
+                    </button>
+                  ) : (
+                    <a href={p.applyUrl} target="_blank" rel="noopener" className="text-foreground underline underline-offset-2">
+                      open their form
+                      <span className="sr-only"> (opens in a new tab)</span>
+                    </a>
+                  )}
+                  .
+                </p>
+              )}
             </>
           ) : (
             <>
+              <Group title="Or email them directly" id={`${id}-direct`} footer="It only uses an address printed on their own website. It never guesses one, so nothing bounces.">
+                <Row>
+                  <p className="text-[14px] leading-normal">
+                    {p.searchedSite ? `We read ${p.searchedSite} and found no hiring email. ` : ""}
+                    Search their website for a careers or HR email, or type an address you have.
+                  </p>
+                </Row>
+                <Row>
+                  <div className="flex flex-wrap gap-2">
+                    <Button id={`${id}-search`} variant="secondary" size="md" className="h-11 px-4" onClick={searchSite} aria-disabled={searching}>
+                      {searching ? "Searching…" : p.searchedSite ? "Search their website again" : "Search their website"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      className="h-11 px-4"
+                      onClick={() => {
+                        setByEmail(true);
+                        focusTo(`${id}-to`);
+                      }}
+                    >
+                      I have an address
+                    </Button>
+                  </div>
+                </Row>
+              </Group>
               {extension ? (
                 <Group title="Apply on their form" id={`${id}-form`}>
                   <Step n={1}>
@@ -337,7 +440,8 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
                   </Step>
                   <Step n={3}>
                     <a href={p.applyUrl} target="_blank" rel="noopener" className="underline underline-offset-2">
-                      and open the application form<span className="sr-only"> (opens in a new tab)</span>
+                      and open the application form
+                      <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   </Step>
                 </Group>
@@ -395,20 +499,6 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
                   )}
                 </dl>
               </details>
-
-              <details className="group">
-                <summary className="text-soft focus-visible:ring-ring inline-flex min-h-11 cursor-pointer items-center rounded-lg px-1 text-[14px] outline-none focus-visible:ring-2">
-                  Have a recruiter&apos;s email? Send it by email instead
-                </summary>
-                <div className="flex flex-col gap-3 pt-2">
-                  {emailGroup}
-                  {done !== "applied" && (
-                    <Button variant="secondary" size="md" className={PRIMARY} onClick={send} aria-disabled={busy || !canSend}>
-                      Send application by email
-                    </Button>
-                  )}
-                </div>
-              </details>
             </>
           )}
 
@@ -425,14 +515,30 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
 }
 
 const MARK = {
-  yes: { icon: "✓", label: "Ready", cls: "bg-(--tag-green-bg) text-(--tag-green-text)" },
-  warn: { icon: "!", label: "Check", cls: "bg-(--tag-amber-bg) text-(--tag-amber-text)" },
+  yes: {
+    icon: "✓",
+    label: "Ready",
+    cls: "bg-(--tag-green-bg) text-(--tag-green-text)",
+  },
+  warn: {
+    icon: "!",
+    label: "Check",
+    cls: "bg-(--tag-amber-bg) text-(--tag-amber-text)",
+  },
   no: { icon: "×", label: "Fix", cls: "bg-danger/15 text-danger" },
 };
 
 // One look before you apply: where you can work, pay, freshness, CV match, profile and sending.
 function ReadyCheck({ job, p, extension, id }: { job: JobItem; p: Prepared; extension: boolean; id: string }) {
-  const checks = readyChecks(job, { person: p.person, proof: p.proof, problems: p.problems, byEmail: Boolean(p.contact), mail: p.mail, extension, minMonthlyUsd: p.minMonthlyUsd });
+  const checks = readyChecks(job, {
+    person: p.person,
+    proof: p.proof,
+    problems: p.problems,
+    byEmail: Boolean(p.contact),
+    mail: p.mail,
+    extension,
+    minMonthlyUsd: p.minMonthlyUsd,
+  });
   const blocked = checks.some((c) => c.state === "no");
   return (
     <Group title={`Ready check: ${readySummary(checks)}`} id={id} footer={blocked ? "You can still apply. Fixing these first gives you a better chance." : undefined}>
@@ -453,7 +559,8 @@ function ReadyCheck({ job, p, extension, id }: { job: JobItem; p: Prepared; exte
       <div className="flex min-h-11 items-center gap-3 px-4 py-2.5">
         <span className="min-w-0 flex-1 text-[14px] leading-normal">Your CV for this job, with clickable LinkedIn and Portfolio links</span>
         <a href={`/api/jobs/${job.id}/cv`} target="_blank" rel="noopener" className="text-foreground inline-flex min-h-6 shrink-0 items-center text-[14px] underline underline-offset-2">
-          Preview<span className="sr-only"> your CV (opens the PDF in a new tab)</span>
+          Preview
+          <span className="sr-only"> your CV (opens the PDF in a new tab)</span>
         </a>
       </div>
     </Group>

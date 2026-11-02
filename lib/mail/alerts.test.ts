@@ -54,7 +54,7 @@ test("LinkedIn alert emails become one job each, with the tracking stripped", ()
   assert.deepEqual(
     jobs.map((j) => [j.title, j.company, j.location]),
     [
-      ["Senior Accessibility Engineer", "Mozilla", "Remote"],
+      ["Senior Accessibility Engineer", "Mozilla", "Remote (Worldwide)"],
       ["Digital Accessibility Specialist", "Hyphen", "United States (Remote)"],
       ["Accessibility Tester", "Acme Nigeria", "Lagos, Lagos State, Nigeria (Hybrid)"],
     ],
@@ -63,7 +63,7 @@ test("LinkedIn alert emails become one job each, with the tracking stripped", ()
   assert.equal(jobs[0].externalId, "li-4045678901");
   assert.equal(jobs[0].source, "linkedin");
   assert.deepEqual(jobs[1].restrictions, ["United States"]);
-  assert.deepEqual(jobs[0].restrictions, []);
+  assert.deepEqual(jobs[0].restrictions, ["Worldwide"]);
 });
 
 test("Indeed alert emails split company and place", () => {
@@ -133,4 +133,36 @@ test("the ready check names what to fix before you apply", () => {
   );
   assert.ok(low.some((c) => c.state === "no" && /United States/.test(c.text)));
   assert.ok(low.some((c) => c.state === "no" && /\$900/.test(c.text)));
+});
+
+test("a job with no place, or only Remote, takes the alert's own search place", () => {
+  const text = `Your job alert for front end developer in United States
+2 new jobs match your preferences.
+
+Front End Developer
+Clark Associates Affiliated Company
+View job: https://www.linkedin.com/comm/jobs/view/4045678911/
+
+---------------------------------------------------------
+
+Web Developer
+Acme
+Remote
+View job: https://www.linkedin.com/comm/jobs/view/4045678912/`;
+  const jobs = parseAlert({ from: "jobalerts-noreply@linkedin.com", subject: "front end developer: 2 new jobs", text });
+  assert.deepEqual(
+    jobs.map((j) => [j.company, j.location, j.restrictions]),
+    [
+      ["Clark Associates Affiliated Company", "United States", ["United States"]],
+      ["Acme", "Remote (United States)", ["United States"]],
+    ],
+  );
+  const prefs = { ...DEFAULT_PREFERENCES, cities: [] };
+  for (const j of jobs) assert.equal(scoreJob(j, F as unknown as Facts, prefs).eligibility, "restricted");
+});
+
+test("an alert job with no place and no alert place is not called worldwide", () => {
+  const [job] = parseAlert({ from: "alert@indeed.com", subject: "New jobs", text: "Front End Developer\nClark Associates Affiliated Company\nhttps://www.indeed.com/viewjob?jk=0a1b2c3d4e5f6a7c" });
+  assert.equal(job.location, "");
+  assert.equal(scoreJob(job, F as unknown as Facts, { ...DEFAULT_PREFERENCES, cities: [] }).eligibility, "unknown");
 });

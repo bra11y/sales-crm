@@ -67,9 +67,30 @@ function companyAndPlace(line: string): [string, string] {
 
 const PLACE = /\b(remote|hybrid|on-?site|worldwide|anywhere|united states|usa|uk|united kingdom|europe|emea|africa|nigeria|lagos|abuja|canada|germany|india|\b[A-Z][a-z]+, [A-Z]{2}\b)/i;
 
+// "Your job alert for accessibility in United States": the place the whole alert searches.
+// A job in it that names no place, or only "Remote", is for that place.
+export function alertPlace(mail: Pick<AlertMail, "subject" | "text">): string {
+  const m = `${mail.subject}\n${mail.text.slice(0, 600)}`.match(/\bjob alert for .{1,80}? in ([A-Za-z][A-Za-z ,.'-]{1,60}?)\s*(?:\n|$)/i);
+  return clean(m?.[1] ?? "");
+}
+
+const WORK_MODE = /^(remote|hybrid|on-?site)$/i;
+
+// The job's own place wins. Without one, the alert's place is added, so "Remote" in a
+// United States alert reads "Remote (United States)" and is not taken as worldwide.
+function placeFor(place: string, searched: string): { location: string; restrictions: string[] } {
+  const own = place
+    .split(/\s*[,;/|]\s*/)
+    .map((p) => p.replace(/\((remote|hybrid|on-?site)\)/i, "").trim())
+    .filter((p) => p && !WORK_MODE.test(p));
+  if (own.length || !searched) return { location: place, restrictions: own };
+  return { location: place ? `${place} (${searched})` : searched, restrictions: [searched] };
+}
+
 export function parseAlert(mail: AlertMail): JobPost[] {
   const board = alertBoard(mail.from);
   if (!board) return [];
+  const searched = alertPlace(mail);
   const out = new Map<string, JobPost>();
   let block: string[] = [];
   for (const raw of mail.text.replace(/\r/g, "").split("\n")) {
@@ -88,6 +109,7 @@ export function parseAlert(mail: AlertMail): JobPost[] {
       if (!place && third && PLACE.test(third)) place = third;
       if (!place && PLACE.test(company) && !third) [company, place] = ["", company];
       if (title.length < 3 || /^https?:/i.test(title)) continue;
+      const where = placeFor(place, searched);
       out.set(link.id, {
         source: board.source,
         externalId: link.id,
@@ -97,8 +119,8 @@ export function parseAlert(mail: AlertMail): JobPost[] {
         url: link.url,
         applyUrl: link.url,
         description: `${title}${company ? ` at ${company}` : ""}${place ? `. ${place}` : ""}. From your ${board.name.replace(/ alert$/, "")} job alert: “${mail.subject.slice(0, 120)}”. Open the post to read the full details.`,
-        location: place.slice(0, 200),
-        restrictions: place ? place.split(/\s*[,;/|]\s*/).map((p) => p.replace(/\((remote|hybrid|on-?site)\)/i, "").trim()).filter((p) => p && !/^(remote|hybrid|on-?site)$/i.test(p)) : [],
+        location: where.location.slice(0, 200),
+        restrictions: where.restrictions,
         pay: null,
         employmentType: "",
         postedAt: mail.receivedAt ?? null,

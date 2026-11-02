@@ -26,7 +26,7 @@ export async function autoApply(db: SupabaseClient, userId: string, now = new Da
 
   const { data: jobs } = await db
     .from("job_posts")
-    .select("id, status, band, hidden_reason, eligibility, posted_at, pay_monthly_usd, matched, gaps, contact_email, description")
+    .select("id, status, band, hidden_reason, eligibility, posted_at, pay_monthly_usd, matched, gaps, contact_email, contact_source, description")
     .eq("user_id", userId)
     .eq("status", "new")
     .eq("band", "strong")

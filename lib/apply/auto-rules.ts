@@ -18,6 +18,7 @@ export type AutoJob = {
   matched: string[];
   gaps: string[];
   contact_email: string | null;
+  contact_source?: string | null;
   description: string;
 };
 
@@ -29,6 +30,8 @@ export function looksAutomatic(j: AutoJob, now: number): string | null {
   if (j.eligibility !== "worldwide" && j.eligibility !== "region" && j.eligibility !== "local" && j.eligibility !== "visa") return "unclear where you can work from";
   if (j.posted_at && now - Date.parse(j.posted_at) > 21 * DAY) return "older than 3 weeks";
   if (!(j.contact_email || findContactEmail(j.description)?.email)) return "no email to apply to";
+  // An address found on their website, not in the post, is sent only after you check it.
+  if (j.contact_email && j.contact_source?.startsWith("Found on their website")) return "the address came from their website, so you check it first";
   return null;
 }
 

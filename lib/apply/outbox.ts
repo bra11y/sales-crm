@@ -8,6 +8,8 @@ import type { JobPost } from "@/lib/jobs/sources";
 import { loadProfile } from "@/lib/jobs/profile";
 import { open, readKey, seal } from "@/lib/mail/crypto";
 import { type Contact, findContactEmail, isEmail } from "@/lib/mail/extract";
+import { findHiringEmail, hiringNote, type HiringLookup } from "@/lib/mail/hiring";
+import type { CompanyInfo } from "@/lib/jobs/company";
 import { alertBoard, parseAlert } from "@/lib/mail/alerts";
 import { type MailLogin, readInbox, sendMail, testLogin } from "@/lib/mail/gmail";
 import { isAutoReply, matchReply, snippet, suggestStage } from "@/lib/mail/reply";
@@ -36,6 +38,7 @@ type JobRow = {
   contact_email: string | null;
   contact_source: string | null;
   draft: (Why & { at: string }) | null;
+  company_info: CompanyInfo | null;
 };
 type OutRow = {
   id: string;
@@ -51,11 +54,15 @@ type OutRow = {
   send_after: string;
 };
 
-const JOB_COLS = "id, user_id, title, company, description, location, apply_url, track, matched, gaps, status, contact_email, contact_source, draft";
+const JOB_COLS = "id, user_id, title, company, description, location, apply_url, track, matched, gaps, status, contact_email, contact_source, draft, company_info";
 
 export type Prepared = {
   jobId: string;
   contact: Contact | null;
+  // Where the address came from: quoted from the post, found on their website, or typed by you.
+  contactFrom: "post" | "website" | "you" | null;
+  // Their website was searched and had no hiring email. Null when it was not searched.
+  searchedSite: string | null;
   subject: string;
   body: string;
   cover: string;
@@ -139,17 +146,17 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
   const { data: account } = await db.from("mail_accounts").select("email, test_sent_at").eq("user_id", userId).maybeSingle();
   const facts = withEmail(profile.facts, account?.email);
 
-  const contact = job.contact_email ? { email: job.contact_email, sentence: job.contact_source ?? "" } : findContactEmail(job.description);
-  let why: Why;
-  if (job.draft?.why && !opts.fresh) why = job.draft;
-  else {
-    const providers = profile.preferences.ai === "off" ? [] : aiProviders(process.env, opts.oidc);
-    why = await writeWhy({ title: job.title, company: job.company, description: job.description }, facts, job.matched, providers);
-    await db
-      .from("job_posts")
-      .update({ draft: { ...why, at: new Date().toISOString() }, contact_email: contact?.email ?? null, contact_source: contact?.sentence ?? null })
-      .eq("id", job.id);
-  }
+  let contact: Contact | null = job.contact_email ? { email: job.contact_email, sentence: job.contact_source ?? "" } : findContactEmail(job.description);
+  // No address in the post: look for one on their website while the letter is written.
+  const [why, site] = await Promise.all([
+    job.draft?.why && !opts.fresh
+      ? Promise.resolve(job.draft as Why)
+      : writeWhy({ title: job.title, company: job.company, description: job.description }, facts, job.matched, profile.preferences.ai === "off" ? [] : aiProviders(process.env, opts.oidc)),
+    contact ? Promise.resolve(null) : hiringLookup(db, job),
+  ]);
+  if (!contact && site?.found) contact = { email: site.found.email, sentence: hiringNote(site.found) };
+  if (!job.draft?.why || opts.fresh) await db.from("job_posts").update({ draft: { ...why, at: new Date().toISOString() } }).eq("id", job.id);
+  if (contact && contact.email !== job.contact_email) await db.from("job_posts").update({ contact_email: contact.email, contact_source: contact.sentence }).eq("id", job.id);
   const d = draftApplication({ title: job.title, company: job.company, description: job.description, track: job.track }, facts, why.why, why.manager);
   const zone = guessZone(job.location);
   const now = new Date();
@@ -159,6 +166,8 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
     p: {
       jobId: job.id,
       contact,
+      contactFrom: contactFrom(contact),
+      searchedSite: !contact && site?.domain ? site.domain : null,
       subject: d.subject,
       body: d.body,
       cover: d.cover,
@@ -184,6 +193,46 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
       readCheck: findReadCheck(job.description),
     },
   };
+}
+
+export function contactFrom(c: Contact | null): Prepared["contactFrom"] {
+  if (!c) return null;
+  if (c.sentence.startsWith("Found on their website")) return "website";
+  if (c.sentence.startsWith("You typed")) return "you";
+  return "post";
+}
+
+const HIRING_FRESH_DAYS = 14;
+
+// Searches the company's website for a hiring email, at most once every 14 days per job,
+// and keeps the answer on the job. Gives up after 25 seconds so Apply never hangs.
+export async function hiringLookup(db: Db, job: Pick<JobRow, "id" | "company" | "apply_url" | "company_info">, force = false): Promise<HiringLookup | null> {
+  const old = job.company_info?.hiring;
+  if (!force && old && Date.now() - Date.parse(old.checkedAt) < HIRING_FRESH_DAYS * 86_400_000) return old;
+  if (!job.company.trim() && !job.apply_url) return null;
+  const timeout = new Promise<null>((r) => setTimeout(() => r(null), 25_000));
+  const found = await Promise.race([findHiringEmail(job.company, job.apply_url, null).catch(() => null), timeout]);
+  if (!found) return null;
+  const info = job.company_info ?? { name: job.company, domain: found.domain, website: found.domain ? `https://${found.domain}` : null, summary: "", logo: null, links: [], checkedAt: found.checkedAt };
+  await db.from("job_posts").update({ company_info: { ...info, hiring: found } }).eq("id", job.id);
+  return found;
+}
+
+export type HiringResult = { email: string | null; note: string; domain: string | null };
+
+// "Search their website": a fresh search for one job, saved on the job when it finds one.
+export async function searchHiring(db: Db, userId: string, jobId: string, force = true): Promise<Result<HiringResult>> {
+  const job = await loadJob(db, userId, jobId);
+  if (!job) return { ok: false, error: "That job was not found." };
+  if (job.contact_email) return { ok: true, email: job.contact_email, note: job.contact_source ?? "", domain: job.company_info?.domain ?? null };
+  const site = await hiringLookup(db, job, force);
+  if (!site) return { ok: false, error: "Their website took too long to answer. Try again in a minute." };
+  if (!site.domain) return { ok: true, email: null, domain: null, note: `No website was found for ${job.company || "this company"}. If you know a recruiter's address, type it in the To box.` };
+  if (!site.found)
+    return { ok: true, email: null, domain: site.domain, note: `No hiring email on ${site.domain} (${site.checked.length} pages read). Apply on their form, or type a recruiter's address if you have one.` };
+  const note = hiringNote(site.found);
+  await db.from("job_posts").update({ contact_email: site.found.email, contact_source: note }).eq("id", job.id);
+  return { ok: true, email: site.found.email, note, domain: site.domain };
 }
 
 export async function cvFor(db: Db, userId: string, jobId: string): Promise<{ name: string; pdf: Uint8Array } | null> {

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { applyByEmail, MANUAL_PROOF, markApplied, noteApplied, type Prepared, prepare } from "@/lib/apply/outbox";
+import { applyByEmail, type HiringResult, MANUAL_PROOF, markApplied, noteApplied, type Prepared, prepare, searchHiring } from "@/lib/apply/outbox";
 import { lookUpCompany, type CompanyInfo } from "@/lib/jobs/company";
 import { currentUserId } from "@/lib/jobs/profile";
 import { searchJobs, type SearchResult } from "@/lib/jobs/search";
@@ -76,6 +76,30 @@ export async function prepareApplication(jobId: string, fresh = false): Promise<
   const s = await signedIn();
   if (!s) return { ok: false, error: "Sign in again to apply." };
   return prepare(s.admin, s.userId, jobId, { oidc: await oidc(), fresh });
+}
+
+// Looks for a hiring email on the company's website, so you can email them instead of
+// filling in their form.
+export async function findHiringContact(jobId: string): Promise<({ ok: true } & HiringResult) | { ok: false; error: string }> {
+  const s = await signedIn();
+  if (!s) return { ok: false, error: "Sign in again." };
+  const r = await searchHiring(s.admin, s.userId, jobId);
+  if (r.ok && r.email) revalidatePath("/jobs");
+  return r;
+}
+
+// The same for many jobs at once, a few at a time, so the page answers within a minute.
+export async function findHiringContacts(jobIds: string[]): Promise<{ ok: true; found: { id: string; email: string; note: string }[]; searched: number } | { ok: false; error: string }> {
+  const s = await signedIn();
+  if (!s) return { ok: false, error: "Sign in again." };
+  const ids = [...new Set(jobIds)].slice(0, 12);
+  const found: { id: string; email: string; note: string }[] = [];
+  for (let i = 0; i < ids.length; i += 4) {
+    const batch = await Promise.all(ids.slice(i, i + 4).map((id) => searchHiring(s.admin, s.userId, id, false).then((r) => ({ id, r }))));
+    for (const { id, r } of batch) if (r.ok && r.email) found.push({ id, email: r.email, note: r.note });
+  }
+  if (found.length) revalidatePath("/jobs");
+  return { ok: true, found, searched: ids.length };
 }
 
 export async function sendApplication(jobId: string, input: { to: string; subject: string; body: string; anyway: boolean }) {

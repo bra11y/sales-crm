@@ -35,6 +35,7 @@ const VISA = /\bvisa sponsorship\b|\bsponsor (your|a|the) (work )?visa\b|\breloc
 const NO_VISA = /\b(no|not|unable to|cannot|can't|won't|do not|does not|don't)\s+(offer\s+|provide\s+)?(visa\s+)?sponsor/i;
 const ALERT = /^(linkedin|indeed|glassdoor|seek|emailalert)$/;
 const CAPTURED = "capture";
+const REMOTE_BOARDS = /^(remotive|remoteok|himalayas|jobicy|weworkremotely|arbeitnow)$/;
 const SENIOR = /\b(staff|principal|director|head of|vp|vice president|chief)\b/i;
 
 const lower = (s: string) => s.toLowerCase();
@@ -49,8 +50,11 @@ export function eligibility(post: JobPost, prefs: Preferences): { eligibility: E
   if (LOCKED.test(post.description)) return { eligibility: "restricted", why: "The post says you must live in a set country" };
   if (prefs.remoteOnly && NOT_REMOTE.test(post.location) && !/\bremote\b/i.test(post.location)) return { eligibility: "restricted", why: `Not remote: ${post.location}` };
   const places = post.restrictions.map(place).filter(Boolean);
-  if (!places.length || places.some((p) => OPEN.test(p)))
-    return post.location || post.source !== "greenhouse" ? { eligibility: "worldwide", why: "Open worldwide" } : { eligibility: "unknown", why: "Location not stated" };
+  if (places.some((p) => OPEN.test(p))) return { eligibility: "worldwide", why: "Open worldwide" };
+  // Only remote-only boards mean "anywhere" when they name no place. A job alert email or a
+  // company board that names none, or says just "Remote", may still be for one country.
+  if (!places.length)
+    return REMOTE_BOARDS.test(post.source) ? { eligibility: "worldwide", why: "Open worldwide" } : { eligibility: "unknown", why: "The post does not say which countries it hires from. Check before you apply." };
   const near = places.find((p) => NEAR.test(p));
   if (near) return { eligibility: "region", why: `Open to ${near}` };
   return { eligibility: "restricted", why: `Open only to ${places.slice(0, 3).join(", ")}${places.length > 3 ? " and others" : ""}` };
