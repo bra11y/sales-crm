@@ -542,7 +542,7 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
                     Apply with the extension
                   </Button>
                 ) : (
-                  <Button variant="secondary" size="md" className="h-11 rounded-xl px-4" href="/profile#extension">
+                  <Button variant="secondary" size="md" className="h-11 rounded-xl px-4" href="/settings#extension">
                     Set up the extension to fill their form
                   </Button>
                 )}

@@ -13,6 +13,8 @@ export type CvRead = {
   certifications: string[];
   projects: string[];
   tracks: Record<string, { profile: string; hook: string; story: string }>;
+  // Up to 5 job titles this person's experience fits, as job boards write them.
+  targets: string[];
 };
 
 export const PERSON_KEYS = ["name", "email", "phone", "location", "linkedin", "portfolio"] as const;
@@ -27,9 +29,10 @@ export function cvPrompt(cv: string, facts: StoredFacts): { system: string; user
     "- Each result bullet is one true line from the CV, rewritten in plain English that starts with a past-tense verb. Keep every number. Never add a number.",
     "- Put each skill in the group it fits best. Only skills the CV names.",
     "- For each role type the person's experience supports, write: profile (2 to 3 sentences in the first person, from CV facts only, with their strongest number), hook (one sentence with their strongest true results), story (2 sentences: one real example from the CV with its result). Leave out role types the CV does not support.",
+    "- targets: up to 5 job titles this person is ready to apply for today, as job posts write them (for example Virtual Assistant, Customer Support Specialist, Frontend Developer). Base them on their real experience, not hopes.",
     "- Plain words. No em dashes. Never use: passionate, results-driven, dynamic, leverage, seamless, robust, synergy, spearheaded.",
     "Reply with JSON only:",
-    `{"person":{"name":"","email":"","phone":"","location":"","linkedin":"","portfolio":""},"skills":{${groups.map((g) => `"${g}":[]`).join(",")},"Other":[]},"jobs":[{"org":"","title":"","dates":"","bullets":[""]}],"education":{"degree":"","dates":"","school":""},"certifications":[""],"projects":[""],"tracks":{"<role type id>":{"profile":"","hook":"","story":""}}}`,
+    `{"person":{"name":"","email":"","phone":"","location":"","linkedin":"","portfolio":""},"skills":{${groups.map((g) => `"${g}":[]`).join(",")},"Other":[]},"jobs":[{"org":"","title":"","dates":"","bullets":[""]}],"education":{"degree":"","dates":"","school":""},"certifications":[""],"projects":[""],"tracks":{"<role type id>":{"profile":"","hook":"","story":""}},"targets":[""]}`,
     `Role type ids: ${tracks.join(", ")}`,
   ].join("\n");
   return { system, user: `CV:\n${cv.slice(0, 24_000)}` };
@@ -86,6 +89,7 @@ export function readCv(v: Record<string, unknown>, cv: string, trackIds: string[
     certifications: list(v.certifications, 12, 300).filter((c) => backedBy(c, cv)),
     projects: list(v.projects, 8, 300).filter((c) => backedBy(c, cv)),
     tracks,
+    targets: list(v.targets, 5, 60).map((t) => t.replace(/[^\p{L}\p{N} &/+#.-]/gu, "").trim()).filter(Boolean),
   };
   return read.jobs.length || Object.keys(read.skills).length || read.person.name ? read : null;
 }

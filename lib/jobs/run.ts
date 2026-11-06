@@ -105,7 +105,7 @@ async function getOnce(url: string, fetcher: typeof fetch) {
 export async function fetchSources(ids: SourceId[], prefs: Preferences, fetcher: typeof fetch = fetch, parallel = 6, fits?: (title: string) => boolean): Promise<Fetched> {
   const out: Fetched = { posts: [], errors: [], fetched: [] };
   const ok = new Set<SourceId>();
-  const query = { searches: searchWords(prefs), boards: boardsFor(prefs), fits };
+  const query = { searches: searchWords(prefs), boards: boardsFor(prefs), fits, titles: prefs.titles };
   const queue = ids.flatMap((id) => SOURCES[id].urls(query).map((url) => ({ id, url })));
   async function worker() {
     for (let job = queue.shift(); job; job = queue.shift()) {

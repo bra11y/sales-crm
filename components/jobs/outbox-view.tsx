@@ -101,7 +101,7 @@ export default function OutboxView({
           ) : (
             <>
               Gmail is not connected.{" "}
-              <a href="/profile#gmail" className="text-foreground underline underline-offset-2">
+              <a href="/settings#gmail" className="text-foreground underline underline-offset-2">
                 Connect it in Profile
               </a>{" "}
               to send applications by email.

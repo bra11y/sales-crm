@@ -21,7 +21,8 @@ export type JobPost = {
 
 export type Boards = { greenhouse: string[]; ashby: string[]; lever: string[] };
 // `fits` says whether a title is in your fields, so boards that need a page read per job read only those.
-export type SourceQuery = { searches: string[]; boards: Boards; fits?: (title: string) => boolean };
+// `titles` are the job titles you want; when set, boards that sort by category search them instead.
+export type SourceQuery = { searches: string[]; boards: Boards; fits?: (title: string) => boolean; titles?: string[] };
 
 type Source = {
   name: string;
@@ -108,7 +109,10 @@ export const SOURCES: Record<SourceId, Source> = {
     name: "Remotive",
     home: "https://remotive.com",
     minHoursBetween: 6,
-    urls: () => ["software-dev", "design"].map((c) => `https://remotive.com/api/remote-jobs?category=${c}&limit=100`),
+    urls: (q) =>
+      q.titles?.length
+        ? q.titles.slice(0, 6).map((t) => `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(t)}&limit=100`)
+        : ["software-dev", "design"].map((c) => `https://remotive.com/api/remote-jobs?category=${c}&limit=100`),
     parse: (body) =>
       (JSON.parse(body).jobs ?? []).map((j: Record<string, unknown>) => ({
         source: "remotive",
@@ -203,7 +207,11 @@ export const SOURCES: Record<SourceId, Source> = {
     name: "We Work Remotely",
     home: "https://weworkremotely.com",
     minHoursBetween: 3,
-    urls: () => ["remote-front-end-programming-jobs", "remote-full-stack-programming-jobs", "remote-back-end-programming-jobs", "remote-devops-sysadmin-jobs", "remote-design-jobs"].map((c) => `https://weworkremotely.com/categories/${c}.rss`),
+    urls: (q) =>
+      (q.titles?.length
+        ? ["remote-customer-support-jobs", "remote-sales-and-marketing-jobs", "remote-management-and-finance-jobs", "all-other-remote-jobs", "remote-design-jobs"]
+        : ["remote-front-end-programming-jobs", "remote-full-stack-programming-jobs", "remote-back-end-programming-jobs", "remote-devops-sysadmin-jobs", "remote-design-jobs"]
+      ).map((c) => `https://weworkremotely.com/categories/${c}.rss`),
     parse: (body) =>
       [...body.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(([, item]) => {
         const tag = (name: string) => decodeEntities(item.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1]?.trim() ?? "");

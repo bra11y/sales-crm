@@ -67,6 +67,43 @@ export function zoneFits(raw: string): boolean | null {
   return Math.abs(offset - HOME_OFFSET) <= spread;
 }
 
+// Other names for the same job. A title you want also matches its other names.
+const SAME_JOB: string[][] = [
+  ["virtual assistant", "va", "executive assistant", "administrative assistant", "admin assistant", "personal assistant", "remote assistant"],
+  ["customer support", "customer service", "customer success", "support specialist", "customer care", "support agent", "customer experience"],
+  ["social media manager", "social media", "community manager", "content creator"],
+  ["bookkeeper", "bookkeeping", "accounts assistant", "accounting assistant"],
+  ["data entry", "data entry clerk", "data processor"],
+  ["project manager", "project coordinator", "program manager"],
+  ["copywriter", "content writer", "writer", "editor"],
+  ["sales representative", "sales rep", "business development", "account executive", "sales associate"],
+  ["graphic designer", "visual designer", "brand designer"],
+  ["recruiter", "talent acquisition", "hr assistant", "human resources"],
+  ["teacher", "tutor", "instructor", "educator"],
+];
+const SMALL = /^(and|the|of|for|to|a|an|in|remote|senior|junior|lead|entry|level|mid|part|full|time|contract|freelance|i|ii|iii)$/;
+const wordsOf = (t: string) => t.toLowerCase().replace(/[^a-z0-9+#]+/g, " ").trim().split(" ").filter(Boolean);
+const has = (title: string, phrase: string) => new RegExp(`(^| )${wordsOf(phrase).join(" ")}( |$)`).test(wordsOf(title).join(" "));
+
+// True when a title is one of yours: one of your job titles (or another name for it), else one
+// of your role types. Used both to pick which job pages to read and to score.
+export function inYourFields(title: string, facts: Facts, prefs: Pick<Preferences, "titles">): boolean {
+  const titles = prefs.titles ?? [];
+  if (titles.length) {
+    // An engineering title is only yours when one of your titles is engineering too.
+    const techTitle = /\b(engineer|engineering|developer|programmer|devops|architect|scientist|it support|sysadmin)\b/i;
+    if (techTitle.test(title) && !titles.some((t) => techTitle.test(t))) return false;
+    return titles.some((t) => {
+      const names = [t, ...(SAME_JOB.find((g) => g.some((n) => has(t, n) || has(n, t))) ?? [])];
+      if (names.some((n) => has(title, n))) return true;
+      // "Bookkeeping Assistant" wanted: a title with all its main words counts too.
+      const main = wordsOf(t).filter((w) => !SMALL.test(w));
+      return main.length > 1 && main.every((w) => wordsOf(title).includes(w));
+    });
+  }
+  return Object.values(facts.tracks).some((tr) => new RegExp(`\\b(?:${tr.titleOk.source})`, "i").test(title));
+}
+
 export function eligibility(post: JobPost, prefs: Preferences): { eligibility: Eligibility; why: string } {
   const where = [post.location, ...post.restrictions].join(", ");
   const city = prefs.cities.find((c) => c && lower(where).includes(lower(c)));
@@ -100,9 +137,10 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
   const flags: string[] = [];
   const level = jobLevel(post.title, post.description);
 
-  const titledAs = Object.entries(facts.tracks).filter(([, t]) => new RegExp(`\\b(?:${t.titleOk.source})`, "i").test(post.title)).map(([id]) => id);
-  // Saved profiles may still have the older, looser title rules.
-  const titled = titledAs.length > 0 && !NOT_TECH.test(post.title);
+  const titledAs = prefs.titles?.length ? [] : Object.entries(facts.tracks).filter(([, t]) => new RegExp(`\\b(?:${t.titleOk.source})`, "i").test(post.title)).map(([id]) => id);
+  // Your own job titles decide when you set them. Else your role types do; saved profiles may
+  // still have the older, looser title rules, so a front desk job is never "front-end".
+  const titled = prefs.titles?.length ? inYourFields(post.title, facts, prefs) : titledAs.length > 0 && !NOT_TECH.test(post.title);
   let hidden: string | null = null;
   const skip = blocked(post.url, prefs.blockedSites) ?? blocked(post.applyUrl, prefs.blockedSites);
   const closes = closingDate(post.description);

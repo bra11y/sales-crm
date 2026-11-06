@@ -122,8 +122,14 @@ export async function importCv(input: { path?: string; mime?: string; text?: str
   const r = await askJson(providers, system, user, (v) => readCv(v, cv, Object.keys(current.stored.tracks)), 4000);
   if (!r.ok) return { ok: false, error: `Your CV could not be read just now (${r.error}). Try again in a minute.` };
   const { facts, added } = mergeCv(current.stored, r.value);
+  // The job titles to search for come from the CV when you have not chosen any yet.
+  const titles = !current.preferences.titles.length && r.value.targets.length ? r.value.targets : null;
+  if (titles) added.push(`job titles to search for (${titles.join(", ")})`);
   if (!added.length) return { ok: true, added: [] };
-  const { error } = await supabase.from("job_profiles").update({ facts: cleanFacts(facts, current.stored), updated_at: new Date().toISOString() }).eq("user_id", current.userId);
+  const { error } = await supabase
+    .from("job_profiles")
+    .update({ facts: cleanFacts(facts, current.stored), ...(titles ? { preferences: cleanPreferences({ ...current.preferences, titles }) } : {}), updated_at: new Date().toISOString() })
+    .eq("user_id", current.userId);
   if (error) return { ok: false, error: "Your CV was read but your profile could not be saved. Try again." };
   return { ok: true, added };
 }

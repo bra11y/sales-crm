@@ -185,7 +185,7 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
         <Row>
           <p className="leading-normal">
             Connect your Gmail first, so it sends from your own address.{" "}
-            <a href="/profile#gmail" className="text-foreground underline underline-offset-2">
+            <a href="/settings#gmail" className="text-foreground underline underline-offset-2">
               Connect Gmail in Profile
             </a>
           </p>
@@ -194,7 +194,7 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
         <Row>
           <p className="leading-normal">
             Send yourself the test email first.{" "}
-            <a href="/profile#gmail" className="text-foreground underline underline-offset-2">
+            <a href="/settings#gmail" className="text-foreground underline underline-offset-2">
               Send the test in Profile
             </a>
           </p>
@@ -440,24 +440,26 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
               ) : (
                 <Group title="Apply on their form" id={`${id}-form`}>
                   <Step n={1}>
-                    <span>
-                      Add the Chrome extension once, and it does the rest for you.{" "}
-                      <a href="/profile#extension" className="underline underline-offset-2">
-                        Set it up
-                      </a>
-                    </span>
-                  </Step>
-                  <Step n={2}>
                     <a href={`/api/jobs/${job.id}/cv`} download={p.attachment} className="underline underline-offset-2">
-                      Or download your CV for this job
+                      Download your CV for this job
                     </a>
                   </Step>
-                  <Step n={3}>
+                  <Step n={2}>
                     <a href={p.applyUrl} target="_blank" rel="noopener" className="underline underline-offset-2">
-                      and open the application form
+                      Open their application form
                       <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   </Step>
+                  <Step n={3}>
+                    <span>Copy each answer below and paste it into their form, then upload your CV.</span>
+                  </Step>
+                  <CopyKit person={p.person} cover={p.cover} />
+                  <p className="caption-style text-soft px-1 leading-normal">
+                    On a computer, the Chrome extension fills the form for you.{" "}
+                    <a href="/settings#extension" className="underline underline-offset-2">
+                      Set it up
+                    </a>
+                  </p>
                 </Group>
               )}
               {done === "applied" ? (
@@ -609,6 +611,54 @@ function Step({ n, children }: { n: number; children: React.ReactNode }) {
       </span>
       <span className="sr-only">Step {n}:</span>
       {children}
+    </div>
+  );
+}
+
+// For phones and browsers without the extension: every answer a form asks, one tap to copy.
+function CopyKit({ person, cover }: { person: Record<string, string>; cover: string }) {
+  const [copied, setCopied] = useState("");
+  const letter = cover
+    .replace(/^<!--[\s\S]*?-->\s*/, "")
+    .replace(/^#.*\n+/m, "")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+    .replace(/\*\*/g, "")
+    .trim();
+  const rows = [
+    ["Full name", person.name],
+    ["Email", person.email],
+    ["Phone", person.phone],
+    ["Location", person.location],
+    ["LinkedIn", person.linkedin],
+    ["Portfolio", person.portfolio],
+    ["Cover letter", letter],
+  ].filter(([, v]) => v?.trim());
+  async function copy(label: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(`${label} copied. Paste it into their form.`);
+    } catch {
+      setCopied("Your browser blocked copying. Press and hold the text to copy it.");
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <ul className="divide-y divide-white/[0.08] overflow-hidden rounded-xl bg-white/[0.04]">
+        {rows.map(([label, value]) => (
+          <li key={label} className="flex items-center justify-between gap-3 px-3 py-2">
+            <span className="flex min-w-0 flex-col">
+              <span className="text-soft text-[13px]">{label}</span>
+              <span className="truncate text-[15px] select-all">{label === "Cover letter" ? `${value.slice(0, 60)}…` : value}</span>
+            </span>
+            <button type="button" onClick={() => copy(label, value)} className="bg-secondary focus-visible:ring-ring h-11 shrink-0 rounded-xl px-4 text-[14px] font-medium outline-none focus-visible:ring-2">
+              Copy<span className="sr-only"> {label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p role="status" aria-live="polite" className="caption-style text-soft empty:hidden">
+        {copied}
+      </p>
     </div>
   );
 }

@@ -389,3 +389,34 @@ test("an email hidden by the job site is named, with what to do", () => {
   const fit = scoreJob(post({ source: "hotnigerianjobs", description: "React work. ".repeat(40) + "How to Apply: send your CV to: [email protected] using the Job Title as the subject." }), facts, DEFAULT_PREFERENCES, now);
   assert.ok(fit.flags.some((f) => f.startsWith("The site hides the email to apply to.")), fit.flags.join(" | "));
 });
+
+test("with job titles set, only those jobs are in your field: a virtual assistant never sees engineering", async () => {
+  const { inYourFields } = await import("./fit.ts");
+  const va = { ...DEFAULT_PREFERENCES, titles: ["Virtual Assistant", "Customer Support"] };
+  assert.equal(inYourFields("Executive Virtual Assistant (Remote)", facts, va), true);
+  assert.equal(inYourFields("VA for a busy founder", facts, va), true);
+  assert.equal(inYourFields("Executive Assistant to the CEO", facts, va), true);
+  assert.equal(inYourFields("Customer Service Representative", facts, va), true);
+  assert.equal(inYourFields("Senior Software Engineer", facts, va), false);
+  assert.equal(inYourFields("Frontend Developer", facts, va), false);
+  assert.equal(inYourFields("Customer Success Engineer, Sydney", facts, va), false);
+  assert.equal(inYourFields("IT Support Specialist", facts, va), false);
+  assert.equal(inYourFields("Support Engineer", facts, { ...va, titles: ["Support Engineer"] }), true);
+  const fit = scoreJob(post({ title: "Frontend Developer" }), facts, va, now);
+  assert.equal(fit.hidden, "Outside your fields");
+  // With no titles set, the role types decide, as before.
+  assert.equal(inYourFields("Frontend Developer", facts, DEFAULT_PREFERENCES), true);
+});
+
+test("job titles become the search words, and long lists take turns day by day", async () => {
+  const { searchWords } = await import("./preferences.ts");
+  const va = { ...DEFAULT_PREFERENCES, titles: ["Virtual Assistant", "Customer Support"] };
+  assert.deepEqual(searchWords(va), ["Virtual Assistant", "Customer Support"]);
+  const many = { ...DEFAULT_PREFERENCES, titles: Array.from({ length: 20 }, (_, i) => `Role ${i}`) };
+  const a = searchWords(many, new Date("2026-11-06T00:00:00Z"));
+  const b = searchWords(many, new Date("2026-11-07T00:00:00Z"));
+  assert.equal(a.length, 16);
+  assert.notDeepEqual(a, b);
+  assert.equal(new Set([...a, ...b]).size, 20);
+  assert.deepEqual(cleanPreferences({ titles: [" Virtual Assistant ", "", "virtual assistant"] }).titles, ["Virtual Assistant"]);
+});

@@ -305,6 +305,11 @@ export default function ProfileDoc({
               onChange={(cities) => editPrefs({ cities })}
               placeholderHint="Type a city, then press Enter. On-site jobs here are kept."
             />
+            <h3 className="px-2 pt-2 font-medium">Job titles you want</h3>
+            <p className="caption-style text-soft px-2 leading-normal">
+              Like Virtual Assistant, Customer Support or Bookkeeper. When you add titles, only jobs with these titles (or other names for them) are shown, and they are what the boards search for, a few each day in turn. Leave empty to use your role types instead.
+            </p>
+            <Chips label="Job titles you want" items={prefs.titles} onChange={(titles) => editPrefs({ titles })} placeholderHint="Type a job title, then press Enter." />
             <h3 className="px-2 pt-2 font-medium">Search words</h3>
             <Chips
               label="Search words"

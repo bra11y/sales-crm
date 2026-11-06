@@ -45,10 +45,10 @@ export function readyChecks(job: Job, r: Ready, now = Date.now()): Check[] {
   else out.push({ state: "warn", text: "No proof of work picked. One linked project lifts replies a lot.", fix: { href: "/profile#proof", label: "Add proof" } });
 
   if (r.byEmail) {
-    if (!r.mail.email) out.push({ state: "no", text: "Gmail is not connected, so the email can't go from your address.", fix: { href: "/profile#gmail", label: "Connect Gmail" } });
-    else if (!r.mail.tested) out.push({ state: "warn", text: "Send yourself the test email once, to see what employers get.", fix: { href: "/profile#gmail", label: "Send the test" } });
+    if (!r.mail.email) out.push({ state: "no", text: "Gmail is not connected, so the email can't go from your address.", fix: { href: "/settings#gmail", label: "Connect Gmail" } });
+    else if (!r.mail.tested) out.push({ state: "warn", text: "Send yourself the test email once, to see what employers get.", fix: { href: "/settings#gmail", label: "Send the test" } });
     else out.push({ state: "yes", text: `Sends from ${r.mail.email}.` });
-  } else if (!r.extension) out.push({ state: "warn", text: "The Chrome extension is not on. With it, the form fills itself.", fix: { href: "/profile#extension", label: "Set it up" } });
+  } else if (!r.extension) out.push({ state: "warn", text: "The Chrome extension is not on. With it, the form fills itself.", fix: { href: "/settings#extension", label: "Set it up" } });
   else out.push({ state: "yes", text: "The extension is on and will fill the form." });
 
   for (const p of r.problems) out.push({ state: "no", text: p });

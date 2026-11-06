@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { readJobAlerts } from "@/lib/apply/outbox";
 import { type JobProfile, loadProfile } from "./profile.ts";
 import { dueSources, fetchSources, nextDue, toRow, toRows } from "./run.ts";
-import { scoreJob } from "./fit.ts";
+import { inYourFields, scoreJob } from "./fit.ts";
 import type { JobPost } from "./sources.ts";
 
 const MINUTE = 60_000;
@@ -27,7 +27,7 @@ export async function searchJobs(admin: SupabaseClient, userId: string, trigger:
   const skipped = profile.preferences.sources.filter((id) => !due.includes(id));
   const { data: run } = await admin.from("job_runs").insert({ user_id: userId, trigger, started_at: now.toISOString() }).select("id").single();
 
-  const fits = (title: string) => Object.values(profile.facts.tracks).some((t) => new RegExp(`\\b(?:${t.titleOk.source})`, "i").test(title));
+  const fits = (title: string) => inYourFields(title, profile.facts, profile.preferences);
   const result = await fetchSources(due, profile.preferences, fetch, 6, fits);
   // Job-alert emails in your Gmail (LinkedIn, Indeed, Glassdoor…) join the board results.
   const uid = Number(profile.sourceState.email_alerts_uid) || null;

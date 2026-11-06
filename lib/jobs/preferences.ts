@@ -28,16 +28,26 @@ export type Preferences = {
   // Also search the wider computer science roles (full-stack, backend, QA, data, IT support)
   // on top of your own search words.
   wideSearch: boolean;
+  // The job titles you want, like "Virtual Assistant". When set, they decide which jobs are in
+  // your field and what is searched, in place of the tech role types.
+  titles: string[];
 };
 
 // Roles most computer science graduates can apply for, added to your own search words.
 export const WIDE_SEARCHES = ["full stack", "software engineer", "javascript", "typescript", "web developer", "junior developer", "backend", "qa", "python", "data analyst"];
 
-// Your words first, then the wide ones, each once. Capped so boards that take one request
-// per word are not asked too often.
-export function searchWords(prefs: Pick<Preferences, "searches" | "wideSearch">): string[] {
+export const MAX_SEARCHES = 16;
+
+// Your job titles when you set them; else your words, then the wide ones. Each once. Capped so
+// boards that take one request per word are not asked too often; a longer list takes turns,
+// a different slice each day, so every word is searched.
+export function searchWords(prefs: Pick<Preferences, "searches" | "wideSearch"> & { titles?: string[] }, now = new Date()): string[] {
   const seen = new Set<string>();
-  return [...prefs.searches, ...(prefs.wideSearch ? WIDE_SEARCHES : [])].filter((w) => !seen.has(w.toLowerCase()) && seen.add(w.toLowerCase())).slice(0, 16);
+  const all = (prefs.titles?.length ? prefs.titles : [...prefs.searches, ...(prefs.wideSearch ? WIDE_SEARCHES : [])]).filter((w) => !seen.has(w.toLowerCase()) && seen.add(w.toLowerCase()));
+  if (all.length <= MAX_SEARCHES) return all;
+  const day = Math.floor(now.getTime() / 86_400_000);
+  const start = (day * MAX_SEARCHES) % all.length;
+  return Array.from({ length: MAX_SEARCHES }, (_, i) => all[(start + i) % all.length]);
 }
 
 // Your own company list, African companies, and, when on, the big companies: each board asked once.
@@ -88,6 +98,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   bigCompanies: true,
   autoApply: { on: false, perDay: 5 },
   wideSearch: true,
+  titles: [],
 };
 
 const words = (v: unknown, max: number) => [...new Set((Array.isArray(v) ? v : String(v ?? "").split(/[,\n]/)).map((s) => String(s).trim()).filter(Boolean))].map((s) => s.slice(0, 60)).slice(0, max);
@@ -132,5 +143,9 @@ export function cleanPreferences(input: unknown): Preferences {
       return { on: a.on === true, perDay: Number.isFinite(n) ? Math.min(10, Math.max(1, Math.round(n))) : 5 };
     })(),
     wideSearch: p.wideSearch === undefined ? true : Boolean(p.wideSearch),
+    titles: (() => {
+      const seen = new Set<string>();
+      return words(p.titles, 20).filter((t) => !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()));
+    })(),
   };
 }
