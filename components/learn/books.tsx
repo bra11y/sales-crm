@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/_ui/button";
 import { addOwnBook, deleteBook, openOwnBook, saveCatalogBook, setBookStatus, summariseBook } from "@/app/(crm)/books/actions";
 import type { ShelfBook } from "@/app/(crm)/books/page";
-import { FIELD, uploadPath } from "@/components/learn/add-note";
+import { FIELD, uploadError, uploadPath } from "@/components/learn/add-note";
 import { LINK } from "@/components/workspace/parts";
 import { BOOK_STATUS_LABEL, BOOK_STATUSES, type BookStatus, type CatalogBook, FIELD_LABEL, FIELDS, type Field } from "@/lib/learn/books";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -244,7 +244,7 @@ export function UploadBook({ userId, field }: { userId: string; field: Field }) 
     setStatus("Uploading to your private folder…");
     const path = uploadPath(userId, "books/", file.name);
     const up = await supabaseBrowser().storage.from("learning").upload(path, file, { contentType: mime, upsert: false });
-    if (up.error) return fail("file", "The upload did not finish. Check your connection and try again.");
+    if (up.error) return fail("file", uploadError(up.error.message));
     const r = await addOwnBook({ path, title, author: String(d.get("author") ?? ""), mime, size: file.size, field: String(d.get("field") ?? field) });
     if (!r.ok) return fail("file", r.error);
     setBusy(false);

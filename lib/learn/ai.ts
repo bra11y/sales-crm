@@ -185,6 +185,16 @@ async function firstGood<T>(providers: Provider[], system: string, user: string,
   return { error: errors.join("; ") || "No AI is set up" };
 }
 
+// One JSON answer from the first provider that gives a readable one.
+export async function askJson<T>(providers: Provider[], system: string, user: string, read: (v: Record<string, unknown>) => T | null, maxTokens = 3000, fetcher: Fetcher = fetch): Promise<{ ok: true; value: T; provider: string } | { ok: false; error: string }> {
+  if (!providers.length) return { ok: false, error: "AI is off. Turn it on in Settings to use this." };
+  const r = await firstGood(providers, system, user, (t) => {
+    const v = readJson(t);
+    return v ? read(v) : null;
+  }, fetcher, maxTokens);
+  return "error" in r ? { ok: false, error: r.error } : { ok: true, value: r.value, provider: `${r.provider.name} · ${r.provider.model}` };
+}
+
 export type MakeResult = { ok: true; ai: NoteAi; parts: number; skipped: number } | { ok: false; error: string };
 
 // Step 1 for long text: key points from one part.

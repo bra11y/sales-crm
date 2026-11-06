@@ -74,13 +74,17 @@ export function subjectLine(role: string, company: string, name: string, first: 
 }
 
 export function draftApplication(job: JobForDraft, facts: Facts, why: string, manager = "", opts: { shape?: string; seed?: number } = {}): Draft {
+  // The company's own name is not a skill the post asks for ("About Paystack" is not a
+  // request for Paystack experience), so it is hidden while the post is matched.
+  const own = job.company.trim();
   const jd = `${job.title}\n\n${job.description}`;
-  const a = E.analyze(jd, facts) as unknown as Analysis;
+  const masked = own.length >= 3 ? jd.replace(new RegExp(`\\b${own.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi"), "the company") : jd;
+  const a = E.analyze(masked, facts) as unknown as Analysis;
   if (job.track && facts.tracks[job.track]) a.track = job.track;
   const role = cleanRole(job.title);
   // The recruiter the post names is greeted by name when none was typed in.
   const contact = manager ? null : (a as unknown as { guess?: { contact?: { name: string; first: string } | null } }).guess?.contact;
-  const o = { jd, company: job.company, role, manager: manager || contact?.name || "", why, ...opts };
+  const o = { jd: masked, company: job.company, role, manager: manager || contact?.name || "", why, ...opts };
   const n = E.seedOf(`${job.company}|${role}|${opts.seed ?? 0}`) as number;
   const cv = E.makeCV(a, o, facts) as string;
   const cover = E.makeCover(a, o, facts) as string;

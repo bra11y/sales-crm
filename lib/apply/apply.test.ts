@@ -107,3 +107,27 @@ test("an email read from a job page is kept only when it came from that job's pa
   assert.match(found.sentence, /send their CV to/);
   assert.deepEqual(emailsInApplySection("Contact us at info@company.com for anything.").emails, []);
 });
+
+test("another person's letter never says your city or your certificate", async () => {
+  const { draftApplication } = await import("./compose.ts");
+  const { blankFacts } = await import("../jobs/facts.ts");
+  const other = blankFacts(F as never);
+  other.person = { ...other.person, name: "Ada Obi", email: "ada@mail.com", location: "London, UK", portfolio: "https://ada.dev" };
+  other.tracks.frontend.profile = "Front-end developer who builds React apps for small businesses. I cut a client's page load by 40%.";
+  other.tracks.frontend.hook = "A 40% faster page load for a client.";
+  other.skills = [{ group: "Front-end", items: [{ label: "React", aliases: ["react"] }] }];
+  const job = { title: "Frontend Engineer", company: "Kuda", description: "Build our app in React for millions of users. ".repeat(4), track: "frontend" };
+  for (const shape of ["classic", "short", "problem", "match"]) {
+    const d = draftApplication(job, other, "Kuda helps people bank without fees, and I want to build for them.", "", { shape });
+    assert.doesNotMatch(d.cover, /Abuja|Nigeria|CPACC|NVDA|Shopify Liquid/, shape);
+    assert.match(d.cover, /London, UK/, shape);
+  }
+});
+
+test("the company's own name is never a skill the post asks for", async () => {
+  const { draftApplication } = await import("./compose.ts");
+  const job = { title: "Frontend Engineer", company: "Paystack", description: "About Paystack: we help businesses in Africa get paid. Build accessible React and TypeScript components for the Paystack Dashboard. ".repeat(2), track: "frontend" };
+  const d = draftApplication(job, F as never, "Paystack's checkout is how many sellers get paid.", "", { shape: "match" });
+  assert.doesNotMatch(d.cover, /asks for[^.]*Paystack/);
+  assert.ok(!d.matched.includes("Paystack"));
+});

@@ -1,0 +1,66 @@
+import Link from "next/link";
+import { signOut } from "@/app/(crm)/actions";
+import CvImport from "@/components/profile/cv-import";
+import ProfileDoc from "@/components/profile/profile-doc";
+import { setupSteps } from "@/lib/jobs/cv-import";
+import { loadProfile } from "@/lib/jobs/profile";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { SOURCES } from "@/lib/jobs/sources";
+
+export default async function ProfileScreen({ view }: { view: "profile" | "settings" }) {
+  const profile = await loadProfile();
+  const supabase = await createSupabaseServerClient();
+  const [{ data: mail }, { data: ext }] = profile
+    ? await Promise.all([
+        supabase.from("mail_accounts").select("email, test_sent_at").eq("user_id", profile.userId).maybeSingle(),
+        supabase.from("extension_tokens").select("created_at, last_used_at").eq("user_id", profile.userId).maybeSingle(),
+      ])
+    : [{ data: null }, { data: null }];
+  const sources = Object.entries(SOURCES).map(([id, s]) => ({ id, name: s.name }));
+
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-[52em] flex-col gap-8 px-4 py-10 md:px-8">
+        {profile ? (
+          <ProfileDoc
+            facts={profile.stored}
+            preferences={profile.preferences}
+            updatedAt={profile.updatedAt}
+            sources={sources}
+            mail={mail ?? null}
+            extension={ext ?? null}
+            aiProvider={aiProvider()}
+            view={view}
+            top={view === "profile" ? <CvImport userId={profile.userId} steps={setupSteps(profile.stored)} /> : null}
+          />
+        ) : (
+          <>
+            <h1 className="text-[28px] leading-[1.1] font-semibold tracking-[-0.02em]">{view === "settings" ? "Settings" : "Profile"}</h1>
+            <p role="alert" className="text-danger leading-normal">
+              Your profile could not be opened. Press Try again. If it still does not open, sign out and sign in again.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link href={view === "settings" ? "/settings" : "/profile"} className="bg-foreground text-background focus-visible:ring-ring inline-flex h-11 items-center rounded-xl px-5 text-[15px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-offset-2">
+                Try again
+              </Link>
+              <form action={signOut}>
+                <button type="submit" className="bg-secondary focus-visible:ring-ring inline-flex h-11 items-center rounded-xl px-5 text-[15px] font-medium outline-none focus-visible:ring-2">
+                  Sign out
+                </button>
+              </form>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Says which AI the app will use, without showing any key.
+function aiProvider() {
+  const free = process.env.FREE_AI_BASE_URL && process.env.FREE_AI_API_KEY && process.env.FREE_AI_MODEL;
+  const host = free ? new URL(process.env.FREE_AI_BASE_URL!).hostname.replace(/^api\./, "") : "";
+  const gateway = "Vercel AI Gateway, about 0.03 US cents a letter, inside the free $5 a month";
+  if (free) return `Uses ${process.env.FREE_AI_MODEL} on ${host} for free first, then ${gateway}`;
+  return `Uses ${gateway}`;
+}

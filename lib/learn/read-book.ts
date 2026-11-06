@@ -36,7 +36,21 @@ export async function pdfText(buf: ArrayBuffer): Promise<BookText> {
   return { text: pages.join("\n\n"), pages: totalPages };
 }
 
+// A Word file: the text of each paragraph in word/document.xml.
+export async function docxText(buf: ArrayBuffer): Promise<BookText> {
+  const files = await readZipFiles(buf, (n) => n === "word/document.xml");
+  const xml = files.get("word/document.xml") ?? "";
+  const paras = [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)]
+    .map(([p]) => [...p.matchAll(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>/g)].map((m) => m[1]).join(""))
+    .map((t) => t.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").trim())
+    .filter(Boolean);
+  return { text: paras.join("\n"), pages: 1 };
+}
+
+export const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 export async function bookText(buf: ArrayBuffer, mime: string): Promise<BookText> {
+  if (mime === DOCX) return docxText(buf);
   if (mime === "application/epub+zip") return epubText(buf);
   if (mime === "application/pdf") return pdfText(buf);
   throw new Error("Only PDF and EPUB books can be read.");

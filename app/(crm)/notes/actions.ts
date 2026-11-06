@@ -6,6 +6,8 @@ import { learnProviders } from "@/lib/learn/ai";
 import { cleanTags, MAX_TRANSCRIPT, type Result, saveText, saveVideo, summaryFinish, summaryPart, summaryPlan, whisper } from "@/lib/learn/notes";
 import { firstReview, nextReview } from "@/lib/learn/review";
 import { cleanTranscript, videoId } from "@/lib/learn/youtube";
+import { bookText } from "@/lib/learn/read-book";
+import { splitText } from "@/lib/learn/ai";
 import { loadProfile } from "@/lib/jobs/profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -43,13 +45,37 @@ export async function addTextNote(input: { title: string; body: string; url?: st
   return { ok: true, id: r.id, summarise: true };
 }
 
-// A file you uploaded to your private folder: Whisper writes its words, then the file is deleted.
-export async function addFileNote(input: { path: string; name: string; title?: string; url?: string; tags?: string }): Promise<Result<{ id: string; summarise: boolean }>> {
+// A file you uploaded to your private folder. A PDF or EPUB is read for its text; a recording's
+// words are written by Whisper. Either way the file is deleted once its words are saved.
+export async function addFileNote(input: { path: string; name: string; mime?: string; title?: string; url?: string; tags?: string }): Promise<Result<{ id: string; summarise: boolean }>> {
   const s = await session();
   if (!s) return NO_SESSION;
   if (!input.path.startsWith(`${s.userId}/`) || input.path.includes("..")) return { ok: false, error: "That file is not in your folder." };
   const { data: file, error } = await s.db.storage.from("learning").download(input.path);
   if (error || !file) return { ok: false, error: "The uploaded file could not be read. Upload it again." };
+  const title = (input.title?.trim() || input.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ")).slice(0, 300) || "Recording";
+
+  if (input.mime === "application/pdf" || input.mime === "application/epub+zip") {
+    let text = "";
+    try {
+      text = (await bookText(await file.arrayBuffer(), input.mime)).text;
+    } catch {
+      text = "";
+    }
+    await s.db.storage.from("learning").remove([input.path]);
+    if (text.trim().length < 200) return { ok: false, error: "No text could be read from this file. If it is a scanned PDF, it holds pictures of pages, not text." };
+    const { parts } = splitText(text, 12_000, 12);
+    const review = firstReview();
+    const { data, error: insertError } = await s.db
+      .from("notes")
+      .insert({ user_id: s.userId, kind: "text", title, source_url: input.url?.startsWith("https://") ? input.url.slice(0, 1000) : null, transcript: parts.join("\n\n").slice(0, MAX_TRANSCRIPT), transcript_from: "book", tags: cleanTags(input.tags), review_step: review.step, review_due: review.due })
+      .select("id")
+      .single();
+    if (insertError || !data) return { ok: false, error: "The file was read but the note could not be saved. Try again." };
+    revalidatePath("/notes");
+    return { ok: true, id: data.id, summarise: true };
+  }
+
   const heard = await whisper(file, input.name || "audio", process.env);
   await s.db.storage.from("learning").remove([input.path]);
   if (!heard.ok) return heard;
@@ -61,7 +87,6 @@ export async function addFileNote(input: { path: string; name: string; title?: s
     id = r.id;
     await s.db.from("notes").update({ transcript_from: "whisper" }).eq("id", id).eq("user_id", s.userId);
   } else {
-    const title = (input.title?.trim() || input.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ")).slice(0, 300) || "Recording";
     const review = firstReview();
     const { data, error: insertError } = await s.db
       .from("notes")

@@ -105,6 +105,7 @@ export default function SidebarContent({ data }: { data: SidebarData }) {
             <SidebarNavItem icon={MailIcon} label="CV and letter" href="/apply" active={at("/apply")} />
             <SidebarNavItem icon={WalletIcon} label="Freelance and audits" href="/freelance" active={at("/freelance")} />
             <SidebarNavItem icon={UsersIcon} label="Profile" href="/profile" active={at("/profile")} />
+            <SidebarNavItem icon={ListIcon} label="Settings" href="/settings" active={at("/settings")} />
           </SidebarSection>
 
           <SidebarSection title="Learn" className="border-sidebar-border border-b">

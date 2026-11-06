@@ -21,7 +21,7 @@ const START: Step[] = [
   },
   {
     title: "Your Profile",
-    body: "Fill this in once: your skills, experience and the jobs you want. Every job score, CV and cover letter is built only from what you write here.",
+    body: "Upload your CV and your skills, jobs and education are filled in for you to check. Every job score, CV and cover letter is built only from this page. Job rules, Gmail and the extension are in Settings.",
     href: "/profile",
     where: "Menu → Job search → Profile",
   },

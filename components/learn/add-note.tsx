@@ -17,13 +17,29 @@ const HINT = "text-soft text-[13px] leading-normal";
 
 const MODES = [
   { id: "video", label: "YouTube link" },
-  { id: "file", label: "Upload audio or video" },
+  { id: "file", label: "Upload a file" },
   { id: "text", label: "Write or paste" },
 ] as const;
 type Mode = (typeof MODES)[number]["id"];
 
 const MEDIA = ["audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/m4a", "audio/wav", "audio/x-wav", "audio/webm", "audio/ogg", "audio/flac", "video/mp4", "video/webm", "video/quicktime"];
+const DOCS = ["application/pdf", "application/epub+zip"];
+const TEXT = ["text/plain", "text/markdown"];
 const MAX_FILE = 25 * 1024 * 1024;
+// Some phones give no type for EPUB, Markdown or M4A files, so the name decides.
+export function fileType(f: File): string {
+  if (f.type) return f.type === "audio/x-m4a" ? "audio/mp4" : f.type;
+  const ext = f.name.toLowerCase().split(".").pop() ?? "";
+  return ({ epub: "application/epub+zip", pdf: "application/pdf", md: "text/markdown", txt: "text/plain", m4a: "audio/mp4", mp3: "audio/mpeg" } as Record<string, string>)[ext] ?? "";
+}
+// The real reason an upload failed, in plain words.
+export function uploadError(message: string): string {
+  if (/mime|type|not supported/i.test(message)) return "This kind of file can't be uploaded. Use one of the types listed under the box.";
+  if (/size|too large|exceeded|413/i.test(message)) return "That file is too big. Use a file under 25 MB.";
+  if (/row-level|policy|unauthori[sz]ed|jwt|403|401|token/i.test(message)) return "You were signed out while uploading. Sign in again, then try once more.";
+  if (/fetch|network|failed to fetch|load failed|timeout/i.test(message)) return "The connection dropped during the upload. Check your internet, then try again.";
+  return `The upload did not finish (${message.slice(0, 120)}). Try again.`;
+}
 const safeName = (n: string) => n.replace(/[^A-Za-z0-9._-]+/g, "-").slice(-80);
 export const uploadPath = (userId: string, folder: string, name: string) => `${userId}/${folder}${Date.now()}-${safeName(name)}`;
 
@@ -70,16 +86,25 @@ export default function AddNote({ userId }: { userId: string }) {
 
     if (mode === "file") {
       const file = data.get("file");
-      if (!(file instanceof File) || !file.size) return fail("file", "Choose an audio or video file.");
-      if (!MEDIA.includes(file.type)) return fail("file", "Use an MP3, M4A, WAV, WebM, OGG, FLAC, MP4 or MOV file.");
-      if (file.size > MAX_FILE) return fail("file", "That file is over 25 MB. Save just the audio (an M4A or MP3), which is much smaller.");
+      if (!(file instanceof File) || !file.size) return fail("file", "Choose a file.");
+      const type = fileType(file);
+      if (![...MEDIA, ...DOCS, ...TEXT].includes(type)) return fail("file", "Use a PDF, EPUB or text file, or an audio or video file (MP3, M4A, WAV, MP4, MOV).");
+      if (file.size > MAX_FILE) return fail("file", "That file is over 25 MB. For a recording, save just the audio (M4A or MP3), which is much smaller.");
+      if (TEXT.includes(type)) {
+        const body = (await file.text()).trim();
+        if (body.length < 20) return fail("file", "That file has almost no text in it.");
+        setStatus("Saving…");
+        const r = await addTextNote({ title: get("title") || file.name.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " "), body: body.slice(0, 50_000), url: get("url"), tags: get("tags") });
+        if (!r.ok) return fail("file", r.error);
+        return done(r.id, "Saved.", r.summarise);
+      }
       if (get("url") && !videoId(get("url"))) return fail("url", "That is not a YouTube link. Leave it empty if the file is not from YouTube.");
       setStatus("Uploading to your private folder…");
       const path = uploadPath(userId, "", file.name);
-      const up = await supabaseBrowser().storage.from("learning").upload(path, file, { contentType: file.type, upsert: false });
-      if (up.error) return fail("file", "The upload did not finish. Check your connection and try again.");
-      setStatus("Turning the speech into text. A long recording can take a minute or two…");
-      const r = await addFileNote({ path, name: file.name, title: get("title"), url: get("url"), tags: get("tags") });
+      const up = await supabaseBrowser().storage.from("learning").upload(path, file, { contentType: type, upsert: false });
+      if (up.error) return fail("file", uploadError(up.error.message));
+      setStatus(DOCS.includes(type) ? "Reading the text of the file…" : "Turning the speech into text. A long recording can take a minute or two…");
+      const r = await addFileNote({ path, name: file.name, mime: type, title: get("title"), url: get("url"), tags: get("tags") });
       if (!r.ok) return fail("file", r.error);
       return done(r.id, "Saved. The file was deleted after its words were written.", r.summarise);
     }
@@ -174,18 +199,18 @@ export default function AddNote({ userId }: { userId: string }) {
         {mode === "file" && (
           <div className="flex flex-col gap-1.5">
             <label htmlFor={f("file")} className={LABEL}>
-              Audio or video file (required)
+              File (required)
             </label>
             <input
               id={f("file")}
               name="file"
               type="file"
-              accept={MEDIA.join(",")}
+              accept={[...DOCS, ...TEXT, ...MEDIA, ".pdf", ".epub", ".txt", ".md", ".m4a", ".mp3"].join(",")}
               className="text-soft file:bg-secondary file:text-foreground focus-visible:ring-ring file:border-line-strong min-h-11 w-full rounded-lg text-[15px] outline-none file:mr-3 file:h-11 file:cursor-pointer file:rounded-xl file:border file:px-4 file:text-[15px] focus-visible:ring-2"
               {...err("file")}
             />
             <p id={`${f("file")}-hint`} className={HINT}>
-              Up to 25 MB: about 25 minutes of M4A or MP3 audio. The words are written by speech to text, then the file is deleted.
+              A PDF, EPUB or text file (an article, notes, slides saved as PDF), or a recording: MP3, M4A, WAV, MP4 or MOV, up to 25 MB. Recordings are turned into text, then deleted.
             </p>
             {fieldError("file")}
           </div>

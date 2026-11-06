@@ -8,6 +8,10 @@ import { createExtensionToken } from "@/lib/apply/kit";
 import { connectGmail, sendTestEmail } from "@/lib/apply/outbox";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { headers } from "next/headers";
+import { cvPrompt, mergeCv, readCv } from "@/lib/jobs/cv-import";
+import { askJson, learnProviders } from "@/lib/learn/ai";
+import { bookText } from "@/lib/learn/read-book";
 
 export async function saveProfile(input: { facts: StoredFacts; preferences: Preferences }): Promise<{ ok: true; savedAt: string } | { ok: false; error: string }> {
   if (JSON.stringify(input ?? {}).length > 300_000) return { ok: false, error: "Your profile is too long to save. Shorten some sections." };
@@ -66,4 +70,32 @@ export async function revokeExtensionCode(): Promise<{ ok: true } | { ok: false;
   if (!s) return { ok: false, error: "Sign in again." };
   const { error } = await s.admin.from("extension_tokens").delete().eq("user_id", s.userId);
   return error ? { ok: false, error: "The code could not be turned off. Try again." } : { ok: true };
+}
+
+// Set up or add to your Profile from your own CV: a file already in your Documents, or pasted text.
+export async function importCv(input: { path?: string; mime?: string; text?: string }): Promise<{ ok: true; added: string[] } | { ok: false; error: string }> {
+  const supabase = await createSupabaseServerClient();
+  const current = await loadProfile(supabase);
+  if (!current) return { ok: false, error: "Sign in again to set up your profile." };
+  let cv = String(input.text ?? "").slice(0, 60_000);
+  if (input.path) {
+    if (!input.path.startsWith(`${current.userId}/`) || input.path.includes("..")) return { ok: false, error: "That file is not in your folder." };
+    const { data: file, error } = await supabase.storage.from("documents").download(input.path);
+    if (error || !file) return { ok: false, error: "Your CV could not be opened. Upload it again." };
+    try {
+      cv = (await bookText(await file.arrayBuffer(), input.mime ?? "")).text;
+    } catch {
+      return { ok: false, error: "Use a PDF or Word (.docx) file, or paste the text of your CV." };
+    }
+  }
+  if (cv.trim().length < 200) return { ok: false, error: "There is too little text to read. If your CV is a scanned image, paste its text instead." };
+  const providers = current.preferences.ai === "off" ? [] : learnProviders(process.env, (await headers()).get("x-vercel-oidc-token"));
+  const { system, user } = cvPrompt(cv, current.stored);
+  const r = await askJson(providers, system, user, (v) => readCv(v, cv, Object.keys(current.stored.tracks)), 4000);
+  if (!r.ok) return { ok: false, error: `Your CV could not be read just now (${r.error}). Try again in a minute.` };
+  const { facts, added } = mergeCv(current.stored, r.value);
+  if (!added.length) return { ok: true, added: [] };
+  const { error } = await supabase.from("job_profiles").update({ facts: cleanFacts(facts, current.stored), updated_at: new Date().toISOString() }).eq("user_id", current.userId);
+  if (error) return { ok: false, error: "Your CV was read but your profile could not be saved. Try again." };
+  return { ok: true, added };
 }

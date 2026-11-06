@@ -25,7 +25,7 @@ export default async function NotePage({ params, searchParams }: { params: Promi
   const autoSummarise = (await searchParams).summarise === "1";
   if (!note) notFound();
   return (
-    <Page>
+    <Page wide>
       <nav aria-label="Breadcrumb" className="text-soft text-[14px]">
         <Link href="/notes" className={LINK}>
           Notes
