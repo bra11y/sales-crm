@@ -106,6 +106,11 @@ export default function SidebarContent({ data }: { data: SidebarData }) {
             <SidebarNavItem icon={UsersIcon} label="Profile" href="/profile" active={at("/profile")} />
           </SidebarSection>
 
+          <SidebarSection title="Learn" className="border-sidebar-border border-b">
+            <SidebarNavItem icon={ListIcon} label="Notes" href="/notes" active={at("/notes") || pathname.startsWith("/notes/")} />
+            <SidebarNavItem icon={BookClosedIcon} label="Books" href="/books" active={at("/books") || pathname.startsWith("/books/")} />
+          </SidebarSection>
+
           <SidebarSection title="Grow" className="border-sidebar-border border-b">
             <SidebarNavItem icon={BookClosedIcon} label="Scholarships" href="/scholarships" active={at("/scholarships")} />
             <SidebarNavItem icon={ClipboardIcon} label="Documents" href="/documents" active={at("/documents")} />

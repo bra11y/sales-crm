@@ -35,3 +35,38 @@ export async function readZipText(buf: ArrayBuffer, want: (name: string) => bool
   }
   return null;
 }
+
+// Every file whose name passes `want`, as text, keyed by name. For EPUB books.
+export async function readZipFiles(buf: ArrayBuffer, want: (name: string) => boolean, maxFiles = 400): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const v = new DataView(buf);
+  let end = -1;
+  for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65_557); i--) {
+    if (v.getUint32(i, true) === 0x06054b50) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return out;
+  const count = v.getUint16(end + 10, true);
+  let at = v.getUint32(end + 16, true);
+  const dec = new TextDecoder();
+  for (let n = 0; n < count && at + 46 <= buf.byteLength && out.size < maxFiles; n++) {
+    if (v.getUint32(at, true) !== 0x02014b50) break;
+    const method = v.getUint16(at + 10, true);
+    const size = v.getUint32(at + 20, true);
+    const nameLen = v.getUint16(at + 28, true);
+    const extra = v.getUint16(at + 30, true);
+    const comment = v.getUint16(at + 32, true);
+    const local = v.getUint32(at + 42, true);
+    const name = dec.decode(new Uint8Array(buf, at + 46, nameLen));
+    at += 46 + nameLen + extra + comment;
+    if (!want(name) || local + 30 > buf.byteLength) continue;
+    const start = local + 30 + v.getUint16(local + 26, true) + v.getUint16(local + 28, true);
+    if (start + size > buf.byteLength) continue;
+    const data = new Uint8Array(buf, start, size);
+    if (method === 0) out.set(name, dec.decode(data));
+    else if (method === 8) out.set(name, await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text());
+  }
+  return out;
+}
