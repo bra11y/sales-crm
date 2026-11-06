@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { TourButton } from "@/components/_common/tour";
 import { LINK, Page, PageHead } from "@/components/workspace/parts";
 
 export const metadata: Metadata = { title: "Help · Sales CRM", robots: { index: false } };
@@ -38,7 +39,7 @@ const KEYS = [
 export default function HelpPage() {
   return (
     <Page>
-      <PageHead title="Help" intro="What each page is for, where the numbers come from, and the keys that work everywhere." />
+      <PageHead title="Help" intro="What each page is for, where the numbers come from, and the keys that work everywhere." actions={<TourButton />} />
       <section aria-labelledby="pages" className="flex flex-col gap-2">
         <h2 id="pages" className="px-4 text-[17px] font-semibold">
           Pages

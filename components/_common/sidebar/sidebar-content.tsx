@@ -7,6 +7,7 @@ import ProductSwitcher from "./product-switcher";
 import { ScrollArea } from "@/components/_ui/scroll-area";
 import SidebarNavItem from "./sidebar-nav-item";
 import SidebarSection from "./sidebar-section";
+import { openTour } from "@/components/_common/tour";
 import { useCompaniesStore } from "@/stores/companies-store";
 import { can, type Role } from "@/lib/auth/permissions";
 import Logo from "@/public/assets/images/_common/logo.svg";
@@ -140,6 +141,7 @@ export default function SidebarContent({ data }: { data: SidebarData }) {
       <SidebarSection className="border-sidebar-border shrink-0 border-t border-b">
         {has("team:manage") && <SidebarNavItem icon={UserPlusIcon} label="Team and invites" tone="quiet" href="/team" active={at("/team")} />}
         <SidebarNavItem icon={MessageQuestionIcon} label="Help" tone="quiet" href="/help" active={at("/help")} />
+        <SidebarNavItem icon={TargetAltIcon} label="Take the tour" tone="quiet" onClick={openTour} />
       </SidebarSection>
 
       {has("money:use") && (

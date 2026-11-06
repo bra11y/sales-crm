@@ -11,15 +11,17 @@ type SidebarNavItemProps = {
   tone?: "default" | "quiet";
   iconClassName?: string;
   href?: string;
+  onClick?: () => void;
 };
 
-export default function SidebarNavItem({ icon: Icon, label, count, active = false, tone = "default", iconClassName, href }: SidebarNavItemProps) {
+export default function SidebarNavItem({ icon: Icon, label, count, active = false, tone = "default", iconClassName, href, onClick }: SidebarNavItemProps) {
   return (
     <li className={cn(active && "mb-0.75")}>
       <Button
         variant="nav"
         size="md"
         href={href}
+        onClick={onClick}
         data-active={active}
         aria-current={active ? "page" : undefined}
         className={cn("group h-[30px] gap-1.5 py-0 data-[active=true]:h-8", tone === "quiet" && "text-subtle")}

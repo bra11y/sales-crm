@@ -1,8 +1,9 @@
 import RegisterSW from "@/components/_common/register-sw";
 import Sidebar from "@/components/_common/sidebar/sidebar";
+import Tour from "@/components/_common/tour";
 import WhatsNew from "@/components/_common/whats-new";
 import type { SidebarData } from "@/components/_common/sidebar/sidebar-content";
-import { asRole } from "@/lib/auth/permissions";
+import { asRole, can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const WEEK = 7 * 86_400_000;
@@ -50,6 +51,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col focus:outline-none">
         <RegisterSW />
         <WhatsNew />
+        <Tour crm={can(data.role, "crm:use")} />
         {children}
       </main>
     </div>
