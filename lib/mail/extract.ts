@@ -42,7 +42,9 @@ export function findContactEmail(description: string): Contact | null {
 
 // "with the email title [Full-Stack Developer @ Fluence]" or "Subject: Frontend role - your name".
 // The exact subject line a post asks for, which many employers use to filter their inbox.
-export function findRequiredSubject(description: string): string | null {
+export function findRequiredSubject(description: string, title?: string): string | null {
+  // "using the Job Title as the subject": the subject is the job's own title.
+  if (title && /\b(?:the\s+)?(?:job\s+title|position(?:\s+applied\s+for)?|role(?:\s+applied\s+for)?)\s+as\s+(?:the\s+)?(?:e-?mail\s+)?subject\b/i.test(description)) return title.trim();
   const quoted = description.match(/\b(?:e-?mail|mail|message)?\s*(?:title|subject(?:\s+line)?)\s*(?:of|as|to be|should be|must be|must read|reading|:)?\s*[[“"'‘]([^\]”"'’\n]{3,150})[\]”"'’]/i);
   const plain = description.match(/\bsubject(?:\s+line)?\s*:\s*([^\n]{3,150})/i);
   // A quoted subject is kept exactly; a plain one loses the sentence's full stop.

@@ -64,7 +64,7 @@ button.primary:active, button.secondary:active { transform: scale(0.97); }
 `;
 
   const STEPS = ["Find the form", "Fill it in", "You check it and press Submit", "Saved as applied"];
-  const STEP_OF = { finding: 0, opening: 0, nothing: 0, connect: 0, error: 0, filled: 2, success: 4 };
+  const STEP_OF = { finding: 0, opening: 0, nothing: 0, connect: 0, error: 0, email: 1, filled: 2, success: 4 };
 
   const host = document.createElement("div");
   host.id = "sales-crm-panel";
@@ -104,6 +104,9 @@ button.primary:active, button.secondary:active { transform: scale(0.97); }
     } else if (s.step === "nothing" || s.step === "error") {
       buttons.push(el("button", { type: "button", class: "primary", text: "Fill this page", on: () => send("fill-now") }));
       if (s.maybeApplied) buttons.push(el("button", { type: "button", class: "secondary", text: "I applied: mark as applied", on: () => send("mark-applied") }));
+    } else if (s.step === "email") {
+      buttons.push(el("button", { type: "button", class: "primary", text: "Send it from the CRM", on: () => send("open-crm") }));
+      buttons.push(el("button", { type: "button", class: "secondary", text: "Close", on: () => send("stop") }));
     } else if (s.step === "success") {
       buttons.push(el("button", { type: "button", class: "secondary", text: "Close", on: () => send("stop") }));
     }

@@ -91,3 +91,19 @@ test("finds the recruiter's name in a post, and skips words that only look like 
   assert.equal(E.guessContact("You will report to the Head of Design."), null);
   assert.equal(E.guessContact("Send your CV to our team today."), null);
 });
+
+test("an email read from a job page is kept only when it came from that job's page", async () => {
+  const { acceptPageContact, emailsInApplySection } = await import("./page-contact.ts");
+  const job = { url: "https://www.hotnigerianjobs.com/hotjobs/986534/x.html", apply_url: "https://www.hotnigerianjobs.com/hotjobs/986534/x.html" };
+  const ok = acceptPageContact({ email: "Recruit@EduBridge.ng ", url: "https://hotnigerianjobs.com/hotjobs/986534/x.html", sentence: "send their CV to: recruit@edubridge.ng" }, job);
+  assert.ok(ok.ok && ok.contact.email === "recruit@edubridge.ng" && ok.contact.sentence.startsWith("Read from the job page on hotnigerianjobs.com"));
+  assert.equal(acceptPageContact({ email: "a@b.ng", url: "https://evil.example/x" }, job).ok, false);
+  assert.equal(acceptPageContact({ email: "info@hotnigerianjobs.com", url: job.url }, job).ok, false);
+  assert.equal(acceptPageContact({ email: "nope", url: job.url }, job).ok, false);
+
+  const page = "Requirements\nA degree.\nHow to Apply\nInterested and qualified candidates should send their CV to: hr@meagroup.ng and/or fleet@meagroup.ng using \"Fleet Coordinator\" as the subject of the email.\nShare this job";
+  const found = emailsInApplySection(page);
+  assert.deepEqual(found.emails, ["hr@meagroup.ng", "fleet@meagroup.ng"]);
+  assert.match(found.sentence, /send their CV to/);
+  assert.deepEqual(emailsInApplySection("Contact us at info@company.com for anything.").emails, []);
+});

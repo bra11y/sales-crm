@@ -135,6 +135,27 @@ async function step(tabId, { force = false } = {}) {
     });
   }
 
+  // A post that takes applications by email: read the address the page shows you, save it
+  // to the job in the CRM, and send from there (with your CV, from your Gmail).
+  if (!run.emailSaved) {
+    const [found] = await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, func: emailsOnPage }).catch(() => [{}]);
+    const mail = found?.result;
+    if (mail?.emails?.length) {
+      try {
+        const r = await (await api("/api/ext/contact", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ job: run.jobId, email: mail.emails[0], sentence: mail.sentence, url: tab.url }) })).json();
+        if (!r.ok) throw new Error(r.error || "The address could not be saved.");
+        run = { ...run, emailSaved: true, crm: r.crm };
+        await setRun(tabId, run);
+        const others = mail.emails.length > 1 ? ` The post also names ${mail.emails.slice(1).join(", ")}; the CRM uses the first.` : "";
+        return panel(tabId, { job: run.job, step: "email", tone: "good", message: `This job takes applications by email. The CRM now has the address ${r.email}.${others} Press “Send it from the CRM” to check the letter and send it with your CV.` });
+      } catch {
+        // Not this job's page, or the CRM said no: carry on with the form as usual.
+        run = { ...run, emailSaved: true };
+        await setRun(tabId, run);
+      }
+    }
+  }
+
   if (top.apply && run.hops < MAX_HOPS) {
     run = { ...run, hops: run.hops + 1 };
     await setRun(tabId, run);
@@ -149,6 +170,19 @@ async function step(tabId, { force = false } = {}) {
     step: "nothing",
     message: "No form on this page yet. If the site asks you to sign in or press a button, do that. The form fills itself when it appears.",
   });
+}
+
+// Runs in the page: the emails under "How to Apply" or "Method of Application", as the browser
+// shows them. Same rules as lib/apply/page-contact.ts.
+function emailsOnPage() {
+  const BOARD = /@(hotnigerianjobs\.com|myjobmag\.com|jobberman\.com|ngcareers\.com)$/i;
+  const text = document.body ? document.body.innerText : "";
+  const at = text.search(/method of application|how to apply|to apply,? (please )?send|send (your|their) (cv|applications?|resume)/i);
+  if (at < 0) return { emails: [], sentence: "" };
+  const part = text.slice(at, at + 1200);
+  const emails = [...new Set((part.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g) || []).map((e) => e.toLowerCase()))].filter((e) => !BOARD.test(e));
+  const sentence = (part.match(/[^.\n]*@[^.\n]*(\.[a-z]{2,}[^.\n]*)*/i) || [""])[0].trim();
+  return { emails, sentence };
 }
 
 // Pages load in bursts; wait for the page to settle before looking.
@@ -210,6 +244,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       schedule(tabId, 300);
     } else if (msg.type === "fill-now") {
       await step(tabId, { force: true });
+    } else if (msg.type === "open-crm") {
+      const run = await getRun(tabId);
+      const s = await settings();
+      if (run?.crm && s) await chrome.tabs.create({ url: `${s.server}${run.crm}` });
     } else if (msg.type === "mark-applied") {
       const run = await getRun(tabId);
       if (run) await markApplied(tabId, run, false);

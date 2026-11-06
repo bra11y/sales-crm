@@ -364,3 +364,28 @@ test("a front desk job is not a front-end job", () => {
   const fit = scoreJob(post({ title: "Front Desk Officer (Female)", source: "hotnigerianjobs", location: "Abuja", restrictions: ["Abuja"] }), facts, DEFAULT_PREFERENCES, now);
   assert.equal(fit.hidden, "Outside your fields");
 });
+
+test("reads the closing date a post gives, in the ways Nigerian posts write it", async () => {
+  const { closingDate } = await import("./text.ts");
+  assert.equal(closingDate("Application Closing Date\n5th November, 2026."), "2026-11-05");
+  assert.equal(closingDate("Deadline: 30 November 2026"), "2026-11-30");
+  assert.equal(closingDate("Closing date: 12/11/2026"), "2026-11-12");
+  assert.equal(closingDate("Applications close on 1 December 2026 at noon"), "2026-12-01");
+  assert.equal(closingDate("Not Specified"), null);
+  assert.equal(closingDate("We closed a $5m round on 3 March 2025."), null);
+});
+
+test("a post that has closed, or whose closing date has passed, is hidden with the reason", () => {
+  const closed = scoreJob(post({ title: "IT Support Officer", description: "Support our staff. ".repeat(40) + "Application Closing Date 5th November, 2026. Sorry, this listing is no longer open." }), facts, DEFAULT_PREFERENCES, new Date("2026-11-06T09:00:00Z"));
+  assert.equal(closed.hidden, "This job has closed");
+  const passed = scoreJob(post({ description: "React work. ".repeat(40) + "Deadline: 30 October 2026" }), facts, DEFAULT_PREFERENCES, new Date("2026-11-06T09:00:00Z"));
+  assert.equal(passed.hidden, "Closed on 30 October 2026");
+  const open = scoreJob(post({ description: "React work. ".repeat(40) + "Deadline: 30 November 2026" }), facts, DEFAULT_PREFERENCES, new Date("2026-11-06T09:00:00Z"));
+  assert.equal(open.hidden, null);
+  assert.ok(open.reasons.some((r) => r === "Apply by 30 November 2026"));
+});
+
+test("an email hidden by the job site is named, with what to do", () => {
+  const fit = scoreJob(post({ source: "hotnigerianjobs", description: "React work. ".repeat(40) + "How to Apply: send your CV to: [email protected] using the Job Title as the subject." }), facts, DEFAULT_PREFERENCES, now);
+  assert.ok(fit.flags.some((f) => f.startsWith("The site hides the email to apply to.")), fit.flags.join(" | "));
+});

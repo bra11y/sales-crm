@@ -103,3 +103,29 @@ export function payLabel(pay: Pay | null): string {
   const range = pay.max > pay.min ? `${symbol}${f(pay.min)} - ${symbol}${f(pay.max)}` : `${symbol}${f(pay.min)}`;
   return `${range} a ${pay.period}`;
 }
+
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+const MONTH = "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+const CLOSING = /\b(?:application\s+)?(?:closing\s+date|deadline|applications?\s+(?:close[sd]?|end[sd]?)(?:\s+on)?|apply\s+(?:before|by)|last\s+day\s+(?:to|for)\s+appl\w*)\b[\s:.-]*/i;
+
+// The closing date a post gives ("Application Closing Date 5th November, 2026", "Deadline:
+// 30/11/2026"), as YYYY-MM-DD. Numeric dates are read day first, the way Nigerian posts write them.
+export function closingDate(text: string): string | null {
+  const at = text.search(CLOSING);
+  if (at < 0) return null;
+  const rest = text.slice(at).replace(CLOSING, "").slice(0, 60);
+  const iso = (y: number, m: number, d: number) => {
+    const t = new Date(Date.UTC(y, m - 1, d));
+    return t.getUTCMonth() === m - 1 && t.getUTCDate() === d && y >= 2000 ? t.toISOString().slice(0, 10) : null;
+  };
+  const monthNo = (s: string) => MONTHS.findIndex((m) => m.startsWith(s.toLowerCase().slice(0, 3))) + 1;
+  let m = rest.match(new RegExp(`^(\\d{1,2})(?:st|nd|rd|th)?(?:\\s+of)?\\s+${MONTH},?\\s+(\\d{4})`, "i"));
+  if (m) return iso(Number(m[3]), monthNo(m[2]), Number(m[1]));
+  m = rest.match(new RegExp(`^${MONTH}\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})`, "i"));
+  if (m) return iso(Number(m[3]), monthNo(m[1]), Number(m[2]));
+  m = rest.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
+  if (m) return iso(Number(m[3]), Number(m[2]), Number(m[1]));
+  return null;
+}
+
+export const longDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });

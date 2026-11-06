@@ -234,3 +234,10 @@ test("an address on its own line after 'send an email directly to' is found, wit
   // An address on the next line after an unrelated sentence is not taken.
   assert.equal(findContactEmail("Questions about privacy go to\nprivacy@acme.com"), null);
 });
+
+test("'use the Job Title as the subject' gives the job's own title", async () => {
+  const { findRequiredSubject } = await import("./extract.ts");
+  assert.equal(findRequiredSubject("send their Applications to the email using the Job Title as the subject of the email.", "Gym Coach"), "Gym Coach");
+  assert.equal(findRequiredSubject("Use the position applied for as the subject of your mail", "IT Support Officer"), "IT Support Officer");
+  assert.equal(findRequiredSubject("using the Job Title as the subject"), null);
+});

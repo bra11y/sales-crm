@@ -3,7 +3,7 @@ import type { Facts } from "./facts.ts";
 import { jobLevel, LEVEL_LABEL } from "./level.ts";
 import { blocked, type Preferences } from "./preferences.ts";
 import type { JobPost } from "./sources.ts";
-import { monthlyUsd } from "./text.ts";
+import { closingDate, longDate, monthlyUsd } from "./text.ts";
 
 export type Eligibility = "worldwide" | "region" | "local" | "visa" | "restricted" | "unknown";
 
@@ -40,6 +40,9 @@ const SENIOR = /\b(staff|principal|director|head of|vp|vice president|chief)\b/i
 // Everyday words that a skill list uses as a short name, but that most posts use in another
 // sense ("our research team", "the payments API"). They still help the CV; they do not count
 // towards the fit.
+const CLOSED = /\b(this (listing|job|vacancy|position) is no longer (open|available)|applications? (are|is) (now )?closed|this job has (now )?closed)\b/i;
+// Cloudflare swaps an address on the page for this text until a browser shows it.
+const HIDDEN_EMAIL = /\[email(&#160;|\s)protected\]/i;
 const NOT_TECH = /\b(front (desk|office)|receptionist|customer service rep|sales (rep|representative|executive)|driver|cashier)\b/i;
 const LOOSE = new Set(["research", "performance", "payments", "api", "apis", "responsive", "prototype", "document", "training"]);
 // Extra points when the job title is in one of your main fields, so the wide software search
@@ -102,7 +105,11 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
   const titled = titledAs.length > 0 && !NOT_TECH.test(post.title);
   let hidden: string | null = null;
   const skip = blocked(post.url, prefs.blockedSites) ?? blocked(post.applyUrl, prefs.blockedSites);
+  const closes = closingDate(post.description);
+  const today = now.toISOString().slice(0, 10);
   if (skip) hidden = `From ${skip}, a site you skip`;
+  else if (CLOSED.test(post.description)) hidden = "This job has closed";
+  else if (closes && closes < today) hidden = `Closed on ${longDate(closes)}`;
   else if (!titled) hidden = "Outside your fields";
   else if (where.eligibility === "restricted") hidden = where.why;
   else if (pay !== null && pay < prefs.minMonthlyUsd) hidden = `Pays about ${usd(pay)} a month, under your ${usd(prefs.minMonthlyUsd)} floor`;
@@ -110,6 +117,7 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
 
   if (matched.length) reasons.push(`Matches ${matched.length} of your skills: ${matched.slice(0, 5).join(", ")}${matched.length > 5 ? " and more" : ""}`);
   reasons.push(where.why);
+  if (closes && closes >= today) reasons.push(`Apply by ${longDate(closes)}`);
   if (level.level !== "mid") reasons.push(level.level === "entry" ? "Entry level: open to graduates" : level.why);
   if (pay !== null) reasons.push(`Pays up to about ${usd(pay)} a month`);
   if (ageDays !== null) reasons.push(ageDays === 0 ? "Posted today" : `Posted ${ageDays} day${ageDays === 1 ? "" : "s"} ago`);
@@ -120,6 +128,8 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
   if (ALERT.test(post.source)) flags.push("From a job alert email, so only the title is known. Open the post to read it.");
   else if (post.source === CAPTURED) flags.push("Read from your screenshot. Check the details on the real post before you apply.");
   else if (post.description.length < 400) flags.push("Very short post with few details.");
+  if (HIDDEN_EMAIL.test(post.description))
+    flags.push("The site hides the email to apply to. Open the post with the extension and it reads the address from the page, so you can send from the CRM.");
   if (SENIOR.test(post.title)) flags.push("The title asks for a very senior level.");
   const moving = where.eligibility === "visa" && !/\bremote\b/i.test(post.location);
   if (moving) flags.push(`You would need to move to ${post.location || "their office"} on a work visa.`);
@@ -131,7 +141,7 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
   score += pay === null ? 5 : pay >= prefs.minMonthlyUsd ? 15 : 0;
   score += ageDays === null ? 3 : ageDays <= 3 ? 15 : ageDays <= 7 ? 10 : ageDays <= 14 ? 6 : ageDays <= 30 ? 3 : 0;
   score -= Math.min(a.gaps.length * 4, 12);
-  score -= flags.filter((f) => !f.startsWith("Pay is not") && !f.startsWith("From a job alert") && !f.startsWith("Read from your") && !f.startsWith("You would need to move")).length * 5;
+  score -= flags.filter((f) => !f.startsWith("Pay is not") && !f.startsWith("From a job alert") && !f.startsWith("Read from your") && !f.startsWith("You would need to move") && !f.startsWith("The site hides")).length * 5;
   score = Math.max(0, Math.min(100, score));
 
   return {
