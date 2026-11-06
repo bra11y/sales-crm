@@ -13,7 +13,8 @@ const WEEK = 7 * 86_400_000;
 async function sidebarData(): Promise<SidebarData> {
   const supabase = await createSupabaseServerClient();
   const now = new Date();
-  const [role, products, companies, trials, queued, live] = await Promise.all([
+  const soon = new Date(now.getTime() + 3 * 86_400_000).toISOString().slice(0, 10);
+  const [role, products, companies, trials, queued, live, bills] = await Promise.all([
     supabase.rpc("my_role"),
     supabase.from("products").select("slug, name").order("name"),
     supabase.from("companies").select("product").eq("workspace_id", 1),
@@ -25,6 +26,7 @@ async function sidebarData(): Promise<SidebarData> {
       .lte("renews_at", new Date(now.getTime() + WEEK).toISOString()),
     supabase.from("applications_outbox").select("id", { count: "exact", head: true }).eq("status", "queued"),
     supabase.from("job_posts").select("id", { count: "exact", head: true }).in("status", ["applied", "replied", "interview", "offer"]),
+    supabase.from("bills").select("id", { count: "exact", head: true }).eq("status", "active").lte("next_due", soon),
   ]);
   const counts = new Map<string, number>();
   for (const c of companies.data ?? []) counts.set(c.product, (counts.get(c.product) ?? 0) + 1);
@@ -35,6 +37,7 @@ async function sidebarData(): Promise<SidebarData> {
     trialsEnding: trials.count ?? 0,
     queued: queued.count ?? 0,
     applications: live.count ?? 0,
+    billsDue: bills.count ?? 0,
   };
 }
 

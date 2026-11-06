@@ -37,7 +37,7 @@ export function uploadError(message: string): string {
   if (/mime|type|not supported/i.test(message)) return "This kind of file can't be uploaded. Use one of the types listed under the box.";
   if (/size|too large|exceeded|413/i.test(message)) return "That file is too big. Use a file under 25 MB.";
   if (/row-level|policy|unauthori[sz]ed|jwt|403|401|token/i.test(message)) return "You were signed out while uploading. Sign in again, then try once more.";
-  if (/fetch|network|failed to fetch|load failed|timeout/i.test(message)) return "The connection dropped during the upload. Check your internet, then try again.";
+  if (/fetch|network|failed to fetch|load failed|timeout/i.test(message)) return `The file did not reach the server (your browser said: "${message.slice(0, 80)}"). If the file is in iCloud or Google Drive, open it once so it downloads to this phone, then try again.`;
   return `The upload did not finish (${message.slice(0, 120)}). Try again.`;
 }
 const safeName = (n: string) => n.replace(/[^A-Za-z0-9._-]+/g, "-").slice(-80);

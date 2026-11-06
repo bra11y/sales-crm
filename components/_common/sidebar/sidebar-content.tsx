@@ -33,6 +33,8 @@ export type SidebarData = {
   queued: number;
   // Applications waiting on, or in, a reply.
   applications: number;
+  // Your bills due in the next 3 days, or late.
+  billsDue: number;
 };
 
 // Fixed order, one per pipeline, never re-ranked (same hues as the charts).
@@ -111,6 +113,10 @@ export default function SidebarContent({ data }: { data: SidebarData }) {
           <SidebarSection title="Learn" className="border-sidebar-border border-b">
             <SidebarNavItem icon={ListIcon} label="Notes" href="/notes" active={at("/notes") || pathname.startsWith("/notes/")} />
             <SidebarNavItem icon={BookClosedIcon} label="Books" href="/books" active={at("/books") || pathname.startsWith("/books/")} />
+          </SidebarSection>
+
+          <SidebarSection title="Your money" className="border-sidebar-border border-b">
+            <SidebarNavItem icon={WalletIcon} label="Bills and subscriptions" count={data.billsDue || undefined} href="/bills" active={at("/bills")} />
           </SidebarSection>
 
           <SidebarSection title="Grow" className="border-sidebar-border border-b">

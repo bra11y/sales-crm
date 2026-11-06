@@ -12,6 +12,7 @@ import { headers } from "next/headers";
 import { cvPrompt, mergeCv, readCv } from "@/lib/jobs/cv-import";
 import { askJson, learnProviders } from "@/lib/learn/ai";
 import { bookText } from "@/lib/learn/read-book";
+import { htmlToText } from "@/lib/jobs/text";
 
 export async function saveProfile(input: { facts: StoredFacts; preferences: Preferences }): Promise<{ ok: true; savedAt: string } | { ok: false; error: string }> {
   if (JSON.stringify(input ?? {}).length > 300_000) return { ok: false, error: "Your profile is too long to save. Shorten some sections." };
@@ -73,7 +74,28 @@ export async function revokeExtensionCode(): Promise<{ ok: true } | { ok: false;
 }
 
 // Set up or add to your Profile from your own CV: a file already in your Documents, or pasted text.
-export async function importCv(input: { path?: string; mime?: string; text?: string }): Promise<{ ok: true; added: string[] } | { ok: false; error: string }> {
+// A public web page's text, for a portfolio link. Only https, only public hosts, small pages.
+async function pageText(link: string): Promise<string | null> {
+  let u: URL;
+  try {
+    u = new URL(/^https?:\/\//i.test(link) ? link : `https://${link}`);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.toLowerCase();
+  if (u.protocol !== "https:" || host === "localhost" || /^(\d+\.){3}\d+$/.test(host) || host.includes(":") || host.endsWith(".local") || host.endsWith(".internal")) return null;
+  if (/linkedin\.com$/.test(host)) return null;
+  try {
+    const res = await fetch(u, { headers: { "user-agent": "SalesCRM-Profile/1.0", accept: "text/html" }, redirect: "follow", signal: AbortSignal.timeout(12_000) });
+    if (!res.ok || !/text\/html|text\/plain/.test(res.headers.get("content-type") ?? "")) return null;
+    const html = (await res.text()).slice(0, 400_000);
+    return htmlToText(html.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, " "));
+  } catch {
+    return null;
+  }
+}
+
+export async function importCv(input: { path?: string; mime?: string; text?: string; link?: string }): Promise<{ ok: true; added: string[] } | { ok: false; error: string }> {
   const supabase = await createSupabaseServerClient();
   const current = await loadProfile(supabase);
   if (!current) return { ok: false, error: "Sign in again to set up your profile." };
@@ -87,6 +109,12 @@ export async function importCv(input: { path?: string; mime?: string; text?: str
     } catch {
       return { ok: false, error: "Use a PDF or Word (.docx) file, or paste the text of your CV." };
     }
+  }
+  if (input.link?.trim()) {
+    if (/linkedin\.com/i.test(input.link)) return { ok: false, error: "LinkedIn pages need you to be signed in, so they can't be read from here. On LinkedIn, open your profile, press More, then Save to PDF, and drop that file in instead." };
+    const page = await pageText(input.link.trim());
+    if (!page) return { ok: false, error: "That page could not be read. Check the link starts with https:// and opens without signing in." };
+    cv = `${cv}\n\n${page}`.slice(0, 60_000);
   }
   if (cv.trim().length < 200) return { ok: false, error: "There is too little text to read. If your CV is a scanned image, paste its text instead." };
   const providers = current.preferences.ai === "off" ? [] : learnProviders(process.env, (await headers()).get("x-vercel-oidc-token"));
