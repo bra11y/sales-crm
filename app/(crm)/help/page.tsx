@@ -18,6 +18,14 @@ const PAGES = [
   { href: "/jobs", name: "Jobs", what: "Jobs found for you each morning, scored against your Profile." },
   { href: "/outbox", name: "Outbox", what: "Applications and follow-ups waiting to send, sent, and replies." },
   { href: "/payments", name: "Payments", what: "Every payment, with monthly totals and a CSV download." },
+  { href: "/notes", name: "Notes", what: "Save a YouTube video, a recording or anything you read. You get a summary, study questions, post drafts and project ideas, and the note comes back for review." },
+  { href: "/books", name: "Books", what: "Free books for your field, and your own PDF or EPUB books, each with a summary saved as a note." },
+];
+
+const LEARN = [
+  { step: "Save it", how: "Paste a YouTube link and its transcript, upload a recording, or write a note. On a computer, the extension can read a YouTube transcript for you." },
+  { step: "Use it", how: "Copy a post draft for LinkedIn, X or Instagram, pick a content idea, or start one of the practice projects. Edit the drafts so they sound like you." },
+  { step: "Keep it", how: "Each note comes back after 1, 3, 7, 21 and 60 days. Answer its questions, then press “I remember it” or “Show me again tomorrow”." },
 ];
 
 const KEYS = [
@@ -48,6 +56,25 @@ export default function HelpPage() {
           ))}
         </dl>
       </section>
+      <section id="learn" aria-labelledby="learn-h" className="flex scroll-mt-6 flex-col gap-3 rounded-2xl bg-white/[0.04] px-5 py-5">
+        <h2 id="learn-h" className="text-[17px] font-semibold">
+          Learn in three steps
+        </h2>
+        <ol className="flex list-decimal flex-col gap-2 pl-5 leading-normal">
+          {LEARN.map((l) => (
+            <li key={l.step}>
+              <strong className="font-medium">{l.step}.</strong> <span className="text-soft">{l.how}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="text-soft leading-normal">
+          Summaries are written by a free AI model from the video or book itself. Book picks are free and legal to read. Your notes, books and files are private to you.{" "}
+          <Link href="/notes" className={LINK}>
+            Open Notes
+          </Link>
+        </p>
+      </section>
+
       <section aria-labelledby="numbers" className="flex flex-col gap-2 rounded-2xl bg-white/[0.04] px-5 py-5">
         <h2 id="numbers" className="text-[17px] font-semibold">
           Where the numbers come from
