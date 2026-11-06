@@ -41,6 +41,17 @@ export async function loadProfile(db?: SupabaseClient, userId?: string): Promise
       row.facts = { ...row.facts, work: row.facts.work ?? (owner ? base.work : []), answers: row.facts.answers ?? (owner ? base.answers : blankFacts(base).answers) };
       await client.from("job_profiles").update({ facts: row.facts }).eq("user_id", id);
     }
+    // Fields added later (like Software and IT) are added to saved profiles once. Your own
+    // edits to the other fields are kept. Only the owner gets the written summary.
+    const missing = Object.keys(base.tracks).filter((t) => !row.facts.tracks?.[t]);
+    if (missing.length) {
+      const owner = await isOwner();
+      const add = storeFacts(owner ? base : blankFacts(base)).tracks;
+      // Each past job's title for the new field starts as its front-end title, which you can edit.
+      const jobs = (row.facts.jobs ?? []).map((j) => ({ ...j, title: { ...Object.fromEntries(missing.map((t) => [t, j.title?.frontend ?? Object.values(j.title ?? {})[0] ?? ""])), ...j.title } }));
+      row.facts = { ...row.facts, jobs, tracks: { ...row.facts.tracks, ...Object.fromEntries(missing.map((t) => [t, add[t]])) } };
+      await client.from("job_profiles").update({ facts: row.facts }).eq("user_id", id);
+    }
     return toProfile(row);
   }
 

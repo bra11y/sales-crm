@@ -1,6 +1,6 @@
 import type { Facts } from "./facts.ts";
 import { dedupe, type Fit, scoreJob } from "./fit.ts";
-import { blocked, boardsFor, type Preferences } from "./preferences.ts";
+import { blocked, boardsFor, type Preferences, searchWords } from "./preferences.ts";
 import { type JobPost, SOURCES, type SourceId } from "./sources.ts";
 
 const HOUR = 3_600_000;
@@ -105,7 +105,7 @@ async function getOnce(url: string, fetcher: typeof fetch) {
 export async function fetchSources(ids: SourceId[], prefs: Preferences, fetcher: typeof fetch = fetch, parallel = 6, fits?: (title: string) => boolean): Promise<Fetched> {
   const out: Fetched = { posts: [], errors: [], fetched: [] };
   const ok = new Set<SourceId>();
-  const query = { searches: prefs.searches, boards: boardsFor(prefs), fits };
+  const query = { searches: searchWords(prefs), boards: boardsFor(prefs), fits };
   const queue = ids.flatMap((id) => SOURCES[id].urls(query).map((url) => ({ id, url })));
   async function worker() {
     for (let job = queue.shift(); job; job = queue.shift()) {

@@ -21,7 +21,7 @@ type Props = {
   onError: (message: string) => void;
 };
 
-export default function JobPeek({ job, sources, onClose, onMove, onApplied, onCompany, onError }: Props) {
+export default function JobPeek({ job, sources, onClose, onMove, onApplied, onCompany, onError, applyFirst = null }: Props & { applyFirst?: string | null }) {
   return (
     <Sheet open={Boolean(job)} onOpenChange={(o) => !o && onClose()}>
       <SheetContent
@@ -29,16 +29,17 @@ export default function JobPeek({ job, sources, onClose, onMove, onApplied, onCo
         className="bg-background/92 contrast-more:bg-background [@media(prefers-reduced-transparency:reduce)]:bg-background max-w-[40em] supports-[backdrop-filter]:backdrop-blur-xl motion-reduce:animate-none [@media(prefers-reduced-transparency:reduce)]:backdrop-blur-none"
         aria-describedby={job ? "job-peek-company" : undefined}
       >
-        {job && <PeekBody key={job.id} job={job} sources={sources} onMove={onMove} onApplied={onApplied} onCompany={onCompany} onError={onError} />}
+        {job && <PeekBody key={job.id} job={job} startApplying={applyFirst === job.id} sources={sources} onMove={onMove} onApplied={onApplied} onCompany={onCompany} onError={onError} />}
       </SheetContent>
     </Sheet>
   );
 }
 
-function PeekBody({ job, sources, onMove, onApplied, onCompany, onError }: Omit<Props, "job" | "onClose"> & { job: JobItem }) {
+function PeekBody({ job, sources, onMove, onApplied, onCompany, onError, startApplying = false }: Omit<Props, "job" | "onClose"> & { job: JobItem; startApplying?: boolean }) {
   const [looking, startLook] = useTransition();
   const [lookNote, setLookNote] = useState("");
-  const [applying, setApplying] = useState(false);
+  // Opened from "Send by email from the job": go straight to the email, not the job details.
+  const [applying, setApplying] = useState(startApplying);
   const [history, setHistory] = useState<HistoryItem[] | null>(null);
   const source = sources[job.source];
 

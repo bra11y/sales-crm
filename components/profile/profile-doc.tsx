@@ -5,7 +5,7 @@ import { LEVEL_LABEL, LEVELS } from "@/lib/jobs/level";
 import Button from "@/components/_ui/button";
 import { saveProfile } from "@/app/(crm)/profile/actions";
 import type { StoredFacts } from "@/lib/jobs/facts";
-import type { Preferences } from "@/lib/jobs/preferences";
+import { type Preferences, WIDE_SEARCHES } from "@/lib/jobs/preferences";
 import ExtensionSection, { type ExtensionState } from "./extension-section";
 import MailSection, { type MailState } from "./mail-section";
 import { Chips, FIELD, Lines, Property, Section, TextBlock } from "./editors";
@@ -186,6 +186,12 @@ export default function ProfileDoc({ facts: initialFacts, preferences: initialPr
           onChange={(searches) => editPrefs({ searches })}
           placeholderHint="Words sent to the job boards that take a search, such as accessibility or react."
         />
+        <label className="flex min-h-11 items-start gap-3 px-2 text-[14px] leading-normal">
+          <input type="checkbox" checked={prefs.wideSearch} onChange={(e) => editPrefs({ wideSearch: e.target.checked })} className="accent-primary mt-0.5 size-5 shrink-0" />
+          <span>
+            Also search the wider computer science roles: {WIDE_SEARCHES.join(", ")}
+          </span>
+        </label>
         <h3 className="px-2 pt-2 font-medium">Sites to skip</h3>
         <Chips
           label="Sites to skip"

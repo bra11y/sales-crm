@@ -221,7 +221,21 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
         <label htmlFor={`${id}-subject`} className="text-soft w-20 shrink-0 pt-2.5 text-[14px]">
           Subject
         </label>
-        <input id={`${id}-subject`} value={subject} onChange={(e) => setSubject(e.target.value)} className={`${LINE_INPUT} min-w-0 flex-1`} />
+        <div className="min-w-0 flex-1">
+          <input
+            id={`${id}-subject`}
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            aria-describedby={p.requiredSubject ? `${id}-subject-hint` : undefined}
+            aria-invalid={p.requiredSubject && !subject.includes(p.requiredSubject) ? true : undefined}
+            className={`${LINE_INPUT} w-full`}
+          />
+          {p.requiredSubject && (
+            <p id={`${id}-subject-hint`} className="text-soft pt-1 text-[13px] leading-normal">
+              {subject.includes(p.requiredSubject) ? "The post asks for this exact subject, so it is filled in for you." : `The post asks for this exact subject: "${p.requiredSubject}". Keep it in, or their inbox may miss your email.`}
+            </p>
+          )}
+        </div>
       </Row>
       <Row>
         <span className="text-soft w-20 shrink-0 text-[14px]">Attached</span>

@@ -21,6 +21,8 @@ const FIXTURE_URL: Record<string, [string, string]> = {
   ashby: ["ashby.json", "https://api.ashbyhq.com/posting-api/job-board/linear?includeCompensation=true"],
   lever: ["lever.json", "https://api.lever.co/v0/postings/spotify?mode=json"],
   hotnigerianjobs: ["hnj.xml", "https://www.hotnigerianjobs.com/feed/"],
+  a11yjobs: ["a11yjobs.xml", "https://www.a11yjobs.com/sitemap.xml"],
+  workingnomads: ["workingnomads.json", "https://www.workingnomads.com/api/exposed_jobs/"],
 };
 const facts = F as unknown as Facts;
 const now = new Date("2026-10-21T12:00:00Z");
@@ -151,7 +153,7 @@ test("preferences are cleaned: bad numbers, unknown sources and unsafe board nam
   const p = cleanPreferences({ minMonthlyUsd: "abc", sources: ["remotive", "evil"], boards: { greenhouse: ["vercel", "../etc"] }, searches: "react, react, ux" });
   assert.equal(p.minMonthlyUsd, 2000);
   // Boards added later (Hot Nigerian Jobs) join a saved list unless you turned them off.
-  assert.deepEqual(p.sources, ["remotive", "hotnigerianjobs"]);
+  assert.deepEqual(p.sources, ["remotive", "hotnigerianjobs", "a11yjobs", "workingnomads"]);
   assert.deepEqual(p.boards.greenhouse, ["vercel"]);
   assert.deepEqual(p.searches, ["react", "ux"]);
   assert.deepEqual(cleanPreferences(undefined), DEFAULT_PREFERENCES);
@@ -305,4 +307,60 @@ test("big companies join your own list once, and can be turned off", async () =>
   assert.ok(on.greenhouse.includes("openai") === false && on.ashby.includes("openai"));
   assert.equal(on.greenhouse.filter((b) => b === "stripe").length, 1);
   assert.deepEqual(boardsFor(cleanPreferences({ bigCompanies: false, boards: { greenhouse: ["vercel"], ashby: [], lever: [] } })).greenhouse, ["vercel", "moniepoint"]);
+});
+
+test("time zone rules: CET plus or minus 3 hours fits Lagos, US Pacific does not", async () => {
+  const { zoneFits } = await import("./fit.ts");
+  assert.equal(zoneFits("CET (+/- 3 hours)"), true);
+  assert.equal(zoneFits("UTC+2"), true);
+  assert.equal(zoneFits("PST"), false);
+  assert.equal(zoneFits("EST +/- 2 hours"), false);
+  assert.equal(zoneFits("United Kingdom"), null);
+  assert.equal(zoneFits("West Coast"), null);
+});
+
+test("'U.S. Based' in the title is not worldwide, even when the board says anywhere", () => {
+  const p = post({ title: "Web Developer (U.S. Based, Remote Contractor)", restrictions: [], location: "Anywhere in the World" });
+  assert.equal(eligibility(p, DEFAULT_PREFERENCES).eligibility, "restricted");
+});
+
+test("'Home based Worldwide' is worldwide and 'Home based EMEA' is your region", () => {
+  const gh = (where: string) => post({ source: "greenhouse", restrictions: [where], location: where });
+  assert.equal(eligibility(gh("Home based Worldwide"), DEFAULT_PREFERENCES).eligibility, "worldwide");
+  assert.equal(eligibility(gh("Home based - EMEA"), DEFAULT_PREFERENCES).eligibility, "region");
+  assert.equal(eligibility(gh("Home based Americas"), DEFAULT_PREFERENCES).eligibility, "restricted");
+});
+
+test("everyday words like 'research', 'performance', 'payments' and 'API' are not counted as your skills", () => {
+  const p = post({ title: "Software Engineer", tags: [], description: "Our research team tracks performance of the payments API and the OpenAI API platform. ".repeat(6) });
+  const fit = scoreJob(p, facts, DEFAULT_PREFERENCES, now);
+  for (const s of ["user research", "Core Web Vitals", "Paystack", "REST APIs"]) assert.ok(!fit.matched.includes(s), s);
+  const real = scoreJob(post({ tags: [], description: "You will run user research and improve Core Web Vitals. ".repeat(6) }), facts, DEFAULT_PREFERENCES, now);
+  assert.ok(real.matched.includes("user research") && real.matched.includes("Core Web Vitals"));
+});
+
+test("a job in your main field ranks above a wider software job with the same post", () => {
+  const a11y = scoreJob(post({ title: "Accessibility Engineer" }), facts, DEFAULT_PREFERENCES, now);
+  const front = scoreJob(post({ title: "Frontend Developer" }), facts, DEFAULT_PREFERENCES, now);
+  const wide = scoreJob(post({ title: "Data Engineer" }), facts, DEFAULT_PREFERENCES, now);
+  assert.ok(a11y.score > front.score && front.score > wide.score, `${a11y.score} ${front.score} ${wide.score}`);
+});
+
+test("an office job that sponsors a visa ranks below the same job open remotely, and says you would move", () => {
+  const desc = "We offer visa sponsorship and relocation support. React, Next.js and TypeScript. ".repeat(6);
+  const office = scoreJob(post({ source: "ashby", restrictions: ["San Francisco"], location: "San Francisco", description: desc }), facts, DEFAULT_PREFERENCES, now);
+  const remote = scoreJob(post({ description: desc }), facts, DEFAULT_PREFERENCES, now);
+  assert.equal(office.eligibility, "visa");
+  assert.ok(office.score < remote.score - 10, `${office.score} ${remote.score}`);
+  assert.ok(office.flags.some((f) => /move to San Francisco/.test(f)));
+});
+
+test("the same OpenAI role in three cities is one job", () => {
+  const city = (c: string) => post({ source: "ashby", externalId: c, company: "OpenAI", title: `Forward Deployed Software Engineer - ${c}`, location: c, restrictions: [c] });
+  assert.equal(dedupe([city("SF"), city("NYC"), city("Seattle")]).length, 1);
+});
+
+test("a front desk job is not a front-end job", () => {
+  const fit = scoreJob(post({ title: "Front Desk Officer (Female)", source: "hotnigerianjobs", location: "Abuja", restrictions: ["Abuja"] }), facts, DEFAULT_PREFERENCES, now);
+  assert.equal(fit.hidden, "Outside your fields");
 });

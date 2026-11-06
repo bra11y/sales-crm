@@ -7,7 +7,7 @@ import type { Facts, Proof } from "@/lib/jobs/facts";
 import type { JobPost } from "@/lib/jobs/sources";
 import { loadProfile } from "@/lib/jobs/profile";
 import { open, readKey, seal } from "@/lib/mail/crypto";
-import { type Contact, findContactEmail, isEmail } from "@/lib/mail/extract";
+import { type Contact, findContactEmail, findRequiredSubject, isEmail } from "@/lib/mail/extract";
 import { findHiringEmail, hiringNote, type HiringLookup } from "@/lib/mail/hiring";
 import type { CompanyInfo } from "@/lib/jobs/company";
 import { alertBoard, parseAlert } from "@/lib/mail/alerts";
@@ -59,6 +59,8 @@ const JOB_COLS = "id, user_id, title, company, description, location, apply_url,
 export type Prepared = {
   jobId: string;
   contact: Contact | null;
+  // The exact subject line the post asks for. Null when it leaves the subject to you.
+  requiredSubject: string | null;
   // Where the address came from: quoted from the post, found on their website, or typed by you.
   contactFrom: "post" | "website" | "you" | null;
   // Their website was searched and had no hiring email. Null when it was not searched.
@@ -167,8 +169,9 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
       jobId: job.id,
       contact,
       contactFrom: contactFrom(contact),
+      requiredSubject: findRequiredSubject(job.description),
       searchedSite: !contact && site?.domain ? site.domain : null,
-      subject: d.subject,
+      subject: findRequiredSubject(job.description) ?? d.subject,
       body: d.body,
       cover: d.cover,
       attachment: attachmentName(facts, job.company),
@@ -426,6 +429,8 @@ export async function applyByEmail(
   if (p.outbox) return { ok: false, error: p.outbox.status === "sent" ? "You already sent this application." : "This application is already waiting to send. See the Outbox." };
   if (p.problems.length) return { ok: false, error: `Fix this first: ${p.problems[0]}` };
   const subject = input.subject.trim().slice(0, 200) || p.subject;
+  if (p.requiredSubject && !subject.includes(p.requiredSubject))
+    return { ok: false, error: `The post asks for this exact subject: "${p.requiredSubject}". Put it back in the Subject box, so their inbox filter keeps your email.` };
   const body = input.body.trim().slice(0, 20_000) || p.body;
   if (/\[[^\]\n]+\](?!\()/.test(body)) return { ok: false, error: "The email still has a [bracket] gap. Fill it in, then send." };
   // The employer asked for proof the post was read. It goes in only after you confirm you read it.

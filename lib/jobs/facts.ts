@@ -85,7 +85,7 @@ export function cleanFacts(input: unknown, base: StoredFacts): StoredFacts {
           .slice(0, 60),
       )
       .filter((w) => w.trim())
-      .slice(0, 40)
+      .slice(0, 80)
       .join("|");
     tracks[id] = {
       ...t,

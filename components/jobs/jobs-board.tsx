@@ -85,6 +85,7 @@ export default function JobsBoard({
   sources,
   loadError,
   openFirst = null,
+  applyFirst = false,
   health = [],
 }: {
   initialJobs: JobItem[];
@@ -92,6 +93,7 @@ export default function JobsBoard({
   sources: SourceNames;
   loadError: boolean;
   openFirst?: string | null;
+  applyFirst?: boolean;
   health?: BoardHealth[];
 }) {
   const [changes, setChanges] = useState<Record<string, Partial<JobItem>>>({});
@@ -457,7 +459,7 @@ export default function JobsBoard({
         </TabsContent>
       </Tabs>
 
-      <JobPeek job={open} sources={sources} onClose={() => setOpenId(null)} onMove={move} onApplied={applied} onCompany={companyFound} onError={setAlert} />
+      <JobPeek job={open} applyFirst={applyFirst ? openFirst : null} sources={sources} onClose={() => setOpenId(null)} onMove={move} onApplied={applied} onCompany={companyFound} onError={setAlert} />
     </>
   );
 }

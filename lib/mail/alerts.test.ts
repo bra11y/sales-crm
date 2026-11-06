@@ -166,3 +166,15 @@ test("an alert job with no place and no alert place is not called worldwide", ()
   assert.equal(job.location, "");
   assert.equal(scoreJob(job, F as unknown as Facts, { ...DEFAULT_PREFERENCES, cities: [] }).eligibility, "unknown");
 });
+
+test("Jobberman and MyJobMag alert emails are read too", () => {
+  assert.equal(alertBoard("alerts@jobberman.com")?.source, "emailalert");
+  assert.equal(alertBoard("noreply@myjobmag.com")?.source, "emailalert");
+  const jobs = parseAlert({
+    from: "alerts@jobberman.com",
+    subject: "New jobs for you",
+    text: "Frontend Developer\nKuda - Lagos\nhttps://www.jobberman.com/listings/frontend-developer-abc123?utm_source=alert\n\nIT Support Officer\nAcme - Abuja\nhttps://www.myjobmag.com/job/it-support-officer-acme",
+  });
+  assert.deepEqual(jobs.map((j) => [j.title, j.company, j.location]), [["Frontend Developer", "Kuda", "Lagos"], ["IT Support Officer", "Acme", "Abuja"]]);
+  assert.equal(jobs[0].url, "https://www.jobberman.com/listings/frontend-developer-abc123");
+});

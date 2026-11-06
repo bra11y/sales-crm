@@ -25,7 +25,20 @@ export type Preferences = {
   // Off unless you turn it on: strong-fit jobs that take email, with nothing for you to answer,
   // are queued for you and held 2 hours in the Outbox so you can cancel any of them.
   autoApply: { on: boolean; perDay: number };
+  // Also search the wider computer science roles (full-stack, backend, QA, data, IT support)
+  // on top of your own search words.
+  wideSearch: boolean;
 };
+
+// Roles most computer science graduates can apply for, added to your own search words.
+export const WIDE_SEARCHES = ["full stack", "software engineer", "javascript", "typescript", "web developer", "junior developer", "backend", "qa", "python", "data analyst"];
+
+// Your words first, then the wide ones, each once. Capped so boards that take one request
+// per word are not asked too often.
+export function searchWords(prefs: Pick<Preferences, "searches" | "wideSearch">): string[] {
+  const seen = new Set<string>();
+  return [...prefs.searches, ...(prefs.wideSearch ? WIDE_SEARCHES : [])].filter((w) => !seen.has(w.toLowerCase()) && seen.add(w.toLowerCase())).slice(0, 16);
+}
 
 // Your own company list, African companies, and, when on, the big companies: each board asked once.
 export function boardsFor(p: Preferences): Boards {
@@ -74,6 +87,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   scholarship: DEFAULT_SCHOLARSHIP_PREFS,
   bigCompanies: true,
   autoApply: { on: false, perDay: 5 },
+  wideSearch: true,
 };
 
 const words = (v: unknown, max: number) => [...new Set((Array.isArray(v) ? v : String(v ?? "").split(/[,\n]/)).map((s) => String(s).trim()).filter(Boolean))].map((s) => s.slice(0, 60)).slice(0, max);
@@ -117,5 +131,6 @@ export function cleanPreferences(input: unknown): Preferences {
       const n = Number(a.perDay);
       return { on: a.on === true, perDay: Number.isFinite(n) ? Math.min(10, Math.max(1, Math.round(n))) : 5 };
     })(),
+    wideSearch: p.wideSearch === undefined ? true : Boolean(p.wideSearch),
   };
 }

@@ -1,3 +1,4 @@
+import { parseA11ySitemap, parseWorkingNomads, readA11yPage } from "./more-boards.ts";
 import { parseHnjFeed, readHnjPage } from "./nigeria.ts";
 import { decodeEntities, htmlToText, type Pay, parsePay } from "./text.ts";
 
@@ -100,7 +101,7 @@ export const BIG_COMPANIES: Boards = {
 // African companies with public job boards, searched with the big companies (checked 26 October 2026).
 export const AFRICAN_COMPANIES: Boards = { greenhouse: ["moniepoint"], ashby: [], lever: [] };
 
-export type SourceId = "remotive" | "remoteok" | "himalayas" | "jobicy" | "weworkremotely" | "arbeitnow" | "greenhouse" | "ashby" | "lever" | "hotnigerianjobs";
+export type SourceId = "remotive" | "remoteok" | "himalayas" | "jobicy" | "weworkremotely" | "arbeitnow" | "greenhouse" | "ashby" | "lever" | "hotnigerianjobs" | "a11yjobs" | "workingnomads";
 
 export const SOURCES: Record<SourceId, Source> = {
   remotive: {
@@ -202,7 +203,7 @@ export const SOURCES: Record<SourceId, Source> = {
     name: "We Work Remotely",
     home: "https://weworkremotely.com",
     minHoursBetween: 3,
-    urls: () => ["remote-front-end-programming-jobs", "remote-full-stack-programming-jobs", "remote-design-jobs"].map((c) => `https://weworkremotely.com/categories/${c}.rss`),
+    urls: () => ["remote-front-end-programming-jobs", "remote-full-stack-programming-jobs", "remote-back-end-programming-jobs", "remote-devops-sysadmin-jobs", "remote-design-jobs"].map((c) => `https://weworkremotely.com/categories/${c}.rss`),
     parse: (body) =>
       [...body.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(([, item]) => {
         const tag = (name: string) => decodeEntities(item.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1]?.trim() ?? "");
@@ -344,7 +345,22 @@ export const SOURCES: Record<SourceId, Source> = {
     parse: (body) => parseHnjFeed(body),
     details: { max: 25, read: readHnjPage },
   },
+  a11yjobs: {
+    name: "a11yjobs",
+    home: "https://www.a11yjobs.com",
+    minHoursBetween: 6,
+    urls: () => ["https://www.a11yjobs.com/sitemap.xml"],
+    parse: (body) => parseA11ySitemap(body),
+    details: { max: 30, read: readA11yPage },
+  },
+  workingnomads: {
+    name: "Working Nomads",
+    home: "https://www.workingnomads.com",
+    minHoursBetween: 3,
+    urls: () => ["https://www.workingnomads.com/api/exposed_jobs/"],
+    parse: (body) => parseWorkingNomads(body),
+  },
 };
 export const SOURCE_IDS = Object.keys(SOURCES) as SourceId[];
 // Boards added after people saved their list: searched for everyone unless they turn them off.
-export const LATER_SOURCES: SourceId[] = ["hotnigerianjobs"];
+export const LATER_SOURCES: SourceId[] = ["hotnigerianjobs", "a11yjobs", "workingnomads"];

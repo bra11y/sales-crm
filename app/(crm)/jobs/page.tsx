@@ -15,8 +15,9 @@ export const maxDuration = 300;
 const COLUMNS =
   "id, source, title, company, company_logo, url, apply_url, description, location, employment_type, pay, pay_monthly_usd, posted_at, first_seen_at, score, band, eligibility, track, matched, gaps, reasons, flags, hidden_reason, status, company_info, contact_email";
 
-export default async function JobsPage({ searchParams }: { searchParams: Promise<{ open?: string; denied?: string }> }) {
-  const { open, denied } = await searchParams;
+export default async function JobsPage({ searchParams }: { searchParams: Promise<{ open?: string; apply?: string; denied?: string }> }) {
+  const { open, apply, denied } = await searchParams;
+  const openId = open && /^[0-9a-f-]{36}$/i.test(open) ? open : null;
   const supabase = await createSupabaseServerClient();
   const userId = await currentUserId();
   const [jobs, run, prof] = await Promise.all([
@@ -24,6 +25,11 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
     supabase.from("job_runs").select("started_at, finished_at, kept, added, errors").eq("user_id", userId).order("started_at", { ascending: false }).limit(1).maybeSingle(),
     loadProfile(supabase),
   ]);
+  // The job you came to open may be outside the top 600 (low score, already applied): load it too.
+  if (openId && jobs.data && !jobs.data.some((j) => j.id === openId)) {
+    const { data: one } = await supabase.from("job_posts").select(COLUMNS).eq("user_id", userId).eq("id", openId).maybeSingle();
+    if (one) jobs.data.unshift(one);
+  }
   // The last error each board gave, from the latest search that asked it.
   const errors = new Map(((run.data?.errors ?? []) as { source?: string; error?: string }[]).filter((e) => e.source).map((e) => [e.source!, e.error ?? "no answer"]));
   const counts = new Map<string, number>();
@@ -56,7 +62,8 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
           lastRun={(run.data as LastRun | null) ?? null}
           sources={sourceNames}
           loadError={Boolean(jobs.error)}
-          openFirst={open && /^[0-9a-f-]{36}$/i.test(open) ? open : null}
+          openFirst={openId}
+          applyFirst={apply === "1"}
           health={health}
         />
       </div>

@@ -223,3 +223,14 @@ test("finds a read-check in a post and adds the line above the sign-off only onc
   assert.ok(hasReadLine(body, c));
   assert.ok(!hasReadLine("Hi Ada", c));
 });
+
+test("an address on its own line after 'send an email directly to' is found, with the exact title asked for", async () => {
+  const { findContactEmail, findRequiredSubject } = await import("./extract.ts");
+  const post = `Fluence is hiring.\n\nTo apply to this job please send an email directly to\n\ntechjobs@fluencetraining.com\n\nwith the email title [Full-Stack Developer @ Fluence International, Inc.]\n`;
+  assert.equal(findContactEmail(post)?.email, "techjobs@fluencetraining.com");
+  assert.equal(findRequiredSubject(post), "Full-Stack Developer @ Fluence International, Inc.");
+  assert.equal(findRequiredSubject("Subject: Frontend Engineer application."), "Frontend Engineer application");
+  assert.equal(findRequiredSubject("Use your name as the subject: Your name - role"), null);
+  // An address on the next line after an unrelated sentence is not taken.
+  assert.equal(findContactEmail("Questions about privacy go to\nprivacy@acme.com"), null);
+});

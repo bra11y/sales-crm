@@ -546,7 +546,7 @@ export default function ApplyForm({ facts, start }: { facts?: StoredFacts; start
                     Set up the extension to fill their form
                   </Button>
                 )}
-                <Button variant="secondary" size="md" className="h-11 rounded-xl px-4" href={`/jobs?open=${start.jobId}`}>
+                <Button variant="secondary" size="md" className="h-11 rounded-xl px-4" href={`/jobs?open=${start.jobId}&apply=1`}>
                   Send by email from the job
                 </Button>
               </div>
