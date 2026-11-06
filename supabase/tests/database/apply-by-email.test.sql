@@ -7,7 +7,8 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000b2', 'other@test.local');
 insert into public.profiles (user_id, name) values
   ('00000000-0000-0000-0000-0000000000b1', 'Sender'),
-  ('00000000-0000-0000-0000-0000000000b2', 'Other');
+  ('00000000-0000-0000-0000-0000000000b2', 'Other')
+on conflict (user_id) do update set name = excluded.name;
 insert into public.mail_accounts (user_id, email, secret_ciphertext, secret_iv, secret_tag) values
   ('00000000-0000-0000-0000-0000000000b1', 'sender@gmail.com', 'locked', 'iv', 'tag'),
   ('00000000-0000-0000-0000-0000000000b2', 'other@gmail.com', 'locked', 'iv', 'tag');

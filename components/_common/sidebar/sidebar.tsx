@@ -1,5 +1,7 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/_ui/sheet";
 import SidebarContent, { type SidebarData } from "./sidebar-content";
 import SidebarResizer from "./sidebar-resizer";
@@ -8,6 +10,9 @@ import { useCompaniesStore } from "@/stores/companies-store";
 export default function Sidebar({ data }: { data: SidebarData }) {
   const sidebarOpen = useCompaniesStore((state) => state.sidebarOpen);
   const setSidebarOpen = useCompaniesStore((state) => state.setSidebarOpen);
+  const pathname = usePathname();
+  // Tapping a link in the phone menu opens the page; the menu closes so you can see it.
+  useEffect(() => setSidebarOpen(false), [pathname, setSidebarOpen]);
 
   return (
     <>

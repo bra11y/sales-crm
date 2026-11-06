@@ -58,6 +58,9 @@ export async function loadProfile(db?: SupabaseClient, userId?: string): Promise
   const owner = await isOwner();
   const seed = { user_id: id, facts: storeFacts(owner ? base : blankFacts(base)), preferences: DEFAULT_PREFERENCES };
   const { data: made, error } = await client.from("job_profiles").insert(seed).select("user_id, facts, preferences, source_state, updated_at").single();
-  if (error || !made) return null;
+  if (error || !made) {
+    console.error("job profile could not be made", error?.code, error?.message);
+    return null;
+  }
   return toProfile(made as Row);
 }

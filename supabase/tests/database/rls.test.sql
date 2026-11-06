@@ -10,7 +10,8 @@ insert into auth.users (id, email) values
 insert into public.profiles (user_id, name) values
   ('00000000-0000-0000-0000-000000000001', 'Owner'),
   ('00000000-0000-0000-0000-000000000002', 'Member'),
-  ('00000000-0000-0000-0000-000000000003', 'Outsider');
+  ('00000000-0000-0000-0000-000000000003', 'Outsider')
+on conflict (user_id) do update set name = excluded.name;
 
 insert into public.workspaces (id, name, kind) overriding system value values (2, 'Other', 'internal');
 

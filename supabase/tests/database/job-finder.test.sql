@@ -7,7 +7,8 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000a2', 'other@test.local');
 insert into public.profiles (user_id, name) values
   ('00000000-0000-0000-0000-0000000000a1', 'Seeker'),
-  ('00000000-0000-0000-0000-0000000000a2', 'Other');
+  ('00000000-0000-0000-0000-0000000000a2', 'Other')
+on conflict (user_id) do update set name = excluded.name;
 
 insert into public.job_profiles (user_id, facts) values
   ('00000000-0000-0000-0000-0000000000a1', '{"person":{"name":"Seeker"}}'),

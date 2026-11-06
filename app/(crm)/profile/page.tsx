@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { signOut } from "@/app/(crm)/actions";
 import ProfileDoc from "@/components/profile/profile-doc";
 import { loadProfile } from "@/lib/jobs/profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -25,9 +27,19 @@ export default async function ProfilePage() {
         ) : (
           <>
             <h1 className="text-[28px] leading-[1.1] font-semibold tracking-[-0.02em]">Profile</h1>
-            <p role="alert" className="text-danger">
-              Your profile could not be loaded. Sign out, sign in again, then reopen this page.
+            <p role="alert" className="text-danger leading-normal">
+              Your profile could not be opened. Press Try again. If it still does not open, sign out and sign in again.
             </p>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/profile" className="bg-foreground text-background focus-visible:ring-ring inline-flex h-11 items-center rounded-xl px-5 text-[15px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-offset-2">
+                Try again
+              </Link>
+              <form action={signOut}>
+                <button type="submit" className="bg-secondary focus-visible:ring-ring inline-flex h-11 items-center rounded-xl px-5 text-[15px] font-medium outline-none focus-visible:ring-2">
+                  Sign out
+                </button>
+              </form>
+            </div>
           </>
         )}
       </div>
