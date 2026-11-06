@@ -12,7 +12,8 @@
     "frame:rive": "node scripts/rive-frame.mjs",
     "test": "node --experimental-strip-types --test \"lib/**/*.test.ts\"",
     "test:db": "supabase test db",
-    "db:reset": "supabase db reset"
+    "db:reset": "supabase db reset",
+    "ext:zip": "node scripts/zip-extension.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import Button from "@/components/_ui/button";
 import { makeExtensionCode, revokeExtensionCode } from "@/app/(crm)/profile/actions";
+import manifest from "@/extension/manifest.json";
 
 export type ExtensionState = { created_at: string; last_used_at: string | null } | null;
 
@@ -55,10 +56,16 @@ export default function ExtensionSection({ extension }: { extension: ExtensionSt
     <div className="flex flex-col gap-4">
       <ol className="flex list-decimal flex-col gap-1.5 pl-5 leading-normal">
         <li>
-          In Chrome, go to <strong>chrome://extensions</strong> and turn on <strong>Developer mode</strong>.
+          <a href="/sales-crm-apply.zip" download className="text-foreground focus-visible:ring-ring rounded font-medium underline underline-offset-2 outline-none focus-visible:ring-2">
+            Download the extension (version {manifest.version}, zip file)
+          </a>
+          , then unzip it. It works in Chrome, Edge and Brave on a computer.
         </li>
         <li>
-          Press <strong>Load unpacked</strong> and choose the <strong>extension</strong> folder inside the sales-crm project.
+          Go to <strong>chrome://extensions</strong> and turn on <strong>Developer mode</strong>.
+        </li>
+        <li>
+          Press <strong>Load unpacked</strong> and choose the unzipped folder. To update later, download it again, unzip over the old folder, and press the reload arrow on the extension.
         </li>
         <li>Make a connection code below, and paste it into the extension once.</li>
         <li>
