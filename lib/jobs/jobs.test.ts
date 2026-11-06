@@ -420,3 +420,17 @@ test("job titles become the search words, and long lists take turns day by day",
   assert.equal(new Set([...a, ...b]).size, 20);
   assert.deepEqual(cleanPreferences({ titles: [" Virtual Assistant ", "", "virtual assistant"] }).titles, ["Virtual Assistant"]);
 });
+
+test("with job titles set, the CV and letter use 'Your field', never a tech role type", () => {
+  const va = { ...DEFAULT_PREFERENCES, titles: ["Virtual Assistant"] };
+  const fit = scoreJob(post({ title: "Virtual Assistant", description: "Manage calendars, email and travel for our founder. ".repeat(10), tags: [] }), facts, va, now);
+  assert.equal(fit.track, "general");
+  assert.equal(fit.hidden, null);
+});
+
+test("someone new gets job titles from their own past jobs, and none of the owner's search words", async () => {
+  const { NEW_PERSON_PREFERENCES, titlesFromJobs, searchWords } = await import("./preferences.ts");
+  assert.deepEqual(titlesFromJobs([{ title: { general: "Senior Virtual Assistant (Remote)" } }, { title: { frontend: "Customer Support Agent" } }, { title: { general: "virtual assistant" } }]), ["Virtual Assistant", "Customer Support Agent"]);
+  assert.deepEqual(searchWords(NEW_PERSON_PREFERENCES), []);
+  assert.equal(NEW_PERSON_PREFERENCES.bigCompanies, false);
+});

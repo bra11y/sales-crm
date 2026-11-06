@@ -3,8 +3,10 @@
 import { type ReactNode, useId, useState } from "react";
 import Button from "@/components/_ui/button";
 
+// A real box with a visible edge, so every field reads as a field (the old underline-only look
+// was easy to miss, especially for people new to forms).
 export const FIELD =
-  "w-full rounded-lg border border-transparent border-b-[#6b6b6b] bg-transparent px-2 py-2 text-[14px] leading-normal text-foreground outline-none transition-[border-color,background-color] duration-150 ease-power3-out hover:bg-white/4 focus-visible:border-line-strong focus-visible:bg-secondary focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none";
+  "w-full rounded-lg border border-[#6b6b6b] bg-white/[0.03] px-3 py-2 text-[15px] leading-normal text-foreground outline-none transition-[border-color,background-color] duration-150 ease-power3-out hover:bg-white/[0.06] focus-visible:border-ring focus-visible:bg-secondary focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none";
 
 export function Section({ id, title, hint, open = true, children }: { id: string; title: string; hint?: string; open?: boolean; children: ReactNode }) {
   const [expanded, setExpanded] = useState(open);
@@ -36,7 +38,7 @@ export function Property({ label, value, onChange, type = "text", autoComplete, 
   const id = useId();
   return (
     <div className="grid grid-cols-1 items-start gap-1 sm:grid-cols-[11em_1fr] sm:gap-3">
-      <label htmlFor={id} className="text-soft pt-2.5 text-[14px] sm:pt-2.5">
+      <label htmlFor={id} className="pt-2.5 text-[14px] font-medium sm:pt-2.5">
         {label}
       </label>
       <div>

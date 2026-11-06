@@ -101,6 +101,27 @@ export const DEFAULT_PREFERENCES: Preferences = {
   titles: [],
 };
 
+// Someone new starts with no search words or company lists of their own yet: the owner's tech
+// words would fill their list with jobs outside their field.
+export const NEW_PERSON_PREFERENCES: Preferences = {
+  ...DEFAULT_PREFERENCES,
+  searches: [],
+  wideSearch: false,
+  cities: [],
+  boards: { greenhouse: [], ashby: [], lever: [] },
+  bigCompanies: false,
+  titles: [],
+};
+
+// Job titles from your own past jobs, for someone who has not chosen any yet.
+export function titlesFromJobs(jobs: { title: Record<string, string> }[]): string[] {
+  const seen = new Set<string>();
+  return jobs
+    .map((j) => (j.title.general || Object.values(j.title)[0] || "").replace(/\s*\(.*?\)\s*/g, " ").replace(/\b(senior|junior|lead|intern|trainee)\b/gi, "").replace(/\s+/g, " ").trim())
+    .filter((t) => t.length >= 3 && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()))
+    .slice(0, 5);
+}
+
 const words = (v: unknown, max: number) => [...new Set((Array.isArray(v) ? v : String(v ?? "").split(/[,\n]/)).map((s) => String(s).trim()).filter(Boolean))].map((s) => s.slice(0, 60)).slice(0, max);
 const slugs = (v: unknown) =>
   words(v, 30)

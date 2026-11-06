@@ -101,7 +101,7 @@ export function inYourFields(title: string, facts: Facts, prefs: Pick<Preference
       return main.length > 1 && main.every((w) => wordsOf(title).includes(w));
     });
   }
-  return Object.values(facts.tracks).some((tr) => new RegExp(`\\b(?:${tr.titleOk.source})`, "i").test(title));
+  return Object.entries(facts.tracks).some(([id, tr]) => id !== "general" && new RegExp(`\\b(?:${tr.titleOk.source})`, "i").test(title));
 }
 
 export function eligibility(post: JobPost, prefs: Preferences): { eligibility: Eligibility; why: string } {
@@ -137,7 +137,7 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
   const flags: string[] = [];
   const level = jobLevel(post.title, post.description);
 
-  const titledAs = prefs.titles?.length ? [] : Object.entries(facts.tracks).filter(([, t]) => new RegExp(`\\b(?:${t.titleOk.source})`, "i").test(post.title)).map(([id]) => id);
+  const titledAs = prefs.titles?.length ? [] : Object.entries(facts.tracks).filter(([id, t]) => id !== "general" && new RegExp(`\\b(?:${t.titleOk.source})`, "i").test(post.title)).map(([id]) => id);
   // Your own job titles decide when you set them. Else your role types do; saved profiles may
   // still have the older, looser title rules, so a front desk job is never "front-end".
   const titled = prefs.titles?.length ? inYourFields(post.title, facts, prefs) : titledAs.length > 0 && !NOT_TECH.test(post.title);
@@ -187,7 +187,8 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
     band: score >= 70 ? "strong" : score >= 50 ? "good" : "maybe",
     eligibility: where.eligibility,
     payMonthlyUsd: pay,
-    track: a.track,
+    // With your own job titles, CVs and letters use "Your field" and the summary from your CV.
+    track: prefs.titles?.length && facts.tracks.general ? "general" : a.track,
     matched,
     gaps: a.gaps,
     reasons,

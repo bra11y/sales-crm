@@ -94,9 +94,10 @@
   const today = () => new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const mdSafe = s => s.replace(/([*_`[\]])/g, "\\$1");
 
+  // Only what you filled in: an empty link never shows.
   function contactLine(p, withBehance) {
-    return [p.location, p.remote, p.email, p.phone, `[LinkedIn](${p.linkedin})`, `[Portfolio](${p.portfolio})`]
-      .concat(withBehance ? [`[Behance](${p.behance})`] : []).join(" | ");
+    return [p.location, p.remote, p.email, p.phone, p.linkedin && `[LinkedIn](${p.linkedin})`, p.portfolio && `[Portfolio](${p.portfolio})`]
+      .concat(withBehance && p.behance ? [`[Behance](${p.behance})`] : []).filter(Boolean).join(" | ");
   }
 
   // Level words are dropped: the CV never claims a seniority the years can't back.
@@ -105,11 +106,13 @@
   const cleanRole = role => (role || "").replace(/\s*\([^)]*\)/g, "").replace(/\s+[-|]\s+(remote|hybrid|contract|freelance|part[- ]time|full[- ]time).*$/i, "").replace(/,?\s+(temp(orary)?[- ]to[- ]perm(anent)?|contract[- ]to[- ]hire)$/i, "").trim();
   const plainRole = role => cleanRole(role).replace(LEVEL, "").replace(/\s+/g, " ").trim();
 
+  // The job's own title when your work fits it, with your certificate only if you have one.
   function headline(track, role, facts) {
     const t = facts.tracks[track];
     const r = plainRole(role);
-    if (r && t.titleOk.test(r)) return /cpacc/i.test(r) ? r : `${r} (CPACC)`;
-    return t.title;
+    const cert = (facts.person.cpacc || "").match(/^[A-Z]{2,8}\b/);
+    if (r && (track === "general" || t.titleOk.test(r))) return cert && !r.includes(cert[0]) ? `${r} (${cert[0]})` : r;
+    return t.title || r || "";
   }
 
   // ---------- CV ----------

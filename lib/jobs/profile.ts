@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import SEED from "@/lib/apply/facts.js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { blankFacts, type Facts, hydrateFacts, type StoredFacts, storeFacts } from "./facts.ts";
-import { cleanPreferences, DEFAULT_PREFERENCES, type Preferences } from "./preferences.ts";
+import { cleanPreferences, DEFAULT_PREFERENCES, NEW_PERSON_PREFERENCES, type Preferences, titlesFromJobs } from "./preferences.ts";
 
 export type JobProfile = { userId: string; facts: Facts; stored: StoredFacts; preferences: Preferences; sourceState: Record<string, string>; updatedAt: string };
 
@@ -52,11 +52,18 @@ export async function loadProfile(db?: SupabaseClient, userId?: string): Promise
       row.facts = { ...row.facts, jobs, tracks: { ...row.facts.tracks, ...Object.fromEntries(missing.map((t) => [t, add[t]])) } };
       await client.from("job_profiles").update({ facts: row.facts }).eq("user_id", id);
     }
+    // Someone who started with the owner's tech search words gets their own, once: no tech words,
+    // and job titles taken from the jobs in their own Profile.
+    const prefs = cleanPreferences(row.preferences);
+    if (!prefs.titles.length && JSON.stringify(prefs.searches) === JSON.stringify(DEFAULT_PREFERENCES.searches) && !(await isOwner())) {
+      row.preferences = { ...prefs, searches: [], wideSearch: false, boards: NEW_PERSON_PREFERENCES.boards, cities: [], bigCompanies: false, titles: titlesFromJobs(row.facts.jobs ?? []) };
+      await client.from("job_profiles").update({ preferences: row.preferences }).eq("user_id", id);
+    }
     return toProfile(row);
   }
 
   const owner = await isOwner();
-  const seed = { user_id: id, facts: storeFacts(owner ? base : blankFacts(base)), preferences: DEFAULT_PREFERENCES };
+  const seed = { user_id: id, facts: storeFacts(owner ? base : blankFacts(base)), preferences: owner ? DEFAULT_PREFERENCES : NEW_PERSON_PREFERENCES };
   const { data: made, error } = await client.from("job_profiles").insert(seed).select("user_id, facts, preferences, source_state, updated_at").single();
   if (error || !made) {
     console.error("job profile could not be made", error?.code, error?.message);

@@ -9,7 +9,7 @@ import { connectGmail, sendTestEmail } from "@/lib/apply/outbox";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
-import { cvPrompt, mergeCv, readCv } from "@/lib/jobs/cv-import";
+import { backedBy, cvPrompt, mergeCv, readCv } from "@/lib/jobs/cv-import";
 import { askJson, learnProviders } from "@/lib/learn/ai";
 import { bookText } from "@/lib/learn/read-book";
 import { htmlToText } from "@/lib/jobs/text";
@@ -132,4 +132,38 @@ export async function importCv(input: { path?: string; mime?: string; text?: str
     .eq("user_id", current.userId);
   if (error) return { ok: false, error: "Your CV was read but your profile could not be saved. Try again." };
   return { ok: true, added };
+}
+
+// Writes the summary, letter opening and story for one kind of job, from your own Profile only.
+// Any number that is not in your Profile is a reason to drop the draft.
+export async function writeSummary(trackId: string): Promise<{ ok: true; profile: string; hook: string; story: string } | { ok: false; error: string }> {
+  const supabase = await createSupabaseServerClient();
+  const current = await loadProfile(supabase);
+  if (!current) return { ok: false, error: "Sign in again, then try once more." };
+  const track = current.stored.tracks[trackId];
+  if (!track) return { ok: false, error: "That kind of job was not found." };
+  const f = current.stored;
+  const mine = [
+    `Name: ${f.person.name}`,
+    `Job titles wanted: ${current.preferences.titles.join(", ") || track.label}`,
+    `Skills: ${f.skills.flatMap((g) => g.items.map((i) => i.label)).join(", ")}`,
+    ...f.jobs.map((j) => `Job: ${Object.values(j.title)[0]} at ${j.org} (${j.dates})\n${j.bullets.map((b) => `- ${b.text}`).join("\n")}`),
+    `Projects: ${f.projects.map((p) => p.text).join("; ")}`,
+    `Certifications: ${f.certifications.join("; ")}`,
+    `Education: ${f.education.degree} ${f.education.school}`,
+  ].join("\n");
+  if (mine.replace(/[^a-z]/gi, "").length < 120) return { ok: false, error: "Add your skills and at least one job first, or set up your Profile from your CV." };
+  const providers = current.preferences.ai === "off" ? [] : learnProviders(process.env, (await headers()).get("x-vercel-oidc-token"));
+  const system = [
+    `You write the top of a CV and the opening of cover letters for someone applying for ${trackId === "general" ? current.preferences.titles.join(" or ") || "their field" : track.label} jobs.`,
+    "Use only facts in their profile. Never add a number, employer, tool or result that is not there.",
+    "Plain English, first person, active voice. No em dashes. Never use: passionate, results-driven, dynamic, leverage, seamless, robust, synergy, hard-working, team player.",
+    'Reply with JSON only: {"profile":"2 to 3 sentences: who they are, their strongest true result, what they do best","hook":"one sentence with their strongest true results","story":"2 sentences: one real example from their jobs, with its result"}',
+  ].join("\n");
+  const r = await askJson(providers, system, `Their profile:\n${mine}`, (v) => {
+    const clean = (x: unknown, n: number) => String(x ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, n);
+    const out = { profile: clean(v.profile, 900), hook: clean(v.hook, 400), story: clean(v.story, 600) };
+    return out.profile && backedBy(`${out.profile} ${out.hook} ${out.story}`, mine) ? out : null;
+  }, 1200);
+  return r.ok ? { ok: true, ...r.value } : { ok: false, error: `It could not be written just now (${r.error}). Try again in a minute.` };
 }

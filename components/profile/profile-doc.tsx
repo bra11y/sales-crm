@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LEVEL_LABEL, LEVELS } from "@/lib/jobs/level";
 import Button from "@/components/_ui/button";
-import { saveProfile } from "@/app/(crm)/profile/actions";
+import { saveProfile, writeSummary } from "@/app/(crm)/profile/actions";
 import type { StoredFacts } from "@/lib/jobs/facts";
 import { type Preferences, WIDE_SEARCHES } from "@/lib/jobs/preferences";
 import ExtensionSection, { type ExtensionState } from "./extension-section";
@@ -22,22 +22,19 @@ type Props = {
   top?: React.ReactNode;
 };
 
-const PERSON: {
-  key: string;
-  label: string;
-  type?: string;
-  autoComplete?: string;
-}[] = [
-  { key: "brand", label: "Known as" },
-  { key: "email", label: "Email", type: "email", autoComplete: "email" },
-  { key: "phone", label: "Phone", type: "tel", autoComplete: "tel" },
-  { key: "location", label: "Location", autoComplete: "address-level2" },
-  { key: "remote", label: "Remote note" },
-  { key: "linkedin", label: "LinkedIn", type: "url", autoComplete: "url" },
-  { key: "portfolio", label: "Portfolio", type: "url", autoComplete: "url" },
-  { key: "behance", label: "Behance", type: "url" },
-  { key: "cpacc", label: "Certificate line" },
-  { key: "business", label: "Business" },
+// Plain names and a line on what each is for. The ones most people never need sit under
+// "More about you", so the first screen asks only for what every CV has.
+const PERSON: { key: string; label: string; type?: string; autoComplete?: string; hint: string; more?: boolean }[] = [
+  { key: "email", label: "Email", type: "email", autoComplete: "email", hint: "Where employers reply. It goes at the top of your CV." },
+  { key: "phone", label: "Phone", type: "tel", autoComplete: "tel", hint: "With your country code, like +234 803 000 0000." },
+  { key: "location", label: "City and country", autoComplete: "address-level2", hint: "Like Lagos, Nigeria. Employers use it to check time zones." },
+  { key: "linkedin", label: "LinkedIn link", type: "url", autoComplete: "url", hint: "Your LinkedIn profile address. Leave empty if you have none." },
+  { key: "portfolio", label: "Link to your work", type: "url", autoComplete: "url", hint: "A website, Google Drive folder or page that shows your work. Optional." },
+  { key: "remote", label: "Where you can work", hint: "One line, like: Open to remote work worldwide. Optional.", more: true },
+  { key: "brand", label: "Name people know you by", hint: "A nickname or brand you use at work, shown after your name in letters. Optional.", more: true },
+  { key: "cpacc", label: "Your main certificate", hint: "One certificate with its number, shown under your name in letters. Optional.", more: true },
+  { key: "behance", label: "Design portfolio (Behance)", type: "url", hint: "Only for designers: a link to Behance or Dribbble. Leave empty otherwise.", more: true },
+  { key: "business", label: "Your registered business", hint: "If you run a business, its name and number. Optional.", more: true },
 ];
 
 const time = (iso: string) =>
@@ -160,16 +157,17 @@ export default function ProfileDoc({
       {view === "profile" && (
         <>
           <div className="flex flex-col gap-1">
-            {PERSON.filter((p) => p.key in facts.person).map((p) => (
-              <Property
-                key={p.key}
-                label={p.label}
-                type={p.type}
-                autoComplete={p.autoComplete}
-                value={facts.person[p.key] ?? ""}
-                onChange={(v) => edit((f) => ((f.person[p.key] = v), f))}
-              />
+            {PERSON.filter((p) => !p.more).map((p) => (
+              <Property key={p.key} label={p.label} type={p.type} autoComplete={p.autoComplete} hint={p.hint} value={facts.person[p.key] ?? ""} onChange={(v) => edit((f) => ((f.person[p.key] = v), f))} />
             ))}
+            <details open={PERSON.some((p) => p.more && facts.person[p.key]?.trim())} className="pt-1">
+              <summary className="focus-visible:ring-ring text-soft min-h-11 cursor-pointer content-center rounded px-2 text-[14px] font-medium outline-none focus-visible:ring-2">More about you (optional)</summary>
+              <div className="flex flex-col gap-1 pt-2">
+                {PERSON.filter((p) => p.more).map((p) => (
+                  <Property key={p.key} label={p.label} type={p.type} autoComplete={p.autoComplete} hint={p.hint} value={facts.person[p.key] ?? ""} onChange={(v) => edit((f) => ((f.person[p.key] = v), f))} />
+                ))}
+              </div>
+            </details>
           </div>
         </>
       )}
@@ -779,64 +777,29 @@ export default function ProfileDoc({
         <>
           <Section
             id="tracks"
-            title="Role types"
-            open={false}
-            hint="Each role type has its own profile text for the CV and cover letter. Job titles that count decide which jobs are in your field."
+            title="Your CV summary"
+            open={!Object.values(facts.tracks).some((tr) => tr.profile.trim())}
+            hint="The short text at the top of your CV and the first lines of your letters. There is one for each kind of job, and each letter uses the one that fits the job."
           >
-            {trackIds.map((t) => {
-              const track = facts.tracks[t];
+            {(() => {
+              const order = prefs.titles.length ? ["general", ...trackIds.filter((t) => t !== "general")] : trackIds.filter((t) => t !== "general");
+              const main = order.filter((t, i) => i === 0 || facts.tracks[t]?.profile.trim());
+              const rest = order.filter((t) => !main.includes(t));
+              const card = (t: string) => <TrackCard key={t} id={t} track={facts.tracks[t]} titles={prefs.titles} onEdit={edit} />;
               return (
-                <div
-                  key={t}
-                  className="border-line-strong flex flex-col gap-2 rounded-xl border p-3"
-                >
-                  <h3 className="px-2 font-medium">{track.label}</h3>
-                  <Property
-                    label="CV headline"
-                    value={track.title}
-                    onChange={(v) => edit((f) => ((f.tracks[t].title = v), f))}
-                  />
-                  <TextBlock
-                    label="Job titles that count"
-                    rows={2}
-                    value={track.titleOk.split("|").join(", ")}
-                    hint="Separate with commas. A job is in your field when its title starts a word with one of these."
-                    onChange={(v) =>
-                      edit(
-                        (f) => (
-                          (f.tracks[t].titleOk = v
-                            .split(",")
-                            .map((w) => w.replace(/^\s+/, ""))
-                            .filter((w) => w.trim())
-                            .join("|")),
-                          f
-                        ),
-                      )
-                    }
-                  />
-                  <TextBlock
-                    label="CV profile"
-                    rows={4}
-                    value={track.profile}
-                    onChange={(v) =>
-                      edit((f) => ((f.tracks[t].profile = v), f))
-                    }
-                  />
-                  <TextBlock
-                    label="Cover letter opening"
-                    rows={2}
-                    value={track.hook}
-                    onChange={(v) => edit((f) => ((f.tracks[t].hook = v), f))}
-                  />
-                  <TextBlock
-                    label="Cover letter story"
-                    rows={3}
-                    value={track.story}
-                    onChange={(v) => edit((f) => ((f.tracks[t].story = v), f))}
-                  />
-                </div>
+                <>
+                  {main.map(card)}
+                  {rest.length > 0 && (
+                    <details className="pt-1">
+                      <summary className="focus-visible:ring-ring text-soft min-h-11 cursor-pointer content-center rounded px-2 text-[14px] font-medium outline-none focus-visible:ring-2">
+                        More kinds of job ({rest.map((t) => facts.tracks[t]?.label).join(", ")})
+                      </summary>
+                      <div className="flex flex-col gap-3 pt-2">{rest.map(card)}</div>
+                    </details>
+                  )}
+                </>
               );
-            })}
+            })()}
           </Section>
         </>
       )}
@@ -873,5 +836,74 @@ export default function ProfileDoc({
         </>
       )}
     </article>
+  );
+}
+
+function TrackCard({ id, track, titles, onEdit }: { id: string; track: StoredFacts["tracks"][string]; titles: string[]; onEdit: (fn: (f: StoredFacts) => StoredFacts) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const [problem, setProblem] = useState("");
+  const name = id === "general" ? (titles.length ? `Your field: ${titles.slice(0, 3).join(", ")}` : "Your field") : track.label;
+
+  async function write() {
+    if (busy) return;
+    setBusy(true);
+    setProblem("");
+    setNote("Writing it from your Profile…");
+    const r = await writeSummary(id);
+    setBusy(false);
+    if (!r.ok) {
+      setNote("");
+      return setProblem(r.error);
+    }
+    onEdit((f) => ((f.tracks[id] = { ...f.tracks[id], profile: r.profile, hook: r.hook || f.tracks[id].hook, story: r.story || f.tracks[id].story }), f));
+    setNote("Written from your Profile. Read it and change anything that does not sound like you.");
+  }
+
+  return (
+    <div className="border-line-strong flex flex-col gap-2 rounded-xl border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-2">
+        <h3 className="font-medium">{name}</h3>
+        <Button variant={track.profile.trim() ? "ghost" : "secondary"} size="md" className="h-11 rounded-xl px-4" aria-disabled={busy} onClick={write}>
+          {busy ? "Writing…" : track.profile.trim() ? "Write it again" : "Write it for me"}
+          <span className="sr-only"> for {name}</span>
+        </Button>
+      </div>
+      <p role="status" aria-live="polite" className="caption-style text-soft px-2 empty:hidden">
+        {note}
+      </p>
+      {problem && (
+        <p role="alert" className="text-danger px-2 text-[14px]">
+          {problem}
+        </p>
+      )}
+      <Property label="Headline under your name" value={track.title} hint="Usually the job title you want, like Virtual Assistant. Left empty, the job's own title is used." onChange={(v) => onEdit((f) => ((f.tracks[id].title = v), f))} />
+      <TextBlock label="Summary at the top of your CV" rows={4} value={track.profile} hint="Two or three true sentences: who you are and your best result." onChange={(v) => onEdit((f) => ((f.tracks[id].profile = v), f))} />
+      <TextBlock label="First line of your letters" rows={2} value={track.hook} hint="One sentence with your strongest true result, so the letter opens with proof." onChange={(v) => onEdit((f) => ((f.tracks[id].hook = v), f))} />
+      <TextBlock label="A short true story for letters" rows={3} value={track.story} hint="One real example from your work and what came of it." onChange={(v) => onEdit((f) => ((f.tracks[id].story = v), f))} />
+      {id !== "general" && (
+        <details className="px-2">
+          <summary className="focus-visible:ring-ring text-soft min-h-11 cursor-pointer content-center rounded text-[13px] outline-none focus-visible:ring-2">Advanced: which job titles count as this kind of job</summary>
+          <TextBlock
+            label="Job titles that count"
+            rows={2}
+            value={track.titleOk.split("|").join(", ")}
+            hint="Separate with commas. Used only when you have not set the job titles you want in Settings."
+            onChange={(v) =>
+              onEdit(
+                (f) => (
+                  (f.tracks[id].titleOk = v
+                    .split(",")
+                    .map((w) => w.replace(/^\s+/, ""))
+                    .filter((w) => w.trim())
+                    .join("|")),
+                  f
+                ),
+              )
+            }
+          />
+        </details>
+      )}
+    </div>
   );
 }

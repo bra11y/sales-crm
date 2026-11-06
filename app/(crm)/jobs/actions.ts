@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { loadProfile } from "@/lib/jobs/profile";
+import { cleanPreferences } from "@/lib/jobs/preferences";
 import { headers } from "next/headers";
 import { applyByEmail, type HiringResult, MANUAL_PROOF, markApplied, noteApplied, type Prepared, prepare, searchHiring } from "@/lib/apply/outbox";
 import { lookUpCompany, type CompanyInfo } from "@/lib/jobs/company";
 import { currentUserId } from "@/lib/jobs/profile";
-import { searchJobs, type SearchResult } from "@/lib/jobs/search";
+import { rescoreSaved, searchJobs, type SearchResult } from "@/lib/jobs/search";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -118,4 +120,20 @@ export async function markJobApplied(jobId: string): Promise<{ ok: true } | { ok
   revalidatePath("/jobs");
   revalidatePath("/applications");
   return r.ok ? { ok: true } : r;
+}
+
+// The job titles you want, from the Jobs page's first question.
+export async function saveJobTitles(titles: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createSupabaseServerClient();
+  const profile = await loadProfile(supabase);
+  if (!profile) return { ok: false, error: "Sign in again, then try once more." };
+  const preferences = cleanPreferences({ ...profile.preferences, titles });
+  if (!preferences.titles.length) return { ok: false, error: "Add at least one job title." };
+  const { error } = await supabase.from("job_profiles").update({ preferences, updated_at: new Date().toISOString() }).eq("user_id", profile.userId);
+  if (error) return { ok: false, error: "Your job titles were not saved. Try again." };
+  const admin = createSupabaseAdminClient();
+  const fresh = admin ? await loadProfile(admin, profile.userId) : null;
+  if (admin && fresh) await rescoreSaved(admin, profile.userId, fresh).catch(() => 0);
+  revalidatePath("/jobs");
+  return { ok: true };
 }

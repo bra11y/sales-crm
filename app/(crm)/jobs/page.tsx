@@ -1,3 +1,5 @@
+import JobTitlesPrompt from "@/components/jobs/job-titles-prompt";
+import { titlesFromJobs } from "@/lib/jobs/preferences";
 import type { Metadata } from "next";
 import JobsBoard, { type BoardHealth, type JobItem, type LastRun } from "@/components/jobs/jobs-board";
 import { currentUserId, loadProfile } from "@/lib/jobs/profile";
@@ -57,6 +59,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
             That page is for the people who run this CRM, so you were brought to Jobs. Ask the owner if you need it.
           </p>
         )}
+        {prof && !prof.preferences.titles.length && !prof.preferences.searches.length && <JobTitlesPrompt fromCv={titlesFromJobs(prof.stored.jobs)} />}
         <JobsBoard
           initialJobs={((jobs.data ?? []) as Omit<JobItem, "apply_email">[]).map((j) => ({ ...j, apply_email: j.contact_email ?? findContactEmail(j.description)?.email ?? null }))}
           lastRun={(run.data as LastRun | null) ?? null}
