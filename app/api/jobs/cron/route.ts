@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { tick } from "@/lib/apply/outbox";
 import { searchJobs } from "@/lib/jobs/search";
+import { searchGrants } from "@/lib/grants/search";
 import { searchScholarships } from "@/lib/scholarships/search";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -25,7 +26,12 @@ export async function GET(request: Request) {
     const r = await searchJobs(admin, user_id, "schedule");
     // Scholarships are searched in the same daily run, so they arrive like jobs do.
     const s = await searchScholarships(admin, user_id, "schedule");
-    results.push({ jobs: r.ok ? { added: r.added, kept: r.kept, errors: r.errors } : { error: r.error }, scholarships: s.ok ? { added: s.added, errors: s.errors } : { error: s.error } });
+    const g = await searchGrants(admin, user_id);
+    results.push({
+      jobs: r.ok ? { added: r.added, kept: r.kept, errors: r.errors } : { error: r.error },
+      scholarships: s.ok ? { added: s.added, errors: s.errors } : { error: s.error },
+      grants: g.ok ? { added: g.added, errors: g.errors } : { error: g.error },
+    });
   }
   // The daily run also sends and checks replies, in case the hourly GitHub tick is not set up.
   const mail = await tick(admin, Date.now() + 120_000);
