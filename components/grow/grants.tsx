@@ -152,7 +152,7 @@ export function GrantFinder({ items, sources, now, lastFound }: { items: FoundGr
                     Track this
                   </Button>
                 )}
-                <Button type="button" variant="ghost" size="md" aria-disabled={pending} onClick={() => run(() => dismissGrantLead(g.id), `${g.title} removed from the list.`)} className="h-11 rounded-xl px-4">
+                <Button type="button" variant="ghost" size="md" aria-disabled={pending} onClick={() => run(() => dismissGrantLead(g.id), `${g.title} removed from the list.`)} className="text-soft hover:text-foreground h-11 rounded-xl px-4">
                   Not for me
                 </Button>
               </div>
@@ -452,7 +452,7 @@ function AnswerCard({ a }: { a: GrantAnswer }) {
             <Button type="submit" variant="primary" size="md" aria-disabled={pending} className="h-11 rounded-xl px-4">
               Save answer
             </Button>
-            <Button type="button" variant="ghost" size="md" onClick={() => setEditing(false)} className="h-11 rounded-xl px-4">
+            <Button type="button" variant="ghost" size="md" onClick={() => setEditing(false)} className="text-soft hover:text-foreground h-11 rounded-xl px-4">
               Cancel
             </Button>
           </div>
@@ -469,7 +469,7 @@ function AnswerCard({ a }: { a: GrantAnswer }) {
             <Button type="button" variant="secondary" size="md" onClick={copy} className="h-11 rounded-xl px-4">
               Copy answer
             </Button>
-            <Button type="button" variant="ghost" size="md" onClick={() => setEditing(true)} className="h-11 rounded-xl px-4">
+            <Button type="button" variant="ghost" size="md" onClick={() => setEditing(true)} className="text-soft hover:text-foreground h-11 rounded-xl px-4">
               Edit
             </Button>
             <Button type="button" variant="ghost" size="md" aria-disabled={pending} onClick={remove} className="text-soft hover:text-foreground h-11 rounded-xl px-4">
