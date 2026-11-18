@@ -263,7 +263,7 @@ function GrantCard({ g, now, businesses }: { g: Grant; now: string; businesses: 
         <Button type="button" variant="secondary" size="md" aria-disabled={pending} onClick={() => save({ note }, "Notes saved.")} className="h-11 rounded-xl px-4">
           Save notes
         </Button>
-        <Button type="button" variant="ghost" size="md" aria-disabled={pending} onClick={remove} className="h-11 rounded-xl px-4">
+        <Button type="button" variant="ghost" size="md" aria-disabled={pending} onClick={remove} className="text-soft hover:text-foreground h-11 rounded-xl px-4">
           {confirming ? "Remove: press again" : "Remove"}
         </Button>
       </div>
@@ -472,7 +472,7 @@ function AnswerCard({ a }: { a: GrantAnswer }) {
             <Button type="button" variant="ghost" size="md" onClick={() => setEditing(true)} className="h-11 rounded-xl px-4">
               Edit
             </Button>
-            <Button type="button" variant="ghost" size="md" aria-disabled={pending} onClick={remove} className="h-11 rounded-xl px-4">
+            <Button type="button" variant="ghost" size="md" aria-disabled={pending} onClick={remove} className="text-soft hover:text-foreground h-11 rounded-xl px-4">
               {confirming ? "Delete: press again" : "Delete"}
             </Button>
           </div>
