@@ -110,7 +110,7 @@ export function GrantFinder({ items, sources, now, lastFound }: { items: FoundGr
       ) : (
         <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {shown.map((g) => (
-            <li key={g.id} className={cn(CARD, g.hidden && "opacity-70")}>
+            <li key={g.id} className={cn(CARD, g.hidden && "outline-line-strong outline-1 -outline-offset-1 outline-dashed")}>
               <div className="flex flex-wrap items-center gap-2 text-[13px]">
                 <span className={cn("rounded-full px-2.5 py-1 font-medium", g.hidden ? "bg-white/10" : g.band === "strong" ? "bg-emerald-500/20 text-emerald-200" : "bg-white/10")}>
                   {g.hidden ? `Hidden: ${g.hidden}` : `${g.score} · ${BAND[g.band]}`}
@@ -174,6 +174,7 @@ function GrantCard({ g, now, businesses }: { g: Grant; now: string; businesses: 
   const [error, setError] = useState("");
 
   function save(patch: Parameters<typeof updateGrant>[1], done: string) {
+    if (pending) return;
     start(async () => {
       const r = await updateGrant(g.id, patch);
       if (!r.ok) return setError(r.error);
