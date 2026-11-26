@@ -65,6 +65,7 @@ function Nav({ data, deal }: { data: SidebarData; deal: string | null }) {
     },
     { label: "Applications", href: "/applications", icon: ClipboardIcon, count: data.applications, active: at("/applications", "/outbox") },
     { label: "CV and letter", href: "/apply", icon: MailIcon, active: at("/apply") },
+    { label: "Job coach", href: "/coach", icon: MessageQuestionIcon, active: at("/coach") },
     { label: "Profile", href: "/profile", icon: UsersIcon, active: at("/profile") },
   ];
   const opportunities: NavEntry[] = [
