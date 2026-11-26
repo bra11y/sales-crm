@@ -12,6 +12,8 @@ export type NoteAi = {
   posts: NotePost[];
   ideas: string[];
   projects: string[];
+  // How the ideas lead from one to the next, drawn as a flowchart. Older notes have none.
+  flow?: string[];
   provider: string;
   at: string;
 };
@@ -75,7 +77,8 @@ export function notePrompt(source: Source, text: string, partial: boolean): { sy
     "posts must hold exactly three items: one for LinkedIn, one for X and one for Instagram.",
     '{"summary":"3 to 5 sentences","points":["5 to 8 key points, one sentence each"],"questions":["4 study questions that check understanding"],',
     '"posts":[{"platform":"LinkedIn","text":"80 to 150 words, a lesson in the writer\'s own voice"},{"platform":"X","text":"under 270 characters"},{"platform":"Instagram","text":"a caption of 40 to 80 words"}],',
-    '"ideas":["4 content ideas: a post, a short video or a thread, each one line"],"projects":["3 small projects that practise what was learned, each one line"]}',
+    '"ideas":["4 content ideas: a post, a short video or a thread, each one line"],"projects":["3 small projects that practise what was learned, each one line"],',
+    FLOW_SHAPE,
   ].join("\n");
   const user = [
     `Title: ${source.title}`,
@@ -94,6 +97,9 @@ export function partPrompt(source: Source, part: string, n: number, of: number):
     user: `Title: ${source.title}\nPart ${n} of ${of}:\n${part}`,
   };
 }
+
+// The flowchart: the main idea first, then each step it leads to, in order.
+const FLOW_SHAPE = '"flow":["4 to 7 short steps, under 8 words each, showing how the ideas lead from one to the next, starting with the main idea"]}';
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").replace(/\s*—\s*/g, ", ").trim().slice(0, max) : "");
 const strs = (v: unknown, n: number, max: number) => (Array.isArray(v) ? v.map((x) => str(x, max)).filter(Boolean).slice(0, n) : []);
@@ -125,7 +131,8 @@ export function parseNote(text: string): Omit<NoteAi, "provider" | "at"> | null 
     })
     .filter((p): p is NotePost => Boolean(p?.text))
     .slice(0, 3);
-  return { summary, points, questions: strs(v.questions, 6, 300), posts, ideas: strs(v.ideas, 6, 300), projects: strs(v.projects, 5, 300) };
+  const flow = strs(v.flow, 7, 80);
+  return { summary, points, questions: strs(v.questions, 6, 300), posts, ideas: strs(v.ideas, 6, 300), projects: strs(v.projects, 5, 300), ...(flow.length >= 3 ? { flow } : {}) };
 }
 
 export async function chat(p: Provider, system: string, user: string, fetcher: Fetcher = fetch, maxTokens = 2000): Promise<string> {
@@ -242,7 +249,7 @@ export function bookIdeasPrompt(title: string, author: string, field: string): {
     system: [
       "You explain the main ideas of a well-known book for a learner.",
       STYLE.replace("Use only what the source says. Never add numbers, names, quotes or claims that are not in it.", "Never quote the book. If you do not know this book well, say so in the summary and keep the points general."),
-      'Reply with JSON only: {"summary":"3 to 5 sentences","points":["5 to 8 main ideas"],"questions":["4 questions to think about while reading"],"posts":[],"ideas":["3 content ideas"],"projects":["3 small projects that practise the ideas"]}',
+      `Reply with JSON only: {"summary":"3 to 5 sentences","points":["5 to 8 main ideas"],"questions":["4 questions to think about while reading"],"posts":[],"ideas":["3 content ideas"],"projects":["3 small projects that practise the ideas"],${FLOW_SHAPE}`,
     ].join("\n"),
     user: `Book: ${title}\nAuthor: ${author || "unknown"}\nThe reader works in: ${field}`,
   };

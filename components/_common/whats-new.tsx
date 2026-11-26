@@ -6,17 +6,17 @@ import { useSyncExternalStore } from "react";
 import { LINK } from "@/components/workspace/parts";
 
 // One announcement at a time. Change the id to show a new one to everyone again.
-const NEWS = {
-  id: "learn-2026-11",
-  title: "New: learn from videos and books",
+export const NEWS = {
+  id: "markets-2026-11",
+  title: "New: markets, NGO jobs, conferences and lessons",
   points: [
-    "Paste a YouTube link and get a summary, study questions and post drafts.",
-    "Free books for your field, and summaries of your own PDF and EPUB books.",
-    "Notes come back for review, so you remember what you learned.",
+    "Markets: the official naira rate and Nigerian market news every morning.",
+    "NGO jobs and conferences, found for you each day.",
+    "Books and podcasts in lessons of 2 hours or less, and notes now draw how ideas connect.",
   ],
-  cta: { href: "/notes", label: "Try Notes" },
-  more: { href: "/help#learn", label: "How it works" },
-  hideOn: ["/notes", "/books", "/help"],
+  cta: { href: "/market", label: "See markets" },
+  more: { href: "/ngo", label: "NGO jobs" },
+  hideOn: ["/market", "/help"],
 };
 const KEY = "whats-new-dismissed";
 
@@ -44,6 +44,7 @@ export default function WhatsNew() {
       localStorage.setItem(KEY, NEWS.id);
     } catch {}
     listeners.forEach((fn) => fn());
+    window.dispatchEvent(new Event("whats-new-dismissed"));
     document.getElementById("main")?.focus();
   }
 

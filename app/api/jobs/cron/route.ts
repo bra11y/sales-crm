@@ -5,6 +5,8 @@ import { searchConferences } from "@/lib/conferences/search";
 import { searchGrants } from "@/lib/grants/search";
 import { searchScholarships } from "@/lib/scholarships/search";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { aiProviders } from "@/lib/apply/ai";
+import { refreshMarket } from "@/lib/market/market";
 
 export const maxDuration = 300;
 
@@ -21,6 +23,8 @@ export async function GET(request: Request) {
   const admin = createSupabaseAdminClient();
   if (!admin) return Response.json({ error: "Database not configured" }, { status: 500 });
 
+  // Markets first: one row for everyone, so the morning page is ready early.
+  const market = await refreshMarket(admin, aiProviders(process.env, request.headers.get("x-vercel-oidc-token"))).catch((e) => ({ ok: false, error: e instanceof Error ? e.message : "failed" }));
   const { data: users } = await admin.from("job_profiles").select("user_id");
   const results = [];
   for (const { user_id } of users ?? []) {
@@ -41,5 +45,5 @@ export async function GET(request: Request) {
   // After the night's searches and sends: one email to each person listing what needs them.
   const digests = [];
   for (const { user_id } of users ?? []) digests.push(await sendDigest(admin, user_id, new Date()));
-  return Response.json({ users: results.length, results, mail, digests });
+  return Response.json({ users: results.length, market, results, mail, digests });
 }

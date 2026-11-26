@@ -3,6 +3,7 @@ import Sidebar from "@/components/_common/sidebar/sidebar";
 import MobileBar from "@/components/_common/mobile-bar";
 import Tour from "@/components/_common/tour";
 import WhatsNew from "@/components/_common/whats-new";
+import DailyMindset from "@/components/_common/daily-mindset";
 import type { SidebarData } from "@/components/_common/sidebar/sidebar-content";
 import { asRole, can } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -56,6 +57,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <RegisterSW />
         <MobileBar />
         <WhatsNew />
+        <DailyMindset />
         <Tour crm={can(data.role, "crm:use")} />
         {children}
       </main>

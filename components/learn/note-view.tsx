@@ -1,5 +1,6 @@
 "use client";
 
+import FlowDiagram from "@/components/learn/flow-diagram";
 import {
   type FormEvent,
   type ReactNode,
@@ -435,6 +436,12 @@ export default function NoteView({
                 label="Copy the summary"
               />
             </Part>
+
+            {ai.flow && ai.flow.length >= 3 && (
+              <Part title="How the ideas connect">
+                <FlowDiagram steps={ai.flow} title={note.title} />
+              </Part>
+            )}
 
             <Part title="Key points">
               <ul className="flex list-disc flex-col gap-1.5 pl-5 leading-normal">

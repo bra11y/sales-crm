@@ -79,6 +79,7 @@ function Nav({ data, deal }: { data: SidebarData; deal: string | null }) {
   const plan: NavEntry[] = [
     { label: "Goals", href: "/goals", icon: TargetAltIcon, active: at("/goals", "/plans") },
     { label: "Documents", href: "/documents", icon: ClipboardIcon, active: at("/documents") },
+    { label: "Markets", href: "/market", icon: BarChartAltIcon, active: at("/market") },
     { label: "Bills", href: "/bills", icon: WalletIcon, count: data.billsDue, active: at("/bills") },
   ];
   const sales: NavEntry[] = [
