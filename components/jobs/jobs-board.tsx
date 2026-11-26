@@ -77,7 +77,8 @@ const NIGERIA =
   /\bnigeria|\blagos\b|\babuja\b|port harcourt|\bibadan\b|\bkano\b|\benugu\b|\bkaduna\b|\bbenin city\b|\bwarri\b|\babeokuta\b|\buyo\b|\bcalabar\b|\bowerri\b|\bjos\b|\bilorin\b|\bakure\b|\bonitsha\b|\baba\b|\bfct\b/i;
 const inNigeria = (j: { location?: string | null; title: string; description?: string | null }) => NIGERIA.test(`${j.location ?? ""} ${j.title} ${(j.description ?? "").slice(0, 400)}`);
 
-const BOARD: Status[] = ["new", "saved", "applied", "replied", "interview"];
+const BOARD: Status[] = ["new", "saved"];
+const OPEN_STATUSES: Status[] = ["new", "saved", "dismissed"];
 
 export default function JobsBoard({
   initialJobs,
@@ -121,6 +122,8 @@ export default function JobsBoard({
       (j) =>
         // "In Nigeria" shows on-site and lower-paid Nigerian jobs too, each with its hidden reason.
         (showHidden || !j.hidden_reason || (where === "nigeria" && !/outside your fields|a site you skip/i.test(j.hidden_reason))) &&
+        // Jobs you applied to live on the Applications board, not here. The one open in the panel stays until you close it.
+        (OPEN_STATUSES.includes(j.status) || j.id === openId) &&
         (showDismissed || j.status !== "dismissed") &&
         (!fit || (fit === "strong" ? j.band === "strong" : j.band !== "maybe")) &&
         (!where || (where === "nigeria" ? inNigeria(j) : j.eligibility === where)) &&
@@ -129,7 +132,7 @@ export default function JobsBoard({
         (!noAccount || Boolean(j.apply_email) || !needsAccount(j.apply_url)) &&
         (!q || `${j.title} ${j.company} ${j.matched.join(" ")}`.toLowerCase().includes(q)),
     );
-  }, [jobs, query, fit, where, level, showHidden, showDismissed, emailOnly, noAccount]);
+  }, [jobs, query, fit, where, level, showHidden, showDismissed, emailOnly, noAccount, openId]);
   const accountCount = jobs.filter((j) => !j.apply_email && needsAccount(j.apply_url)).length;
   const open = jobs.find((j) => j.id === openId) ?? null;
   // The best jobs shown that have no address yet and whose website was not searched.
@@ -205,12 +208,13 @@ export default function JobsBoard({
       setAlert(r.error);
       return;
     }
-    say(`Moved to ${STATUS_LABEL[next]}.`);
+    say(OPEN_STATUSES.includes(next) ? `Moved to ${STATUS_LABEL[next]}.` : `Moved to ${STATUS_LABEL[next]}. It is on the Applications board now.`);
   }
 
   function applied(id: string) {
     const now = jobs.find((j) => j.id === id)?.status;
     if (now === "new" || now === "saved" || now === "dismissed") setChanges((c) => ({ ...c, [id]: { ...c[id], status: "applied" } }));
+    say("Applied. When you close it, it leaves this list and stays on the Applications board.");
   }
 
   function companyFound(id: string, info: CompanyInfo) {

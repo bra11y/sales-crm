@@ -23,11 +23,11 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   const supabase = await createSupabaseServerClient();
   const userId = await currentUserId();
   const [jobs, run, prof] = await Promise.all([
-    supabase.from("job_posts").select(COLUMNS).eq("user_id", userId).order("score", { ascending: false }).order("posted_at", { ascending: false }).limit(600),
+    supabase.from("job_posts").select(COLUMNS).eq("user_id", userId).in("status", ["new", "saved", "dismissed"]).order("score", { ascending: false }).order("posted_at", { ascending: false }).limit(600),
     supabase.from("job_runs").select("started_at, finished_at, kept, added, errors").eq("user_id", userId).order("started_at", { ascending: false }).limit(1).maybeSingle(),
     loadProfile(supabase),
   ]);
-  // The job you came to open may be outside the top 600 (low score, already applied): load it too.
+  // Jobs you applied to are on the Applications board. The one you came to open is loaded even so.
   if (openId && jobs.data && !jobs.data.some((j) => j.id === openId)) {
     const { data: one } = await supabase.from("job_posts").select(COLUMNS).eq("user_id", userId).eq("id", openId).maybeSingle();
     if (one) jobs.data.unshift(one);

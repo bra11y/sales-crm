@@ -6,8 +6,13 @@
 const MAX_HOPS = 3;
 const BOARD_HOSTS = /(^|\.)(linkedin\.com|indeed\.[a-z.]+|glassdoor\.[a-z.]+|seek\.com\.au|seek\.co\.nz)$/;
 const key = (tabId) => `run:${tabId}`;
-const kits = new Map(); // jobId -> { kit, cv } for this browser session
 const timers = new Map();
+// Chrome stops this worker after about 30 idle seconds and clears its memory. The job's
+// details and CV are kept in session storage instead, so a page that loads later does not
+// fetch them again, and a sleeping worker does not lose them.
+const kitKey = (jobId) => `kit:${jobId}`;
+const cvKey = (jobId) => `cv:${jobId}`;
+const TIMEOUT_MS = 15000;
 
 async function settings() {
   return (await chrome.storage.local.get("settings")).settings || null;
@@ -24,11 +29,17 @@ async function dropRun(tabId) {
 
 async function api(path, init = {}) {
   const s = await settings();
-  if (!s) throw new Error("Connect the extension first: open it from the toolbar and paste your code from Profile.");
-  const res = await fetch(`${s.server}${path}`, { ...init, headers: { ...(init.headers || {}), authorization: `Bearer ${s.code}` } });
+  if (!s) throw new Error("Not connected yet. Click the extension in your toolbar and paste the code from your CRM Profile.");
+  let res;
+  try {
+    res = await fetch(`${s.server}${path}`, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS), headers: { ...(init.headers || {}), authorization: `Bearer ${s.code}` } });
+  } catch (e) {
+    throw new Error(e && e.name === "TimeoutError" ? "Your CRM is slow to answer. Press “Fill this page” to try again." : "Your CRM can't be reached. Check your internet, then press “Fill this page”.");
+  }
+  if (res.status === 401) throw new Error("Your connection code no longer works. Make a new one in your CRM Profile and paste it in the extension.");
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `The CRM answered ${res.status}.`);
+    throw new Error(body.error || `Your CRM had a problem (${res.status}). Try again in a minute.`);
   }
   return res;
 }
@@ -41,17 +52,30 @@ function toBase64(buffer) {
 }
 
 async function kitFor(jobId) {
-  if (kits.has(jobId)) return kits.get(jobId);
+  const saved = (await chrome.storage.session.get(kitKey(jobId)))[kitKey(jobId)];
+  if (saved) return saved;
   const kit = await (await api(`/api/ext/kit?job=${encodeURIComponent(jobId)}`)).json();
-  const pdf = await (await api(`/api/ext/cv?job=${encodeURIComponent(jobId)}`)).arrayBuffer();
-  const entry = { kit, cv: { name: kit.cvName, base64: toBase64(pdf) } };
-  kits.set(jobId, entry);
-  return entry;
+  await chrome.storage.session.set({ [kitKey(jobId)]: kit });
+  return kit;
 }
 
+// The CV is only needed when a form has a file box, so it is fetched then, once per job.
+async function cvFor(jobId, kit) {
+  const saved = (await chrome.storage.session.get(cvKey(jobId)))[cvKey(jobId)];
+  if (saved) return saved;
+  const pdf = await (await api(`/api/ext/cv?job=${encodeURIComponent(jobId)}`)).arrayBuffer();
+  const cv = { name: kit.cvName, base64: toBase64(pdf) };
+  await chrome.storage.session.set({ [cvKey(jobId)]: cv }).catch(() => {});
+  return cv;
+}
+
+// Adds the helper's scripts only to frames that do not have them yet. Injecting into every
+// frame (ads included) on every page load was the main cause of the lag.
 async function inject(tabId) {
-  await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["match.js", "fill.js"] });
-  await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, files: ["panel.js"] });
+  const have = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: () => Boolean(window.__salesCrmDetect) });
+  const missing = have.filter((f) => !f.result).map((f) => f.frameId);
+  if (missing.length) await chrome.scripting.executeScript({ target: { tabId, frameIds: missing }, files: ["match.js", "fill.js"] });
+  if (missing.includes(0)) await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, files: ["panel.js"] });
 }
 
 async function panel(tabId, state) {
@@ -85,14 +109,14 @@ async function step(tabId, { force = false } = {}) {
     return; // A page we may not touch (or it navigated away mid-way); the next load tries again.
   }
 
-  let entry;
+  let kit;
   try {
-    entry = await kitFor(run.jobId);
+    kit = await kitFor(run.jobId);
   } catch (e) {
-    await panel(tabId, { job: run.job, step: "connect", tone: "bad", message: e.message });
+    await panel(tabId, { job: run.job, step: "error", tone: "bad", message: e.message });
     return;
   }
-  run.job = { title: entry.kit.job.title, company: entry.kit.job.company };
+  run.job = { title: kit.job.title, company: kit.job.company };
 
   // Job boards that ban automation: the helper waits for you to press their Apply.
   if (BOARD_HOSTS.test(new URL(tab.url).hostname)) {
@@ -100,7 +124,7 @@ async function step(tabId, { force = false } = {}) {
     return panel(tabId, {
       job: run.job,
       step: "nothing",
-      message: "This is the job on a board that does not allow helpers to click for you. Press its Apply button (not Easy Apply). The company's form fills itself when it opens.",
+      message: "This site doesn't allow helpers to click for you. Press its Apply button (not Easy Apply). The company's form fills in by itself when it opens.",
     });
   }
 
@@ -112,12 +136,20 @@ async function step(tabId, { force = false } = {}) {
   if (fields < 2 && seen.some((d) => d.success)) {
     if (run.filled > 0) return markApplied(tabId, run, true);
     await setRun(tabId, run);
-    return panel(tabId, { job: run.job, step: "nothing", maybeApplied: true, message: "This looks like a thank-you page. If you sent the application, mark it as applied." });
+    return panel(tabId, { job: run.job, step: "nothing", maybeApplied: true, message: "This looks like a thank-you page. If you sent it, mark it as applied." });
   }
 
   if (fields >= 2) {
     await panel(tabId, { job: run.job, step: "finding", message: "Filling the form…" });
-    const runs = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: (k, c) => window.__salesCrmFill && window.__salesCrmFill(k, c), args: [entry.kit, run.cvSent ? null : entry.cv] });
+    let cv = null;
+    if (!run.cvSent) {
+      try {
+        cv = await cvFor(run.jobId, kit);
+      } catch {
+        cv = null; // The boxes still get filled; the panel asks you to attach the CV.
+      }
+    }
+    const runs = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: (k, c) => window.__salesCrmFill && window.__salesCrmFill(k, c), args: [kit, cv] });
     const reports = runs.map((r) => r.result).filter(Boolean);
     const filled = reports.flatMap((r) => r.filled.map((f) => f.label));
     const resume = reports.some((r) => r.resume);
@@ -127,8 +159,8 @@ async function step(tabId, { force = false } = {}) {
       job: run.job,
       step: "filled",
       message: filled.length
-        ? `Filled ${filled.length} ${filled.length === 1 ? "box" : "boxes"}, outlined in blue. Read the form, fix anything, then press Submit or Next. The next page fills itself.`
-        : "Everything here is already filled. Read it, then press Submit or Next.",
+        ? `Filled ${filled.length} ${filled.length === 1 ? "box" : "boxes"} (outlined in blue). Check them, then press Submit or Next yourself.${!run.cvSent && !cv ? " Attach your CV by hand: it could not be fetched." : ""}`
+        : "This page is already filled. Check it, then press Submit or Next.",
       filled,
       check: [...new Set(reports.flatMap((r) => r.check))],
       needs: [...new Set(reports.flatMap((r) => r.needs))],
@@ -147,7 +179,7 @@ async function step(tabId, { force = false } = {}) {
         run = { ...run, emailSaved: true, crm: r.crm };
         await setRun(tabId, run);
         const others = mail.emails.length > 1 ? ` The post also names ${mail.emails.slice(1).join(", ")}; the CRM uses the first.` : "";
-        return panel(tabId, { job: run.job, step: "email", tone: "good", message: `This job takes applications by email. The CRM now has the address ${r.email}.${others} Press “Send it from the CRM” to check the letter and send it with your CV.` });
+        return panel(tabId, { job: run.job, step: "email", tone: "good", message: `This job takes applications by email: ${r.email}. It's saved in your CRM.${others} Send it from the CRM with your CV.` });
       } catch {
         // Not this job's page, or the CRM said no: carry on with the form as usual.
         run = { ...run, emailSaved: true };
@@ -159,7 +191,7 @@ async function step(tabId, { force = false } = {}) {
   if (top.apply && run.hops < MAX_HOPS) {
     run = { ...run, hops: run.hops + 1 };
     await setRun(tabId, run);
-    await panel(tabId, { job: run.job, step: "opening", message: `This is the job listing. Pressing “${top.apply}” to reach the form…` });
+    await panel(tabId, { job: run.job, step: "opening", message: `Opening the form (pressing “${top.apply}”)…` });
     await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, func: () => window.__salesCrmGoApply && window.__salesCrmGoApply() });
     return;
   }
@@ -168,7 +200,7 @@ async function step(tabId, { force = false } = {}) {
   return panel(tabId, {
     job: run.job,
     step: "nothing",
-    message: "No form on this page yet. If the site asks you to sign in or press a button, do that. The form fills itself when it appears.",
+    message: "No form here yet. If the site asks you to sign in or press a button, do that. The form fills in when it appears.",
   });
 }
 
@@ -203,11 +235,15 @@ chrome.tabs.onCreated.addListener(async (tab) => {
   if (run && !run.done) await setRun(tab.id, { ...run, hops: run.hops + 1 });
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => dropRun(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => {
+  clearTimeout(timers.get(tabId));
+  timers.delete(tabId);
+  dropRun(tabId);
+});
 
 async function start(jobId, openerTabId) {
-  const { kit } = await kitFor(jobId);
-  if (!kit.job.applyUrl) throw new Error("This job has no application link. Open it in the CRM to apply by email.");
+  const kit = await kitFor(jobId);
+  if (!kit.job.applyUrl) throw new Error("This job has no application link. Apply by email from the CRM instead.");
   // The address comes from the CRM's record of the job, never from the page that asked.
   const tab = await chrome.tabs.create({ url: kit.job.applyUrl, openerTabId });
   await setRun(tab.id, { jobId, hops: 0, filled: 0, cvSent: false, done: false, job: { title: kit.job.title, company: kit.job.company } });
@@ -234,9 +270,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     } else if (msg.type === "popup-fill") {
       // From the toolbar popup: help on the page you are on, for the job it matches.
       const s = await settings();
-      if (!s) throw new Error("Connect first.");
+      if (!s) throw new Error("Not connected yet. Paste the code from your CRM Profile first.");
       const tab = await chrome.tabs.get(tabId);
       const kit = await (await api(`/api/ext/kit?url=${encodeURIComponent(tab.url || "")}`)).json();
+      await chrome.storage.session.set({ [kitKey(kit.job.id)]: kit });
       const run = (await getRun(tabId)) || { hops: 0, filled: 0, cvSent: false, done: false };
       await setRun(tabId, { ...run, jobId: kit.job.id, done: false, job: { title: kit.job.title, company: kit.job.company } });
       await step(tabId, { force: true });

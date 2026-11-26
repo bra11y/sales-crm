@@ -23,6 +23,8 @@ const FIXTURE_URL: Record<string, [string, string]> = {
   hotnigerianjobs: ["hnj.xml", "https://www.hotnigerianjobs.com/feed/"],
   a11yjobs: ["a11yjobs.xml", "https://www.a11yjobs.com/sitemap.xml"],
   workingnomads: ["workingnomads.json", "https://www.workingnomads.com/api/exposed_jobs/"],
+  // Saved 26 Nov 2026; closing dates set to 2099 so the copy never ages out.
+  reliefweb: ["reliefweb.xml", "https://reliefweb.int/jobs/rss.xml?search=accessibility"],
 };
 const facts = F as unknown as Facts;
 const now = new Date("2026-10-21T12:00:00Z");
@@ -153,7 +155,7 @@ test("preferences are cleaned: bad numbers, unknown sources and unsafe board nam
   const p = cleanPreferences({ minMonthlyUsd: "abc", sources: ["remotive", "evil"], boards: { greenhouse: ["vercel", "../etc"] }, searches: "react, react, ux" });
   assert.equal(p.minMonthlyUsd, 2000);
   // Boards added later (Hot Nigerian Jobs) join a saved list unless you turned them off.
-  assert.deepEqual(p.sources, ["remotive", "hotnigerianjobs", "a11yjobs", "workingnomads"]);
+  assert.deepEqual(p.sources, ["remotive", "hotnigerianjobs", "a11yjobs", "workingnomads", "reliefweb"]);
   assert.deepEqual(p.boards.greenhouse, ["vercel"]);
   assert.deepEqual(p.searches, ["react", "ux"]);
   assert.deepEqual(cleanPreferences(undefined), DEFAULT_PREFERENCES);

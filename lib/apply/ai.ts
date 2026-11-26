@@ -36,7 +36,9 @@ export function buildPrompt(job: JobText, skills: string[], fix?: string): { sys
     "- Name one specific thing from the job post: the product, its users, the mission or a problem the post names.",
     "- Link it to one skill from the applicant's skill list.",
     "- Use only facts from the job post and the skill list. Never add numbers, years, tools, employers or results.",
-    "- No em dashes. Never use: passionate, excited, thrilled, leverage, seamless, robust, cutting-edge, elevate, dynamic, journey.",
+    "- No em dashes. Never use: passionate, excited, thrilled, eager, leverage, seamless, robust, cutting-edge, elevate, dynamic, journey, crucial, enhance, showcase, truly, deeply.",
+    "- No 'not X but Y' contrasts, no run-up like 'Here's the thing', no closing line that repeats the point.",
+    "- Write like a person talking to one reader: one concrete detail beats three general ones.",
     "- Also give the name of the person to address, only if the post names one (like 'Send it to Jane Doe'). Otherwise an empty string.",
     'Reply with JSON only: {"why": "...", "manager": "..."}',
   ].join("\n");
@@ -96,12 +98,25 @@ export function rulesWhy(job: JobText, skills: string[]): string {
     : `I want to help ${company} build a product that works for everyone who uses it. This role asks for the work I do every day.`;
 }
 
-async function ask(p: Provider, system: string, user: string, fetcher: Fetcher): Promise<string> {
+const REASONS = /gpt-oss/i;
+
+export async function ask(p: Provider, system: string, user: string, fetcher: Fetcher, maxTokens = 300, temperature = 0.3): Promise<string> {
   const res = await fetcher(`${p.baseUrl}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${p.apiKey}` },
-    body: JSON.stringify({ model: p.model, temperature: 0.3, max_tokens: 300, messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
-    signal: AbortSignal.timeout(25_000),
+    body: JSON.stringify({
+      model: p.model,
+      temperature,
+      // Reasoning models (gpt-oss on Groq) think before they answer, and the thinking counts
+      // against max_tokens. Without the extra room they return an empty answer.
+      max_tokens: REASONS.test(p.model) ? maxTokens + 2500 : maxTokens,
+      ...(REASONS.test(p.model) ? { reasoning_effort: "low" } : {}),
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+    signal: AbortSignal.timeout(45_000),
   });
   if (!res.ok) throw new Error(`${p.name} answered ${res.status}`);
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };

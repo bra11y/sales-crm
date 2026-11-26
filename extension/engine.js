@@ -330,9 +330,14 @@
       ];
     } else if (shape === "problem") {
       const need = (a.requirements.find(r => PROBLEM.test(r)) || "").replace(/[.;:]+$/, "");
-      const lower = need.charAt(0).toLowerCase() + need.slice(1);
+      // The task from its verb on, in their words with "our" made "your": "audit your checkout".
+      const verb = need.search(/\b(fix|improve|audit|rebuild|migrate|redesign|overhaul|remediate|reduce|speed up|scale)\b/i);
+      const task = (verb >= 0 ? need.slice(verb) : "").replace(/\bour\b/gi, "your").replace(/\bwe\b/gi, "you").replace(/\bus\b/g, "you");
+      const opener = task
+        ? `Your post says this role will ${task.charAt(0).toLowerCase() + task.slice(1)}.`
+        : `Your post says: "${need}."`;
       middle = [
-        `Your post says the ${role} will ${/^(to|be)\b/i.test(lower) ? lower.replace(/^to\s+/i, "") : lower.replace(/^(you will|you'll)\s+/i, "")}. ${pick(["I've done that work before.", "That's work I've already done."], n >>> 9)}`, "",
+        `${opener} ${pick(["I've done that work before.", "That's work I've already done."], n >>> 9)}`, "",
         t.story, "",
         why, "",
         matchLine ? `${intro} ${matchLine}` : intro, "",
@@ -431,7 +436,21 @@
     "valuable insights", "key turning point", "setting the stage", "enduring legacy", "indelible", "nestled",
     "vibrant", "in the heart of", "renowned", "unparalleled", "best-in-class", "world-class", "state-of-the-art",
     "resonate with", "resonates with", "align with my", "aligns with my", "navigate the", "ever-changing",
-    "please do not hesitate", "i am confident that", "perfect fit", "ideal candidate"];
+    "please do not hesitate", "i am confident that", "perfect fit", "ideal candidate",
+    "crucial", "enhance", "showcase", "deep dive", "profound", "groundbreaking", "exemplifies", "commitment to",
+    "diverse array", "breathtaking", "stunning", "evolving landscape", "plays a key role", "a testament to",
+    "eager to", "keen interest", "unique blend", "deeply", "truly", "invaluable experience", "hit the ground running",
+    "make a meaningful impact", "drive impact", "honed", "adept at", "well-versed", "synergies", "empower", "empowering"];
+  // From blader/humanizer (MIT): the shapes that read as machine-made, strongest first.
+  const STAGED = [
+    [/\b(let's dive in|let's explore|let's break (this|it) down|here's what you need to know|without further ado|here's the thing|the thing is|let's be honest|real talk)\b/i, "Cut the run-up and make the point."],
+    [/\b(that is the real win|that's the real win|that distinction matters|let that sink in|read that again|and that makes all the difference)\b/i, "Cut the closing line that repeats the point."],
+    [/\b(the real question is|at its core|what really matters|the heart of the matter|the deeper issue|fundamentally,)/i, "Say the plain claim instead of the saying."],
+    [/\b(to be clear|don't get me wrong|this is not to say|i'm not saying|this isn't (mainly )?about)\b/i, "No one argued that. Cut the defence."],
+    [/\b(could potentially|might arguably|may possibly|it's also possible that)\b/i, "One hedge at most. Say it or cut it."],
+    [/\b(i hope this (email |message )?finds you well|i hope this helps|certainly!|great question|let me know if you have any questions)\b/i, "Cut the chatbot line."],
+    [/\b(the future looks bright|exciting times ahead|a step in the right direction)\b/i, "Cut the upbeat filler."],
+  ];
   // Wikipedia: "serves as" and "stands as" in place of a plain "is".
   const COPULA = /\b(serves as|serve as|stands as|stand as|boasts an?|acts as a)\b/i;
   // Wikipedia: a trailing "-ing" phrase that adds vague importance.
@@ -460,6 +479,8 @@
     if (trail) w.push(`Cut the tacked-on ", ${trail[1]} ..." phrase. End the sentence at the fact.`);
     const vague = body.match(VAGUE);
     if (vague) w.push(`"${vague[0]}" names no one. Name the source or cut it.`);
+    for (const [re, fix] of STAGED) { const m = body.match(re); if (m) w.push(`"${m[0]}": ${fix}`); }
+    if (/[\u201c\u201d]/.test(body)) w.push("Use straight quotes.");
     if (/\p{Extended_Pictographic}/u.test(body)) w.push("Remove the emoji.");
     // Human writing mixes short and long sentences; machine text keeps them all alike.
     const lens = sentences.map(x => x.split(" ").length);

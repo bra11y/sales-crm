@@ -33,7 +33,9 @@ test("only strong, open, recent jobs with an email address are picked", () => {
   assert.equal(looksAutomatic(job, NOW), null);
   assert.equal(looksAutomatic({ ...job, band: "good" }, NOW), "not a strong fit");
   assert.equal(looksAutomatic({ ...job, eligibility: "unknown" }, NOW), "unclear where you can work from");
-  assert.equal(looksAutomatic({ ...job, contact_email: null }, NOW), "no email to apply to");
+  assert.equal(looksAutomatic({ ...job, contact_email: null }, NOW), null);
+  assert.equal(looksAutomatic({ ...job, contact_email: "jobs@acme.com", contact_source: "Found on their website (acme.com/careers). It is their hiring inbox." }, NOW), null);
+  assert.match(looksAutomatic({ ...job, contact_source: "Found on their website (acme.com). It is their hiring inbox. We found this site by the company's name, so check it is the right company." }, NOW)!, /right company/);
   assert.equal(looksAutomatic({ ...job, posted_at: "2026-09-01T00:00:00Z" }, NOW), "older than 3 weeks");
   assert.equal(looksAutomatic({ ...job, status: "saved" }, NOW), "already handled");
 });
@@ -44,5 +46,6 @@ test("nothing goes out if the post asks something of you or the letter has a gap
   assert.match(readyToSend(job, { ...(p as object), body: "Hi [Hiring manager name]," } as never, NOW)!, /gap/);
   assert.match(readyToSend(job, { ...(p as object), mail: { email: null, tested: false } } as never, NOW)!, /Gmail is not connected/);
   assert.match(readyToSend(job, { ...(p as object), person: { ...person, phone: "" } } as never, NOW)!, /phone/);
+  assert.match(readyToSend(job, { ...(p as object), contact: null, searchedSite: "acme.com" } as never, NOW)!, /no email on acme.com/);
   assert.match(readyToSend(job, { ...(p as object), outbox: { status: "queued", sentAt: null } } as never, NOW)!, /Outbox/);
 });

@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildApplicationEvent } from "@/lib/crm/application-event";
 import { applyEvent } from "@/lib/crm/apply";
@@ -14,10 +15,12 @@ import { alertBoard, parseAlert } from "@/lib/mail/alerts";
 import { type MailLogin, readInbox, sendMail, testLogin } from "@/lib/mail/gmail";
 import { isAutoReply, matchReply, snippet, suggestStage } from "@/lib/mail/reply";
 import { autoApply } from "./auto";
+import { buildDigest, gatherDigest } from "@/lib/alerts/digest";
 import { followUpTimes, guessZone, inWindow, nextWindow, sendBudget, zoneTime } from "@/lib/mail/schedule";
 import { cvPdf } from "@/lib/pdf/cv";
 import { classifyMail, companyDomains, EVENT_TITLE, isJobSender, matchJob, nextStatus, type Status, type TrackedJob } from "./track";
 import { aiProviders, type Why, writeWhy } from "./ai";
+import { type Humanized, humanizeLetter } from "./humanize";
 import { attachmentName, cleanRole, draftApplication, findReadCheck, followUps, type ReadCheck, withEmail } from "./compose";
 
 type Db = SupabaseClient;
@@ -37,7 +40,7 @@ type JobRow = {
   status: string;
   contact_email: string | null;
   contact_source: string | null;
-  draft: (Why & { at: string }) | null;
+  draft: (Why & { at: string; letter?: Humanized & { from: string } }) | null;
   company_info: CompanyInfo | null;
 };
 type OutRow = {
@@ -70,6 +73,8 @@ export type Prepared = {
   cover: string;
   attachment: string;
   why: Why;
+  // How the email body was written: rewritten in your voice, or the plain rule-built letter.
+  letter: Humanized;
   problems: string[];
   notes: string[];
   gaps: string[];
@@ -160,6 +165,11 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
   if (!job.draft?.why || opts.fresh) await db.from("job_posts").update({ draft: { ...why, at: new Date().toISOString() } }).eq("id", job.id);
   if (contact && contact.email !== job.contact_email) await db.from("job_posts").update({ contact_email: contact.email, contact_source: contact.sentence }).eq("id", job.id);
   const d = draftApplication({ title: job.title, company: job.company, description: job.description, track: job.track }, facts, why.why, why.manager);
+  const from = createHash("sha256").update(`${d.body}|${profile.preferences.voice}`).digest("hex").slice(0, 16);
+  const cached = job.draft?.letter?.from === from && !opts.fresh ? job.draft.letter : null;
+  const letter: Humanized =
+    cached ?? (d.problems.length ? { body: d.body, source: "rules", note: "The letter has a gap to fill first." } : await humanizeLetter(d.body, profile.preferences.voice, profile.preferences.ai === "off" ? [] : aiProviders(process.env, opts.oidc)));
+  if (!cached && letter.source === "ai") await db.from("job_posts").update({ draft: { ...why, at: new Date().toISOString(), letter: { ...letter, from } } }).eq("id", job.id);
   const zone = guessZone(job.location);
   const now = new Date();
   const { data: out } = await db.from("applications_outbox").select("status, sent_at").eq("job_id", job.id).eq("kind", "application").in("status", ["queued", "sent"]).maybeSingle();
@@ -172,10 +182,11 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
       requiredSubject: findRequiredSubject(job.description, job.title),
       searchedSite: !contact && site?.domain ? site.domain : null,
       subject: findRequiredSubject(job.description, job.title) ?? d.subject,
-      body: d.body,
+      body: letter.body,
       cover: d.cover,
       attachment: attachmentName(facts, job.company),
       why,
+      letter,
       problems: d.problems,
       notes: d.notes,
       gaps: d.gaps,
@@ -457,7 +468,7 @@ export async function applyByEmail(
       cv_markdown: d.cv,
       attachment_name: p.attachment,
       send_after: sendAfter.toISOString(),
-      ai_note: p.why.provider ?? p.why.note ?? null,
+      ai_note: p.letter.source === "ai" ? `Letter in your voice: ${p.letter.provider}` : (p.why.provider ?? p.why.note ?? null),
       auto: Boolean(input.holdUntil),
     })
     .select("id")
@@ -616,4 +627,28 @@ export async function tick(db: Db, deadline: number) {
     report.push({ replies: replies.found, sent: sends.sent, autoQueued: auto.queued, errors: sends.errors.length + (replies.error ? 1 : 0) });
   }
   return report;
+}
+
+// ---------- the morning email ----------
+
+// Sends the "needs you" email to your own Gmail, once a day, only when something is waiting.
+export async function sendDigest(db: Db, userId: string, now: Date): Promise<{ sent: boolean; items: number; error?: string }> {
+  const profile = await loadProfile(db, userId);
+  if (!profile?.preferences.digest) return { sent: false, items: 0 };
+  const day = now.toISOString().slice(0, 10);
+  const { data: done } = await db.from("alert_digests").select("day").eq("user_id", userId).eq("day", day).maybeSingle();
+  if (done) return { sent: false, items: 0 };
+  const login = await loadLogin(db, userId, profile.facts.person.name);
+  if (!login?.tested) return { sent: false, items: 0 };
+  const d = buildDigest(await gatherDigest(db, userId, now, profile.preferences.autoApply.on));
+  if (!d.count) return { sent: false, items: 0 };
+  const { error } = await db.from("alert_digests").insert({ user_id: userId, day, items: d.count });
+  if (error) return { sent: false, items: 0 };
+  try {
+    await sendMail(login, { to: login.email, subject: d.subject, text: d.text });
+    return { sent: true, items: d.count };
+  } catch {
+    await db.from("alert_digests").delete().eq("user_id", userId).eq("day", day);
+    return { sent: false, items: d.count, error: "Gmail refused the morning email." };
+  }
 }

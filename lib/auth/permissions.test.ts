@@ -9,6 +9,8 @@ test("each role opens only its own pages, and unknown pages are denied", () => {
   assert.ok(!allowed("member", "/team"));
   assert.ok(allowed("seeker", "/jobs/add"));
   assert.ok(allowed("seeker", "/scholarships"));
+  assert.ok(allowed("seeker", "/conferences"));
+  assert.ok(allowed("seeker", "/ngo"));
   assert.ok(allowed("seeker", "/documents"));
   assert.ok(!allowed("seeker", "/"), "Companies is the sales CRM");
   assert.ok(!allowed("seeker", "/deals"));

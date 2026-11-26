@@ -29,11 +29,13 @@ export function looksAutomatic(j: AutoJob, now: number): string | null {
   if (j.hidden_reason) return "hidden";
   if (j.eligibility !== "worldwide" && j.eligibility !== "region" && j.eligibility !== "local" && j.eligibility !== "visa") return "unclear where you can work from";
   if (j.posted_at && now - Date.parse(j.posted_at) > 21 * DAY) return "older than 3 weeks";
-  if (!(j.contact_email || findContactEmail(j.description)?.email)) return "no email to apply to";
-  // An address found on their website, not in the post, is sent only after you check it.
-  if (j.contact_email && j.contact_source?.startsWith("Found on their website")) return "the address came from their website, so you check it first";
+  // No address in the post: their website is searched while the letter is written.
+  // An address from a site found only by the company's name could belong to another company.
+  if (j.contact_email && j.contact_source?.includes("found this site by the company's name")) return "the email came from a website found by the company's name, so check it is the right company";
   return null;
 }
+
+export const needsLookup = (j: AutoJob) => !(j.contact_email || findContactEmail(j.description)?.email);
 
 // The full test, once the letter and email are ready.
 export function readyToSend(job: AutoJob, p: Prepared, now: number): string | null {
@@ -41,7 +43,8 @@ export function readyToSend(job: AutoJob, p: Prepared, now: number): string | nu
   if (p.problems.length) return p.problems[0];
   if (p.readCheck) return "the post asks you to show you read it";
   if (/\[[^\]\n]+\](?!\()/.test(p.body)) return "the letter has a gap to fill";
-  if (!p.contact?.email) return "no email to apply to";
+  if (!p.contact?.email) return p.searchedSite ? `no email on ${p.searchedSite}, so apply on their form` : "no email in the post or on their website, so apply on their form";
+  if (p.contactFrom === "website" && /found this site by the company's name/.test(p.contact.sentence)) return "the email came from a website found by the company's name, so check it is the right company";
   const checks = readyChecks(job, { person: p.person, proof: p.proof, problems: p.problems, byEmail: true, mail: p.mail, extension: false, minMonthlyUsd: p.minMonthlyUsd }, now);
   const no = checks.find((c) => c.state === "no");
   return no ? no.text : null;

@@ -74,7 +74,13 @@ button.primary:active, button.secondary:active { transform: scale(0.97); }
   const mini = root.querySelector(".mini");
   document.documentElement.append(host);
 
-  const send = (type) => chrome.runtime.sendMessage({ type });
+  // A reply that never comes (the extension was updated or reloaded) shows here, not as a dead button.
+  const send = (type) =>
+    chrome.runtime.sendMessage({ type }).then(
+      (r) => r && r.ok === false && r.error && render({ ...current, step: "error", tone: "bad", message: r.error }),
+      () => render({ ...current, step: "error", tone: "bad", message: "The extension was updated. Reload this page to keep going." }),
+    );
+  let current = {};
   const el = (tag, props = {}, kids = []) => {
     const n = document.createElement(tag);
     for (const [k, v] of Object.entries(props)) {
@@ -96,6 +102,7 @@ button.primary:active, button.secondary:active { transform: scale(0.97); }
   sheet.addEventListener("keydown", (e) => e.key === "Escape" && minimize(true));
 
   function render(s) {
+    current = s;
     const at = STEP_OF[s.step] ?? 1;
     const buttons = [];
     if (s.step === "filled") {
@@ -114,7 +121,7 @@ button.primary:active, button.secondary:active { transform: scale(0.97); }
     sheet.replaceChildren(
       el("div", { class: "head" }, [
         el("div", { class: "titles" }, [
-          el("p", { class: "eyebrow", text: "SALES CRM" }),
+          el("p", { class: "eyebrow", text: "Sales CRM" }),
           el("h2", { text: s.job?.title || "Applying" }),
           s.job?.company ? el("p", { class: "company", text: s.job.company }) : "",
         ]),
@@ -141,20 +148,23 @@ button.primary:active, button.secondary:active { transform: scale(0.97); }
   }
 
   // Single-page forms change without loading a new page (a new step, or the thank-you
-  // message). When the number of boxes changes, ask the helper to look again.
+  // message). When the number of boxes changes, ask the helper to look again. It checks at
+  // most once every 1.5 seconds: busy sites never go quiet, so waiting for quiet missed them.
   const count = () => document.querySelectorAll("input:not([type=hidden]), textarea, select").length;
   let last = count();
-  let wait = 0;
+  let queued = false;
   new MutationObserver(() => {
-    clearTimeout(wait);
-    wait = setTimeout(() => {
+    if (queued) return;
+    queued = true;
+    setTimeout(() => {
+      queued = false;
       const now = count();
       if (now !== last && window.__salesCrmPanel) {
         last = now;
         send("page-changed");
       }
     }, 1500);
-  }).observe(document.body, { childList: true, subtree: true });
+  }).observe(document.body || document.documentElement, { childList: true, subtree: true });
 
   window.__salesCrmPanel = {
     show(state) {

@@ -16,6 +16,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-sidebar-label: var(--sidebar-label);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -101,7 +102,8 @@
   --input: #393939;
   --ring: #676767;
   --sidebar: #171717;
-  --sidebar-foreground: #7f7f7f;
+  --sidebar-foreground: #b4b4b4;
+  --sidebar-label: #8f8f8f;
   --sidebar-primary: #2a2a2a;
   --sidebar-primary-foreground: #f9fbff;
   --sidebar-accent: #181818;
@@ -304,4 +306,64 @@ html[data-sidebar-resizing] * {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Able Player (github.com/ableplayer/ableplayer) in the app's dark palette. Its own focus
+   outline stays: bright orange, well over 3:1 on these greys. */
+.able-host .able-wrapper,
+.able-host .able-playlist {
+  --able-controller-background: #262626;
+  --able-control-background: #262626;
+  --able-seekbar-background: #111111;
+  --able-seekbar-border: #6b6b6b;
+  --able-statusbar-background: #1f1f1f;
+  --able-statusbar-color: #c8c8c8;
+  --able-now-playing-background: #1f1f1f;
+  --able-now-playing-color: #f5f5f5;
+  --able-hover-outline: rgba(255, 255, 255, 0.35);
+  --able-playlist-item-background: transparent;
+  --able-playlist-item-color: #d6d6d6;
+  --able-playlist-item-button-color: #d6d6d6;
+  --able-playlist-current-background: rgba(255, 255, 255, 0.1);
+  --able-playlist-current-border: transparent;
+  --able-playlist-current-outline: transparent;
+  --able-playlist-current-active-color: #ffffff;
+  --able-playlist-current-active-background: rgba(255, 255, 255, 0.1);
+  font-family: inherit;
+}
+.able-host .able-wrapper {
+  margin: 0;
+  max-width: none !important;
+  width: 100% !important;
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.able-host .able-playlist {
+  margin-top: 8px;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.able-host .able-playlist li,
+.able-host .able-playlist li:first-of-type,
+.able-host .able-playlist li:last-of-type {
+  border: 0;
+  border-radius: 10px;
+}
+.able-host .able-playlist li button {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.able-host .able-playlist li.able-current button {
+  font-weight: 600;
+}
+.able-host-loading {
+  min-height: 153px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
 }

@@ -519,7 +519,11 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
           )}
 
           <p className="text-soft text-[13px] leading-normal">
-            {p.why.source === "ai" ? `The "why this company" lines were written by AI (${p.why.provider}) and checked against your Profile. Everything else comes from your Profile.` : p.why.note}{" "}
+            {p.letter.source === "ai"
+              ? `The letter was rewritten in your voice by AI (${p.letter.provider}). Code checked it kept every fact from your Profile and added none.`
+              : p.why.source === "ai"
+                ? `The "why this company" lines were written by AI (${p.why.provider}) and checked against your Profile. ${p.letter.note ?? "Everything else comes from your Profile."}`
+                : p.why.note}{" "}
             <button type="button" onClick={() => load(true)} className="text-foreground focus-visible:ring-ring rounded underline underline-offset-2 outline-none focus-visible:ring-2">
               Write it again
             </button>

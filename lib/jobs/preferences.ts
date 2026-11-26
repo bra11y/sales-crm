@@ -31,6 +31,10 @@ export type Preferences = {
   // The job titles you want, like "Virtual Assistant". When set, they decide which jobs are in
   // your field and what is searched, in place of the tech role types.
   titles: string[];
+  // A few paragraphs you wrote yourself. Letters and answers are rewritten to sound like this.
+  voice: string;
+  // A morning email to your own Gmail listing what needs you: jobs, conferences and deadlines.
+  digest: boolean;
 };
 
 // Roles most computer science graduates can apply for, added to your own search words.
@@ -99,6 +103,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   autoApply: { on: false, perDay: 5 },
   wideSearch: true,
   titles: [],
+  voice: "",
+  digest: true,
 };
 
 // Someone new starts with no search words or company lists of their own yet: the owner's tech
@@ -168,5 +174,7 @@ export function cleanPreferences(input: unknown): Preferences {
       const seen = new Set<string>();
       return words(p.titles, 20).filter((t) => !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()));
     })(),
+    voice: String(p.voice ?? "").replace(/\r/g, "").trim().slice(0, 1500),
+    digest: p.digest === undefined ? true : Boolean(p.digest),
   };
 }

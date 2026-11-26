@@ -2,12 +2,9 @@
 
 import { Suspense, type SVGProps } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import Button from "@/components/_ui/button";
 import ProductSwitcher from "./product-switcher";
 import { ScrollArea } from "@/components/_ui/scroll-area";
-import SidebarNavItem from "./sidebar-nav-item";
-import SidebarSection from "./sidebar-section";
-import { openTour } from "@/components/_common/tour";
+import { NavFooter, type NavEntry, NavRow, NavSection } from "./sidebar-nav";
 import { useCompaniesStore } from "@/stores/companies-store";
 import { can, type Role } from "@/lib/auth/permissions";
 import Logo from "@/public/assets/images/_common/logo.svg";
@@ -48,124 +45,113 @@ function Dot(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function PipelineLinks({ data, read }: { data: SidebarData; read?: boolean }) {
-  return read ? <ActivePipelineLinks data={data} /> : <PipelineList data={data} />;
-}
-
-function ActivePipelineLinks({ data }: { data: SidebarData }) {
+function Nav({ data, deal }: { data: SidebarData; deal: string | null }) {
   const pathname = usePathname();
-  const params = useSearchParams();
-  return <PipelineList data={data} active={pathname === "/deals" ? (params.get("view") === "slipping" ? "slipping" : params.get("product")) : null} />;
-}
+  const companyCount = useCompaniesStore((state) => state.companies.length);
+  const hydrated = useCompaniesStore((state) => state.hydrated);
+  const at = (...paths: string[]) => paths.some((p) => pathname === p || (p !== "/" && pathname.startsWith(`${p}/`)));
+  const has = (p: Parameters<typeof can>[1]) => can(data.role, p);
 
-function PipelineList({ data, active = null }: { data: SidebarData; active?: string | null }) {
+  const jobs: NavEntry[] = [
+    {
+      id: "find-jobs",
+      label: "Find jobs",
+      icon: TargetIcon,
+      children: [
+        { label: "All jobs", href: "/jobs", active: at("/jobs") },
+        { label: "NGO jobs", href: "/ngo", active: at("/ngo") },
+        { label: "Freelance and audits", href: "/freelance", active: at("/freelance") },
+      ],
+    },
+    { label: "Applications", href: "/applications", icon: ClipboardIcon, count: data.applications, active: at("/applications", "/outbox") },
+    { label: "CV and letter", href: "/apply", icon: MailIcon, active: at("/apply") },
+    { label: "Profile", href: "/profile", icon: UsersIcon, active: at("/profile") },
+  ];
+  const opportunities: NavEntry[] = [
+    { label: "Grants", href: "/grants", icon: WalletIcon, active: at("/grants") },
+    { label: "Scholarships", href: "/scholarships", icon: BookClosedIcon, active: at("/scholarships") },
+    { label: "Conferences", href: "/conferences", icon: UsersIcon, active: at("/conferences") },
+  ];
+  const learn: NavEntry[] = [
+    { label: "Notes", href: "/notes", icon: ListIcon, active: at("/notes") },
+    { label: "Books and podcasts", href: "/books", icon: BookClosedIcon, active: at("/books") },
+  ];
+  const plan: NavEntry[] = [
+    { label: "Goals", href: "/goals", icon: TargetAltIcon, active: at("/goals", "/plans") },
+    { label: "Documents", href: "/documents", icon: ClipboardIcon, active: at("/documents") },
+    { label: "Bills", href: "/bills", icon: WalletIcon, count: data.billsDue, active: at("/bills") },
+  ];
+  const sales: NavEntry[] = [
+    { label: "Companies", href: "/", icon: BuildingIcon, count: hydrated && pathname === "/" ? companyCount : undefined, active: pathname === "/" },
+    {
+      id: "deals",
+      label: "Deals",
+      icon: ClipboardIcon,
+      children: [
+        { label: "Board", href: "/deals", active: pathname === "/deals" && !deal },
+        ...data.pipelines.map((p, i) => ({ label: p.name, href: `/deals?product=${p.slug}`, icon: Dot, iconClassName: DOT_CLASSES[i % DOT_CLASSES.length], count: p.count, active: deal === p.slug })),
+        { label: "Slipping deals", href: "/deals?view=slipping", icon: AlertTriangleIcon, iconClassName: "text-(--tag-amber-text)", active: deal === "slipping" },
+      ],
+    },
+    { label: "Forecast", href: "/forecast", icon: BarChartIcon, active: at("/forecast") },
+    { label: "Activity", href: "/activity", icon: ListIcon, active: at("/activity") },
+    { label: "Contacts", href: "/contacts", icon: BookClosedIcon, active: at("/contacts") },
+  ];
+  const business: NavEntry[] = [
+    { label: "Overview", href: "/overview", icon: BarChartAltIcon, active: at("/overview") },
+    { label: "Payments", href: "/payments", icon: ClipboardIcon, active: at("/payments") },
+    { label: "Subscriptions", href: "/subscriptions", icon: WalletIcon, count: data.trialsEnding, active: at("/subscriptions") },
+    { label: "Integrations", href: "/integrations", icon: ListIcon, active: at("/integrations") },
+    ...(has("team:manage") ? [{ label: "Team and invites", href: "/team", icon: UserPlusIcon, active: at("/team") }] : []),
+  ];
+
   return (
-    <>
-      {data.pipelines.map((p, i) => (
-        <SidebarNavItem key={p.slug} icon={Dot} iconClassName={DOT_CLASSES[i % DOT_CLASSES.length]} label={p.name} count={p.count} href={`/deals?product=${p.slug}`} active={active === p.slug} />
-      ))}
-      <SidebarNavItem icon={AlertTriangleIcon} label="Slipping deals" href="/deals?view=slipping" active={active === "slipping"} />
-    </>
+    <nav aria-label="Primary" className="flex flex-col gap-3 px-2 py-2">
+      <NavSection id="jobs" title="Job search" entries={jobs} />
+      <NavSection id="opportunities" title="Opportunities" entries={opportunities} />
+      <NavSection id="learn" title="Learn" entries={learn} />
+      <NavSection id="plan" title="Plan and money" entries={plan} defaultOpen={false} />
+      {has("crm:use") && <NavSection id="sales" title="Sales" entries={sales} defaultOpen={false} />}
+      {has("money:use") && <NavSection id="business" title="Business" entries={business} defaultOpen={false} />}
+    </nav>
   );
 }
 
-export default function SidebarContent({ data }: { data: SidebarData }) {
-  const companyCount = useCompaniesStore((state) => state.companies.length);
-  const hydrated = useCompaniesStore((state) => state.hydrated);
+function NavWithDeal({ data }: { data: SidebarData }) {
   const pathname = usePathname();
-  const at = (href: string) => pathname === href;
-  const has = (p: Parameters<typeof can>[1]) => can(data.role, p);
+  const params = useSearchParams();
+  const deal = pathname === "/deals" ? (params.get("view") === "slipping" ? "slipping" : params.get("product")) : null;
+  return <Nav data={data} deal={deal} />;
+}
+
+export default function SidebarContent({ data }: { data: SidebarData }) {
+  const pathname = usePathname();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-sidebar-border bg-sidebar-accent flex shrink-0 items-center gap-2 border-b p-3">
-        <Logo aria-hidden className="size-8 shrink-0 overflow-visible" />
+      <div className="flex shrink-0 items-center gap-2.5 px-4 pt-4 pb-2">
+        <Logo aria-hidden className="size-7 shrink-0 overflow-visible" />
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="lead-style block truncate font-medium tracking-[-0.01em]">Sales CRM</span>
-          <span className="caption-style text-subtle block truncate">{data.role === "seeker" ? "Jobs, scholarships and goals" : "Your apps and job search"}</span>
+          <span className="block truncate text-[14px] leading-none font-semibold tracking-[-0.01em]">Sales CRM</span>
+          <span className="text-sidebar-label block truncate text-[12px] leading-none">{data.role === "seeker" ? "Jobs, learning and goals" : "Your apps and job search"}</span>
         </div>
       </div>
 
       {pathname === "/" && <ProductSwitcher />}
 
       <ScrollArea className="min-h-0 flex-1">
-        <nav aria-label="Primary">
-          {has("crm:use") && (
-            <SidebarSection title="Workspace" className="border-sidebar-border border-b">
-              <SidebarNavItem icon={BuildingIcon} label="Companies" count={hydrated && pathname === "/" ? companyCount : undefined} href="/" active={at("/")} />
-              <SidebarNavItem icon={ClipboardIcon} label="Deals board" href="/deals" active={at("/deals")} />
-              <SidebarNavItem icon={BarChartIcon} label="Forecast" href="/forecast" active={at("/forecast")} />
-              <SidebarNavItem icon={ListIcon} label="Activity" href="/activity" active={at("/activity")} />
-              <SidebarNavItem icon={BookClosedIcon} label="Contacts" href="/contacts" active={at("/contacts")} />
-            </SidebarSection>
-          )}
-
-          <SidebarSection title="Job search" className="border-sidebar-border border-b">
-            <SidebarNavItem icon={TargetIcon} label="Jobs" href="/jobs" active={at("/jobs")} />
-            {/* Outbox lives inside Applications: one place for everything you sent. */}
-            <SidebarNavItem icon={ClipboardIcon} label="Applications" count={data.applications || undefined} href="/applications" active={at("/applications") || at("/outbox")} />
-            <SidebarNavItem icon={MailIcon} label="CV and letter" href="/apply" active={at("/apply")} />
-            <SidebarNavItem icon={WalletIcon} label="Freelance and audits" href="/freelance" active={at("/freelance")} />
-            <SidebarNavItem icon={UsersIcon} label="Profile" href="/profile" active={at("/profile")} />
-            <SidebarNavItem icon={ListIcon} label="Settings" href="/settings" active={at("/settings")} />
-          </SidebarSection>
-
-          <SidebarSection title="Learn" className="border-sidebar-border border-b">
-            <SidebarNavItem icon={ListIcon} label="Notes" href="/notes" active={at("/notes") || pathname.startsWith("/notes/")} />
-            <SidebarNavItem icon={BookClosedIcon} label="Books" href="/books" active={at("/books") || pathname.startsWith("/books/")} />
-          </SidebarSection>
-
-          <SidebarSection title="Your money" className="border-sidebar-border border-b">
-            <SidebarNavItem icon={WalletIcon} label="Bills and subscriptions" count={data.billsDue || undefined} href="/bills" active={at("/bills")} />
-          </SidebarSection>
-
-          <SidebarSection title="Grow" className="border-sidebar-border border-b">
-            <SidebarNavItem icon={WalletIcon} label="Grants" href="/grants" active={at("/grants")} />
-            <SidebarNavItem icon={BookClosedIcon} label="Scholarships" href="/scholarships" active={at("/scholarships")} />
-            <SidebarNavItem icon={ClipboardIcon} label="Documents" href="/documents" active={at("/documents")} />
-            <SidebarNavItem icon={TargetAltIcon} label="Goals" href="/goals" active={at("/goals")} />
-          </SidebarSection>
-
-          {has("money:use") && (
-            <SidebarSection title="Money" className="border-sidebar-border border-b">
-              <SidebarNavItem icon={BarChartAltIcon} label="Overview" href="/overview" active={at("/overview")} />
-              <SidebarNavItem icon={ClipboardIcon} label="Payments" href="/payments" active={at("/payments")} />
-              <SidebarNavItem icon={WalletIcon} label="Subscriptions" href="/subscriptions" active={at("/subscriptions")} />
-              <SidebarNavItem icon={ListIcon} label="Integrations" href="/integrations" active={at("/integrations")} />
-            </SidebarSection>
-          )}
-
-          {has("crm:use") && (
-            <SidebarSection title="Pipelines">
-              {/* Reading the URL query needs a Suspense boundary; the plain list shows meanwhile. */}
-              <Suspense fallback={<PipelineLinks data={data} />}>
-                <PipelineLinks data={data} read />
-              </Suspense>
-            </SidebarSection>
-          )}
-        </nav>
+        {/* Reading the URL query needs a Suspense boundary; the plain list shows meanwhile. */}
+        <Suspense fallback={<Nav data={data} deal={null} />}>
+          <NavWithDeal data={data} />
+        </Suspense>
       </ScrollArea>
 
-      <SidebarSection className="border-sidebar-border shrink-0 border-t border-b">
-        {has("team:manage") && <SidebarNavItem icon={UserPlusIcon} label="Team and invites" tone="quiet" href="/team" active={at("/team")} />}
-        <SidebarNavItem icon={MessageQuestionIcon} label="Help" tone="quiet" href="/help" active={at("/help")} />
-        <SidebarNavItem icon={TargetAltIcon} label="Take the tour" tone="quiet" onClick={openTour} />
-      </SidebarSection>
-
-      {has("money:use") && (
-        <div className="border-sidebar-border bg-sidebar-accent flex shrink-0 items-center justify-between gap-2 border-b p-4">
-          <div className="flex flex-col gap-2">
-            <span className="lead-style block font-medium tracking-[-0.01em] tabular-nums">
-              {data.trialsEnding} {data.trialsEnding === 1 ? "trial" : "trials"}
-            </span>
-            <span className="caption-style text-subtle block">End in the next 7 days</span>
-          </div>
-          <Button variant="muted" size="md" href="/subscriptions?status=Trial">
-            <WalletIcon aria-hidden className="size-3.5" />
-            See trials
-          </Button>
-        </div>
-      )}
+      <div className="border-sidebar-border shrink-0 border-t px-2 py-2">
+        <NavFooter>
+          <NavRow link={{ label: "Settings", href: "/settings", icon: ListIcon, active: pathname === "/settings" }} />
+          <NavRow link={{ label: "Help and tour", href: "/help", icon: MessageQuestionIcon, active: pathname === "/help" }} />
+        </NavFooter>
+      </div>
     </div>
   );
 }

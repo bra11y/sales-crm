@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
-import { tick } from "@/lib/apply/outbox";
+import { sendDigest, tick } from "@/lib/apply/outbox";
 import { searchJobs } from "@/lib/jobs/search";
+import { searchConferences } from "@/lib/conferences/search";
 import { searchGrants } from "@/lib/grants/search";
 import { searchScholarships } from "@/lib/scholarships/search";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -27,13 +28,18 @@ export async function GET(request: Request) {
     // Scholarships are searched in the same daily run, so they arrive like jobs do.
     const s = await searchScholarships(admin, user_id, "schedule");
     const g = await searchGrants(admin, user_id);
+    const c = await searchConferences(admin, user_id);
     results.push({
       jobs: r.ok ? { added: r.added, kept: r.kept, errors: r.errors } : { error: r.error },
       scholarships: s.ok ? { added: s.added, errors: s.errors } : { error: s.error },
       grants: g.ok ? { added: g.added, errors: g.errors } : { error: g.error },
+      conferences: c.ok ? { added: c.added, errors: c.errors } : { error: c.error },
     });
   }
   // The daily run also sends and checks replies, in case the hourly GitHub tick is not set up.
   const mail = await tick(admin, Date.now() + 120_000);
-  return Response.json({ users: results.length, results, mail });
+  // After the night's searches and sends: one email to each person listing what needs them.
+  const digests = [];
+  for (const { user_id } of users ?? []) digests.push(await sendDigest(admin, user_id, new Date()));
+  return Response.json({ users: results.length, results, mail, digests });
 }

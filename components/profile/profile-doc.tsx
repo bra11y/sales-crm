@@ -191,15 +191,17 @@ export default function ProfileDoc({
                   className="accent-primary size-5"
                   aria-describedby="profile-ai-hint"
                 />
-                Let AI write the &ldquo;why this company&rdquo; lines
+                Let AI write the &ldquo;why this company&rdquo; lines and
+                rewrite letters in my voice
               </label>
               <p
                 id="profile-ai-hint"
                 className="caption-style text-soft leading-normal"
               >
-                {aiProvider}. Everything else in your CV and letter comes from
-                this page by plain rules, at no cost. Turn this off to keep
-                every application free.
+                {aiProvider}. Every fact in your CV and letter comes from this
+                page. The AI only changes the wording, and code checks it added
+                nothing. Turn this off to keep every application free and
+                rule-built.
               </p>
             </div>
             <div className="border-line-strong flex flex-col gap-2 border-t pt-3">
@@ -221,11 +223,13 @@ export default function ProfileDoc({
                 id="profile-auto-hint"
                 className="caption-style text-soft leading-normal"
               >
-                Only strong fits you can apply to by email, with every ready
-                check passing, no question in the post and no gap in the letter.
-                Each one waits 2 hours in the Outbox, marked Auto-applied, so
-                you can cancel it. Then it sends from your Gmail inside the
-                employer&rsquo;s work hours. Jobs with a form are left for you.
+                Only strong fits with every ready check passing, no question in
+                the post and no gap in the letter. When the post gives no email,
+                the company&rsquo;s own website is searched for a hiring inbox
+                first. Each one waits 2 hours in the Outbox, marked
+                Auto-applied, so you can cancel it. Then it sends from your Gmail
+                inside the employer&rsquo;s work hours. Jobs left for you are in
+                the morning email, each with the reason.
               </p>
               {prefs.autoApply.on && (
                 <div className="flex items-center gap-3 px-2">
@@ -253,6 +257,54 @@ export default function ProfileDoc({
                   </select>
                 </div>
               )}
+            </div>
+            <div className="border-line-strong flex flex-col gap-2 border-t pt-3">
+              <label className="flex min-h-11 items-center gap-2 text-[14px] font-medium">
+                <input
+                  type="checkbox"
+                  checked={prefs.digest}
+                  onChange={(e) => editPrefs({ digest: e.target.checked })}
+                  className="accent-primary size-5"
+                  aria-describedby="profile-digest-hint"
+                />
+                Email me each morning with what needs me
+              </label>
+              <p
+                id="profile-digest-hint"
+                className="caption-style text-soft leading-normal"
+              >
+                Sent to your own Gmail at about 7am Lagos time, only when
+                something is waiting: jobs auto-apply could not send and why,
+                and conference, grant and scholarship deadlines in the next 5
+                days.
+              </p>
+            </div>
+            <div className="border-line-strong flex flex-col gap-2 border-t pt-3">
+              <label
+                htmlFor="profile-voice"
+                className="text-[14px] font-medium"
+              >
+                Your own writing
+              </label>
+              <textarea
+                id="profile-voice"
+                value={prefs.voice}
+                maxLength={1500}
+                rows={6}
+                onChange={(e) => editPrefs({ voice: e.target.value })}
+                aria-describedby="profile-voice-hint"
+                className="border-line-strong bg-secondary focus-visible:ring-ring w-full rounded-lg border px-3 py-2.5 text-[15px] leading-normal outline-none focus-visible:ring-2"
+              />
+              <p
+                id="profile-voice-hint"
+                className="caption-style text-soft leading-normal"
+              >
+                Paste two or three paragraphs you wrote yourself, like a post or
+                an email, with no AI help. Letters and conference answers are
+                rewritten to sound like this. Code checks each rewrite keeps
+                every fact and adds none. {prefs.voice.length} of 1500
+                characters.
+              </p>
             </div>
           </Section>
         </>

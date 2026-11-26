@@ -29,14 +29,14 @@ $("connect-form").addEventListener("submit", async (e) => {
     return fail("That isn't a connection code. It starts with scx_. Make one in Profile.");
   }
   try {
-    const res = await fetch(`${server}/api/ext/kit?url=`, { headers: { authorization: `Bearer ${code}` } });
+    const res = await fetch(`${server}/api/ext/kit?url=`, { headers: { authorization: `Bearer ${code}` }, signal: AbortSignal.timeout(15000) });
     if (res.status === 401) {
       $("code").setAttribute("aria-invalid", "true");
       $("code").focus();
       return fail("The CRM did not accept that code. Make a new one in Profile.");
     }
   } catch {
-    return fail("The CRM could not be reached. Check the address.");
+    return fail("Your CRM can't be reached. Check the address and your internet.");
   }
   $("code").removeAttribute("aria-invalid");
   await chrome.storage.local.set({ settings: { server, code } });
@@ -50,7 +50,7 @@ $("fill").addEventListener("click", async () => {
   $("fill").setAttribute("aria-disabled", "true");
   say("Starting the helper…");
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const reply = await chrome.runtime.sendMessage({ type: "popup-fill", tabId: tab.id });
+  const reply = await chrome.runtime.sendMessage({ type: "popup-fill", tabId: tab.id }).catch(() => ({ ok: false, error: "The extension did not answer. Close this and try once more." }));
   $("fill").setAttribute("aria-disabled", "false");
   if (reply && reply.ok) window.close();
   else fail(reply?.error || "The helper did not start.");
@@ -58,7 +58,7 @@ $("fill").addEventListener("click", async () => {
 
 $("write").addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const reply = await chrome.runtime.sendMessage({ type: "write-check", tabId: tab.id });
+  const reply = await chrome.runtime.sendMessage({ type: "write-check", tabId: tab.id }).catch(() => ({ ok: false, error: "The extension did not answer. Close this and try once more." }));
   if (reply && reply.ok) window.close();
   else fail(reply?.error?.includes("Cannot access") ? "Chrome does not let extensions check this page. Try it on a job site or email." : reply?.error || "The writing check did not start.");
 });

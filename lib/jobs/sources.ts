@@ -1,5 +1,6 @@
 import { parseA11ySitemap, parseWorkingNomads, readA11yPage } from "./more-boards.ts";
 import { parseHnjFeed, readHnjPage } from "./nigeria.ts";
+import { parseReliefWebAny, reliefwebUrls } from "./ngo.ts";
 import { decodeEntities, htmlToText, type Pay, parsePay } from "./text.ts";
 
 export type JobPost = {
@@ -102,7 +103,7 @@ export const BIG_COMPANIES: Boards = {
 // African companies with public job boards, searched with the big companies (checked 26 October 2026).
 export const AFRICAN_COMPANIES: Boards = { greenhouse: ["moniepoint"], ashby: [], lever: [] };
 
-export type SourceId = "remotive" | "remoteok" | "himalayas" | "jobicy" | "weworkremotely" | "arbeitnow" | "greenhouse" | "ashby" | "lever" | "hotnigerianjobs" | "a11yjobs" | "workingnomads";
+export type SourceId = "remotive" | "remoteok" | "himalayas" | "jobicy" | "weworkremotely" | "arbeitnow" | "greenhouse" | "ashby" | "lever" | "hotnigerianjobs" | "a11yjobs" | "workingnomads" | "reliefweb";
 
 export const SOURCES: Record<SourceId, Source> = {
   remotive: {
@@ -368,7 +369,14 @@ export const SOURCES: Record<SourceId, Source> = {
     urls: () => ["https://www.workingnomads.com/api/exposed_jobs/"],
     parse: (body) => parseWorkingNomads(body),
   },
+  reliefweb: {
+    name: "ReliefWeb (NGO and UN jobs)",
+    home: "https://reliefweb.int",
+    minHoursBetween: 6,
+    urls: (q) => reliefwebUrls(process.env.RELIEFWEB_APPNAME, [...(q.titles ?? []), ...q.searches].slice(0, 4)),
+    parse: (body) => parseReliefWebAny(body),
+  },
 };
 export const SOURCE_IDS = Object.keys(SOURCES) as SourceId[];
 // Boards added after people saved their list: searched for everyone unless they turn them off.
-export const LATER_SOURCES: SourceId[] = ["hotnigerianjobs", "a11yjobs", "workingnomads"];
+export const LATER_SOURCES: SourceId[] = ["hotnigerianjobs", "a11yjobs", "workingnomads", "reliefweb"];
