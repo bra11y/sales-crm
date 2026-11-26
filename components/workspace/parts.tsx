@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 export function Page({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className={cn("mx-auto flex w-full flex-col gap-8 px-4 py-8 md:px-8", wide ? "max-w-[90em]" : "max-w-[64em]")}>{children}</div>
     </div>
   );

@@ -45,7 +45,7 @@ async function sidebarData(): Promise<SidebarData> {
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const data = await sidebarData();
   return (
-    <div className="flex h-dvh max-w-full overflow-hidden">
+    <div className="relative flex h-dvh max-w-full overflow-hidden">
       <a
         href="#main"
         className="bg-background text-foreground focus-visible:ring-ring sr-only z-50 rounded-md px-3 py-2 focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus-visible:ring-2"
@@ -53,7 +53,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         Skip to content
       </a>
       <Sidebar data={data} />
-      <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col focus:outline-none">
+      <main id="main" tabIndex={-1} className="relative flex min-w-0 flex-1 flex-col focus:outline-none">
         <RegisterSW />
         <MobileBar />
         <WhatsNew />
