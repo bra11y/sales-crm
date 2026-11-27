@@ -74,6 +74,7 @@ function Nav({ data, deal }: { data: SidebarData; deal: string | null }) {
     { label: "Conferences", href: "/conferences", icon: UsersIcon, active: at("/conferences") },
   ];
   const learn: NavEntry[] = [
+    { label: "Daily study", href: "/study", icon: TargetAltIcon, active: at("/study") },
     { label: "Notes", href: "/notes", icon: ListIcon, active: at("/notes") },
     { label: "Books and podcasts", href: "/books", icon: BookClosedIcon, active: at("/books") },
   ];

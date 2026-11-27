@@ -4,6 +4,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { looksAutomatic, type AutoJob } from "../apply/auto-rules.ts";
+import { dayKey, mindsetFor } from "../motivation.ts";
+import { topicsFor } from "../study/topics.ts";
 
 export const APP_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://sales-crm-virid-ten.vercel.app").replace(/\/$/, "");
 const DAY = 86_400_000;
@@ -11,12 +13,13 @@ const SOON_DAYS = 5;
 
 export type DigestJob = { id: string; title: string; company: string; reason: string; applyUrl: string };
 export type DigestDeadline = { kind: "Conference" | "Grant" | "Scholarship"; name: string; deadline: string; href: string; extra?: string };
-export type DigestInput = { today: string; queued: number; jobs: DigestJob[]; deadlines: DigestDeadline[]; autoOn: boolean };
+export type DigestStudy = { name: string; category: string; slug: string };
+export type DigestInput = { today: string; queued: number; jobs: DigestJob[]; deadlines: DigestDeadline[]; autoOn: boolean; study?: DigestStudy[]; mindset?: { name: string; line: string; today: string } };
 
 const daysTo = (date: string, today: string) => Math.round((Date.parse(date) - Date.parse(today)) / DAY);
 const when = (d: number) => (d <= 0 ? "closes today" : d === 1 ? "closes tomorrow" : `closes in ${d} days`);
 
-export function buildDigest(x: DigestInput): { subject: string; text: string; count: number } {
+export function buildDigest(x: DigestInput): { subject: string; text: string; count: number; study: number } {
   const count = x.jobs.length + x.deadlines.length;
   const parts: string[] = [];
   const head =
@@ -25,7 +28,9 @@ export function buildDigest(x: DigestInput): { subject: string; text: string; co
       : x.autoOn
         ? "Overnight, no application could go out without you."
         : "Auto-apply is off, so nothing was sent overnight. Turn it on in Settings to have email jobs sent for you.";
-  parts.push("Good morning,", "", head, "");
+  parts.push("Good morning,", "");
+  if (x.mindset) parts.push(`Today's mindset: ${x.mindset.name}. ${x.mindset.line}`, `Today: ${x.mindset.today}`, "");
+  parts.push(head, "");
   const urgent = [...x.deadlines].sort((a, b) => a.deadline.localeCompare(b.deadline));
   if (urgent.length) {
     parts.push(`Deadlines in the next ${SOON_DAYS} days (${urgent.length})`, "");
@@ -37,9 +42,19 @@ export function buildDigest(x: DigestInput): { subject: string; text: string; co
     for (const j of x.jobs) parts.push(`- ${j.title}${j.company ? ` at ${j.company}` : ""}: ${j.reason}.`, `  Open it: ${APP_URL}/apply?job=${j.id}`);
     parts.push("");
   }
-  parts.push("Nothing else needs you today.", "", `Turn this email off in Settings: ${APP_URL}/settings`, "");
-  const subject = count ? `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} you today${urgent.length ? `, first deadline ${urgent[0].deadline}` : ""}` : "Your morning update";
-  return { subject, text: parts.join("\n"), count };
+  const study = x.study ?? [];
+  if (study.length) {
+    parts.push("Today's study (5 minutes each)", "");
+    for (const t of study) parts.push(`- ${t.name} (${t.category})`, `  ${APP_URL}/study?topic=${t.slug}`);
+    parts.push("");
+  }
+  parts.push(count ? "Nothing else needs you today." : "Nothing needs you today.", "", `Turn this email off in Settings: ${APP_URL}/settings`, "");
+  const subject = count
+    ? `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} you today${urgent.length ? `, first deadline ${urgent[0].deadline}` : ""}`
+    : study.length
+      ? `Today's study: ${study.map((t) => t.name).join(", ")}`
+      : "Your morning update";
+  return { subject, text: parts.join("\n"), count, study: study.length };
 }
 
 type JobRow = AutoJob & { title: string; company: string; apply_url: string; needs_you: string | null };
@@ -68,6 +83,8 @@ export async function gatherDigest(db: SupabaseClient, userId: string, now: Date
   return {
     today,
     autoOn,
+    study: topicsFor(dayKey(now)).map((x) => ({ name: x.name, category: x.category, slug: x.slug })),
+    mindset: mindsetFor(now),
     queued: queued.count ?? 0,
     jobs: pending
       .map((j) => ({ id: j.id, title: j.title, company: j.company, applyUrl: j.apply_url, reason: j.needs_you ?? looksAutomatic(j, t) ?? (autoOn ? "" : "auto-apply is off, so it waits for you") }))

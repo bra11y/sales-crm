@@ -28,3 +28,12 @@ test("with nothing waiting, the count is zero so no email is sent", () => {
   assert.equal(d.count, 0);
   assert.match(d.text, /Auto-apply is off/);
 });
+
+test("on a quiet day the email still brings the mindset and today's study", () => {
+  const d = buildDigest({ today: "2026-11-27", queued: 0, jobs: [], deadlines: [], autoOn: true, study: [{ name: "Entropy", category: "Science", slug: "science-entropy" }], mindset: { name: "Ant", line: "Small work, every day.", today: "Do 20 minutes." } });
+  assert.equal(d.count, 0);
+  assert.equal(d.study, 1);
+  assert.match(d.subject, /Today's study: Entropy/);
+  assert.match(d.text, /Today's mindset: Ant/);
+  assert.match(d.text, new RegExp(`${APP_URL}/study\\?topic=science-entropy`));
+});

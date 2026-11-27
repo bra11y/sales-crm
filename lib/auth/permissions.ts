@@ -37,6 +37,7 @@ const ROUTES: [string, Permission | "open"][] = [
   ["/scholarships", "grow:use"],
   ["/conferences", "grow:use"],
   ["/market", "grow:use"],
+  ["/study", "grow:use"],
   ["/documents", "grow:use"],
   ["/goals", "grow:use"],
   ["/plans", "grow:use"],

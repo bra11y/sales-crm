@@ -641,7 +641,7 @@ export async function sendDigest(db: Db, userId: string, now: Date): Promise<{ s
   const login = await loadLogin(db, userId, profile.facts.person.name);
   if (!login?.tested) return { sent: false, items: 0 };
   const d = buildDigest(await gatherDigest(db, userId, now, profile.preferences.autoApply.on));
-  if (!d.count) return { sent: false, items: 0 };
+  if (!d.count && !d.study) return { sent: false, items: 0 };
   const { error } = await db.from("alert_digests").insert({ user_id: userId, day, items: d.count });
   if (error) return { sent: false, items: 0 };
   try {

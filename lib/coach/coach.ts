@@ -14,7 +14,7 @@ export const TOOLS: Tool[] = [
   { id: "interview", title: "Practise the interview", what: "10 realistic questions for this job, behavioural ones in STAR form. Answer each one and get feedback.", needs: "job", button: "Give me the questions" },
   { id: "achievements", title: "Find my achievements", what: "Questions that pull out results you forgot: time saved, money made, problems fixed. Your answers become CV bullets.", needs: "none", button: "Ask me" },
   { id: "outreach", title: "Messages to recruiters", what: "5 short LinkedIn messages for one role: friendly, specific, about what you can do for them.", needs: "role", button: "Write the messages" },
-  { id: "linkedin", title: "Fix my LinkedIn", what: "An About section, a headline and a line for each job, written from your Profile, to paste into LinkedIn.", needs: "none", button: "Write my LinkedIn" },
+  { id: "linkedin", title: "Fix my LinkedIn", what: "A headline, an About section and a line for each job about who you are and how you work, not a list of wins. Shared work is credited as shared.", needs: "none", button: "Write my LinkedIn" },
   { id: "plan", title: "My 7-day plan", what: "A day-by-day plan for one target role: searching, applying, people to reach, CV work and interview practice.", needs: "role", button: "Make my plan" },
 ];
 
@@ -68,7 +68,13 @@ export function coachPrompt(tool: ToolId, input: { profile: string; job?: string
       };
     case "linkedin":
       return {
-        system: s(["You rewrite a LinkedIn profile so a recruiter understands the applicant in 6 seconds.", SHAPE("Headline (3 options, under 220 characters); About (one version, 120 to 200 words, first person); A line for each job (job name, then 2 to 3 results); Skills to list (10)")]),
+        system: s([
+          "You help someone write a LinkedIn profile that says who they are, what they care about and how they work. It is not a list of wins.",
+          "Lead with what they believe and the people they serve. Describe the work, not trophies.",
+          "Never claim a result as theirs alone. Work done with a team or client is written as 'we' or 'I am part of a team that'. Leave out numbers and metrics unless the Profile says they did it alone.",
+          "Modest, warm, first person. No 'I did, I built, I cut' lists. No superlatives.",
+          SHAPE("Headline (3 options, under 220 characters, about what they do and for whom); About (one version, 120 to 200 words, first person: what they believe, the work, how they work, what they are open to); A line for each job (job name, then 2 to 3 lines on what the work is and what they care about in it); Skills to list (10)"),
+        ]),
         user: profile,
       };
     case "plan":
