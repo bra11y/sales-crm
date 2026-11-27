@@ -4,6 +4,7 @@ import { readJobAlerts } from "@/lib/apply/outbox";
 import { type JobProfile, loadProfile } from "./profile.ts";
 import { dueSources, fetchSources, nextDue, toRow, toRows } from "./run.ts";
 import { inYourFields, scoreJob } from "./fit.ts";
+import { loadTaste } from "./taste.ts";
 import type { JobPost } from "./sources.ts";
 
 const MINUTE = 60_000;
@@ -14,8 +15,9 @@ export type SearchResult =
   | { ok: false; error: string };
 
 export async function searchJobs(admin: SupabaseClient, userId: string, trigger: "manual" | "schedule", now = new Date()): Promise<SearchResult> {
-  const profile = await loadProfile(admin, userId);
-  if (!profile) return { ok: false, error: "Your profile could not be loaded." };
+  const loaded = await loadProfile(admin, userId);
+  if (!loaded) return { ok: false, error: "Your profile could not be loaded." };
+  const profile = { ...loaded, preferences: { ...loaded.preferences, taste: await loadTaste(admin as never, userId) } };
 
   if (trigger === "manual") {
     const { data: last } = await admin.from("job_runs").select("started_at").eq("user_id", userId).order("started_at", { ascending: false }).limit(1).maybeSingle();
@@ -90,6 +92,7 @@ const RESCORE = "source, external_id, title, company, company_logo, url, apply_u
 // Jobs not seen in this search keep their old score. Score them again, so a change to
 // your profile (such as the levels you want) shows on every new job, not only fresh ones.
 export async function rescoreSaved(admin: SupabaseClient, userId: string, profile: JobProfile, fresh: { source: string; external_id: string }[] = [], now = new Date()) {
+  if (!profile.preferences.taste) profile = { ...profile, preferences: { ...profile.preferences, taste: await loadTaste(admin as never, userId) } };
   const seen = new Set(fresh.map((r) => `${r.source}|${r.external_id}`));
   const { data } = await admin.from("job_posts").select(RESCORE).eq("user_id", userId).eq("status", "new").limit(3000);
   const rows = (data ?? [])

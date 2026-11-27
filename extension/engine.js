@@ -192,6 +192,7 @@
   // T-letter (their needs beside your proof), the problem ("pain") letter that opens
   // on the problem the post names, and a short note (short emails get more replies).
   const SHAPES = {
+    note: "Your own note: them first, what you do, one small ask",
     classic: "Hook, why them, proof",
     match: "Their needs, your proof (T-letter)",
     problem: "Their problem first",
@@ -201,6 +202,8 @@
 
   function letterShape(a, o) {
     if (o.shape && SHAPES[o.shape]) return o.shape;
+    // Your own style is the default: it is the note that got you your first role.
+    if (!o.shape) return "note";
     const fits = ["classic", "short"];
     if (a.requirements.length >= 3 && a.matched.length >= 3) fits.push("match");
     if (a.requirements.some(r => PROBLEM.test(r))) fits.push("problem");
@@ -317,7 +320,22 @@
     const signoff = pick(["Warm regards,", "Best regards,", "Thank you,", "Best,"], n >>> 7);
 
     let middle;
-    if (shape === "match") {
+    let close = `${where} ${ask}`.trim();
+    if (shape === "note") {
+      // Them first, then what you do in plain words, then one small ask and your promise.
+      // Past employers and results stay in the CV, which is attached.
+      middle = [
+        `${why} ${pick([`That's why I'm writing about the ${role} role.`, `So I'd love to be your ${role}.`], n >>> 9)}`, "",
+        `${intro}${asked.length ? ` ${pick([`Your post asks for ${list(asked.slice(0, 3))}: that's my everyday work, and my CV shows where I've done it.`, `${list(asked.slice(0, 3)).replace(/^./, c => c.toUpperCase())}: that's the work your post asks for, and it's my everyday work. My CV shows where.`], n >>> 11)}` : ""}`, "",
+        pick([
+          "Unconventional as it may seem, give me one small task from your backlog and judge me by the result. I work hard, I learn fast, and I promise you'll smile back at this decision.",
+          "Unconventional as it may seem, try me on one small, real task first, and let the result speak. Hard work and fast learning are what you'd get, and I promise you'll smile back at this decision.",
+          "Unconventional as it may seem, here is my offer: one small task from your list, judged on the result alone. I work hard and learn fast. I promise you'll smile back at this decision.",
+        ], n >>> 13), "",
+      ];
+      const based = !loc ? "" : overlaps ? `Based in ${loc}, my working day overlaps US and EU hours.` : `Based in ${loc}, working remotely.`;
+      close = [based, p.portfolio ? `My work: ${p.portfolio}` : ""].filter(Boolean).join("\n\n");
+    } else if (shape === "match") {
       // T-letter: each need from the post, then the proof for it. Plain lines, no bold labels.
       const rows = picks.length ? picks : a.matched.slice(0, 3).map(m => ({ said: m.said, proof: facts.proofs[m.label] || "" })).filter(x => x.proof);
       const numbered = rows.some(x => /\d/.test(x.proof));
@@ -365,10 +383,10 @@
       today(), "",
       greeting, "",
       ...middle,
-      `${where} ${ask}`.trim(), "",
-      signoff,
-      `${p.name} (${p.brand})`,
-      p.cpacc,
+      close, "",
+      shape === "note" ? "Best regards," : signoff,
+      shape === "note" ? p.name : `${p.name} (${p.brand})`,
+      ...(shape === "note" ? [] : [p.cpacc]),
     ];
     return lines.join("\n") + "\n";
   }

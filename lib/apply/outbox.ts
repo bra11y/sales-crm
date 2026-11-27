@@ -21,7 +21,7 @@ import { cvPdf } from "@/lib/pdf/cv";
 import { classifyMail, companyDomains, EVENT_TITLE, isJobSender, matchJob, nextStatus, type Status, type TrackedJob } from "./track";
 import { aiProviders, type Why, writeWhy } from "./ai";
 import { type Humanized, humanizeLetter } from "./humanize";
-import { attachmentName, cleanRole, draftApplication, findReadCheck, followUps, type ReadCheck, withEmail } from "./compose";
+import { attachmentName, cleanRole, draftApplication, findReadCheck, followUps, type ReadCheck, unnamed, withEmail } from "./compose";
 
 type Db = SupabaseClient;
 type Result<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -68,6 +68,8 @@ export type Prepared = {
   contactFrom: "post" | "website" | "you" | null;
   // Their website was searched and had no hiring email. Null when it was not searched.
   searchedSite: string | null;
+  // No address yet and their website has not been searched: the panel searches it next.
+  siteUnsearched: boolean;
   subject: string;
   body: string;
   cover: string;
@@ -145,7 +147,9 @@ async function loadJob(db: Db, userId: string, jobId: string) {
   return data as JobRow | null;
 }
 
-export async function prepare(db: Db, userId: string, jobId: string, opts: { oidc?: string | null; fresh?: boolean } = {}): Promise<Result<{ p: Prepared }>> {
+// "cached" uses only a recent website search, so the letter shows at once and the panel
+// searches the site next with its own progress note. Overnight runs wait for the search.
+export async function prepare(db: Db, userId: string, jobId: string, opts: { oidc?: string | null; fresh?: boolean; site?: "wait" | "cached" } = {}): Promise<Result<{ p: Prepared }>> {
   const job = await loadJob(db, userId, jobId);
   if (!job) return { ok: false, error: "That job was not found." };
   const profile = await loadProfile(db, userId);
@@ -159,7 +163,7 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
     job.draft?.why && !opts.fresh
       ? Promise.resolve(job.draft as Why)
       : writeWhy({ title: job.title, company: job.company, description: job.description }, facts, job.matched, profile.preferences.ai === "off" ? [] : aiProviders(process.env, opts.oidc)),
-    contact ? Promise.resolve(null) : hiringLookup(db, job),
+    contact ? Promise.resolve(null) : opts.site === "cached" ? Promise.resolve(freshHiring(job)) : hiringLookup(db, job),
   ]);
   if (!contact && site?.found) contact = { email: site.found.email, sentence: hiringNote(site.found) };
   if (!job.draft?.why || opts.fresh) await db.from("job_posts").update({ draft: { ...why, at: new Date().toISOString() } }).eq("id", job.id);
@@ -181,8 +185,9 @@ export async function prepare(db: Db, userId: string, jobId: string, opts: { oid
       contactFrom: contactFrom(contact),
       requiredSubject: findRequiredSubject(job.description, job.title),
       searchedSite: !contact && site?.domain ? site.domain : null,
+      siteUnsearched: !contact && !site && Boolean(job.company.trim() || job.apply_url),
       subject: findRequiredSubject(job.description, job.title) ?? d.subject,
-      body: letter.body,
+      body: unnamed(letter.body, facts),
       cover: d.cover,
       attachment: attachmentName(facts, job.company),
       why,
@@ -220,11 +225,16 @@ const HIRING_FRESH_DAYS = 14;
 
 // Searches the company's website for a hiring email, at most once every 14 days per job,
 // and keeps the answer on the job. Gives up after 25 seconds so Apply never hangs.
-export async function hiringLookup(db: Db, job: Pick<JobRow, "id" | "company" | "apply_url" | "company_info">, force = false): Promise<HiringLookup | null> {
+function freshHiring(job: Pick<JobRow, "company_info">): HiringLookup | null {
   const old = job.company_info?.hiring;
-  if (!force && old && Date.now() - Date.parse(old.checkedAt) < HIRING_FRESH_DAYS * 86_400_000) return old;
+  return old && Date.now() - Date.parse(old.checkedAt) < HIRING_FRESH_DAYS * 86_400_000 ? old : null;
+}
+
+export async function hiringLookup(db: Db, job: Pick<JobRow, "id" | "company" | "apply_url" | "company_info">, force = false): Promise<HiringLookup | null> {
+  const old = force ? null : freshHiring(job);
+  if (old) return old;
   if (!job.company.trim() && !job.apply_url) return null;
-  const timeout = new Promise<null>((r) => setTimeout(() => r(null), 25_000));
+  const timeout = new Promise<null>((r) => setTimeout(() => r(null), 15_000));
   const found = await Promise.race([findHiringEmail(job.company, job.apply_url, null).catch(() => null), timeout]);
   if (!found) return null;
   const info = job.company_info ?? { name: job.company, domain: found.domain, website: found.domain ? `https://${found.domain}` : null, summary: "", logo: null, links: [], checkedAt: found.checkedAt };

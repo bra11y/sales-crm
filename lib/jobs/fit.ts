@@ -1,5 +1,6 @@
 import E from "../apply/engine.js";
 import type { Facts } from "./facts.ts";
+import { tasteScore } from "./taste.ts";
 import { jobLevel, LEVEL_LABEL } from "./level.ts";
 import { blocked, type Preferences } from "./preferences.ts";
 import type { JobPost } from "./sources.ts";
@@ -180,6 +181,10 @@ export function scoreJob(post: JobPost, facts: Facts, prefs: Preferences, now = 
   score += ageDays === null ? 3 : ageDays <= 3 ? 15 : ageDays <= 7 ? 10 : ageDays <= 14 ? 6 : ageDays <= 30 ? 3 : 0;
   score -= Math.min(a.gaps.length * 4, 12);
   score -= flags.filter((f) => !f.startsWith("Pay is not") && !f.startsWith("From a job alert") && !f.startsWith("Read from your") && !f.startsWith("You would need to move") && !f.startsWith("The site hides")).length * 5;
+  const taste = tasteScore(post.title, prefs.taste);
+  score += taste.points;
+  if (taste.points >= 4) reasons.push(`Like jobs you applied to or saved (${taste.up.join(", ")})`);
+  else if (taste.points <= -4) reasons.push(`Like jobs you dismissed (${taste.down.join(", ")}), so it is lower`);
   score = Math.max(0, Math.min(100, score));
 
   return {

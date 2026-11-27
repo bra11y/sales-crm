@@ -35,6 +35,8 @@ export type Preferences = {
   voice: string;
   // A morning email to your own Gmail listing what needs you: jobs, conferences and deadlines.
   digest: boolean;
+  // Learned from the jobs you applied to, saved or dismissed. Worked out at each search, never stored.
+  taste?: Record<string, number>;
 };
 
 // Roles most computer science graduates can apply for, added to your own search words.

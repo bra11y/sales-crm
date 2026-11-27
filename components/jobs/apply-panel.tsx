@@ -36,6 +36,12 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
   const [toNote, setToNote] = useState("");
   const [searching, startSearch] = useTransition();
   const [siteNote, setSiteNote] = useState("");
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    if (!searching) return;
+    const t = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [searching]);
   const focusTo = (target: string) => requestAnimationFrame(() => document.getElementById(target)?.focus());
 
   function load(fresh = false) {
@@ -57,11 +63,14 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
       setBody(r.p.body);
       if (r.p.outbox) setDone(r.p.outbox.status === "sent" ? "sent" : "queued");
       setToNote(r.p.contact?.sentence ?? "");
+      if (r.p.siteUnsearched) searchSite(true);
       setNote(
         r.p.contactFrom === "website"
           ? `Ready. We found their hiring email on their website: ${r.p.contact?.email}. Check the email, then send it.`
           : r.p.contact
             ? "Ready. Check the email, then send it."
+            : r.p.siteUnsearched
+              ? "Ready. Now searching their website for a hiring email."
             : r.p.searchedSite
               ? `Ready. ${r.p.searchedSite} shows no hiring email, so this job uses their form.`
               : "Ready.",
@@ -104,14 +113,17 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
     });
   }
 
-  function searchSite() {
+  // Runs by itself once the letter is ready; the button runs it again.
+  function searchSite(auto = false) {
     if (searching) return;
+    setSecs(0);
     startSearch(async () => {
-      setProblem("");
-      setSiteNote("Searching their website for a hiring email. This can take 30 seconds.");
+      if (!auto) setProblem("");
+      setSiteNote(`Searching ${job.company || "their"}${job.company ? "'s" : ""} website: the home, careers, jobs and contact pages. It stops after 15 seconds.`);
       const r = await findHiringContact(job.id);
       if (!r.ok) {
         setSiteNote(r.error);
+        if (auto) setNote("Ready.");
         return;
       }
       setToNote(r.note);
@@ -119,9 +131,12 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
         setTo(r.email);
         setByEmail(true);
         setSiteNote("");
-        setNote(`Found ${r.email}. It is in the To box. Check the email, then send it.`);
-        focusTo(`${id}-to`);
-      } else setSiteNote(r.note || "No hiring email on their website. Apply on their form, or type a recruiter's address if you have one.");
+        setNote(`Found ${r.email} on their website. It is in the To box. Check the email, then send it.`);
+        if (!auto) focusTo(`${id}-to`);
+      } else {
+        setSiteNote(r.note || "No hiring email on their website. Apply on their form, or type a recruiter's address if you have one.");
+        if (auto) setNote(`Ready. ${r.domain ?? "Their website"} shows no hiring email, so this job uses their form.`);
+      }
     });
   }
 
@@ -404,7 +419,7 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
                 </Row>
                 <Row>
                   <div className="flex flex-wrap gap-2">
-                    <Button id={`${id}-search`} variant="secondary" size="md" className="h-11 px-4" onClick={searchSite} aria-disabled={searching}>
+                    <Button id={`${id}-search`} variant="secondary" size="md" className="h-11 px-4" onClick={() => searchSite()} aria-disabled={searching}>
                       {searching ? "Searching…" : p.searchedSite ? "Search their website again" : "Search their website"}
                     </Button>
                     <Button
@@ -424,6 +439,11 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
                   <p role="status" aria-live="polite" className="text-[14px] leading-normal empty:hidden">
                     {siteNote}
                   </p>
+                  {searching && (
+                    <p aria-hidden="true" className="text-soft text-[14px] tabular-nums">
+                      {secs} {secs === 1 ? "second" : "seconds"} so far
+                    </p>
+                  )}
                 </Row>
               </Group>
               {extension ? (

@@ -20,6 +20,42 @@ export const cleanRole = (role: string) =>
 
 const unlink = (s: string) => s.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1: $2");
 
+// Past employers' names, like "Lotus" from "Lotus Laboratories Inc. (assistive technology, USA)".
+// Your own business is yours to name.
+export function employerNames(facts: Facts): string[] {
+  const own = (facts.person.business ?? "").toLowerCase();
+  const names = new Set<string>();
+  for (const j of facts.jobs ?? []) {
+    const full = (j.org ?? "").split(/[(|]/)[0].replace(/[,.]?\s*(Inc|LLC|Ltd|Limited|PLC|GmbH)\.?\s*$/i, "").trim();
+    if (!full || (own && own.includes(full.toLowerCase().split(/\s+/)[0]))) continue;
+    names.add(full);
+    // The short name too ("Lotus"), unless it is a word of your own name.
+    const first = full.split(/\s+/)[0];
+    const mine = (facts.person.name ?? "").toLowerCase().split(/\s+/);
+    if (first.length >= 4 && !mine.includes(first.toLowerCase())) names.add(first);
+  }
+  return [...names];
+}
+
+// Messages talk about the work, not where it was done: any sentence naming a past employer is
+// dropped. Their names and results stay in the CV, which goes with the email.
+export function unnamed(text: string, facts: Facts): string {
+  const names = employerNames(facts);
+  if (!names.length) return text;
+  const hit = new RegExp(`\\b(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`);
+  return text
+    .split("\n")
+    .map((line) => {
+      if (!hit.test(line)) return line;
+      if (/^\s*-\s/.test(line)) return null;
+      const kept = (line.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) ?? [line]).filter((s) => !hit.test(s)).join("").trim();
+      return kept || null;
+    })
+    .filter((l): l is string => l !== null)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
 export function withEmail(facts: Facts, email?: string): Facts {
   return email ? { ...facts, person: { ...facts.person, email } } : facts;
 }
@@ -55,8 +91,10 @@ export function emailBody(cover: string, proof = ""): string {
       .replace(/\*\*/g, "")
       .replace(/^#+\s*/, ""),
   );
+  // The work list ends with the portfolio, so the letter's own portfolio line goes.
+  if (proof) body.splice(0, body.length, ...body.filter((l) => !/^My work: https?:\/\//.test(l.trim())));
   const close = body.findIndex((l) => SIGNOFF.test(l.trim()));
-  if (close > 0) body.splice(close, 0, ...(proof ? [proof, ""] : []), "My CV is attached as a PDF.", "");
+  if (close > 0) body.splice(close, 0, ...(proof ? [proof, ""] : []), "My CV is attached.", "");
   return (
     body
       .join("\n")
@@ -96,10 +134,10 @@ export function draftApplication(job: JobForDraft, facts: Facts, why: string, ma
   if (!job.company.trim()) problems.push("The job post names no company, so the letter can't say who it is for.");
   return {
     cv,
-    cover,
+    cover: unnamed(cover, facts),
     subject: subjectLine(role, job.company, facts.person.name, (manager || contact?.name || "").split(/\s+/)[0].replace(/^(Mr|Ms|Mrs|Miss|Dr)\.?$/, ""), n),
     shape: E.letterShape(a, o) as string,
-    body: emailBody(cover, proofBlock(proof, facts.person.portfolio)),
+    body: unnamed(emailBody(cover, proofBlock(proof, facts.person.portfolio)), facts),
     track: a.track,
     matched,
     proof,
@@ -109,20 +147,9 @@ export function draftApplication(job: JobForDraft, facts: Facts, why: string, ma
   };
 }
 
-function proofFor(facts: Facts, matched: string[], skip = ""): string {
-  for (const label of matched) {
-    const p = facts.proofs[label];
-    if (p && p !== skip) return p;
-  }
-  const first = facts.jobs[0]?.bullets[0]?.text ?? "";
-  return first && first !== skip ? first : "";
-}
-
 export function followUps(facts: Facts, opts: { role: string; company: string; manager: string; matched: string[]; sentAt: Date; proof?: Proof[] }): [string, string] {
   const greet = opts.manager || (opts.company ? `${opts.company} team` : "there");
   const date = opts.sentAt.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
-  const p1 = proofFor(facts, opts.matched);
-  const p2 = proofFor(facts, opts.matched.slice(1), p1) || p1;
   const name = facts.person.name;
   // One link they can open beats another paragraph about it.
   const link = opts.proof?.find((p) => p.url);
@@ -131,30 +158,27 @@ export function followUps(facts: Facts, opts: { role: string; company: string; m
   const one = [
     `Hi ${greet},`,
     "",
-    `${pick([`I applied for the ${opts.role} role on ${date} and wanted to check in.`, `I'm following up on my ${date} application for the ${opts.role} role.`], 1)}${p1 ? ` ${pick(["One example of my work:", "A recent result:"], 3)} ${p1}` : ""}`,
+    pick([`I applied for the ${opts.role} role on ${date} and wanted to check in.`, `I'm following up on my ${date} application for the ${opts.role} role.`], 1),
     "",
-    ...(link ? [`You can see ${link.title} here: ${link.url}`, ""] : []),
-    pick(
-      ["I'm still keen on the role. I can send more work samples or join a short call this week.", "I'd still love to talk. A 15-minute call this week works for me, or I can send more samples."],
-      5,
-    ),
+    "I'm still keen, and my offer stands: give me one small task and judge me by the result.",
+    ...(link ? ["", `You can see ${link.title} here: ${link.url}`] : []),
     "",
-    "Best,",
+    "Best regards,",
     name,
     "",
   ];
   const two = [
     `Hi ${greet},`,
     "",
-    `${pick([`A last note on my application for the ${opts.role} role.`, `One last follow-up on the ${opts.role} role.`], 7)}${p2 ? ` ${p2}` : ""}`,
+    pick([`A last note on my application for the ${opts.role} role.`, `One last follow-up on the ${opts.role} role.`], 7),
     "",
-    "If the role is filled, no need to reply. Thank you for your time.",
+    "If the role is filled, no need to reply. If not, I'd still love to show you what I can do. Thank you for your time.",
     "",
-    "Best,",
+    "Best regards,",
     name,
     "",
   ];
-  return [one.join("\n"), two.join("\n")];
+  return [unnamed(one.join("\n"), facts), unnamed(two.join("\n"), facts)];
 }
 
 export function attachmentName(facts: Facts, company: string): string {

@@ -47,3 +47,10 @@ test("Hot Nigerian Jobs: single roles kept, round-ups skipped, the employer link
   assert.equal(full.location, "Abuja (FCT) (on-site)");
   assert.match(full.description, /Send your CV/);
 });
+
+test("five or more years asked counts as senior", async () => {
+  const { jobLevel } = await import("./level.ts");
+  assert.equal(jobLevel("Software Engineer", "You have 5+ years of experience building web apps.").level, "senior");
+  assert.equal(jobLevel("Software Engineer", "You have 3+ years of experience.").level, "mid");
+  assert.equal(jobLevel("Software Engineer III").level, "senior");
+});

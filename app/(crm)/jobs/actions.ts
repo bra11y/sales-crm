@@ -77,7 +77,7 @@ async function oidc() {
 export async function prepareApplication(jobId: string, fresh = false): Promise<{ ok: true; p: Prepared } | { ok: false; error: string }> {
   const s = await signedIn();
   if (!s) return { ok: false, error: "Sign in again to apply." };
-  return prepare(s.admin, s.userId, jobId, { oidc: await oidc(), fresh });
+  return prepare(s.admin, s.userId, jobId, { oidc: await oidc(), fresh, site: "cached" });
 }
 
 // Looks for a hiring email on the company's website, so you can email them instead of

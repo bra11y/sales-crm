@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import F from "../apply/facts.js";
 import { aiProviders, checkWhy, parseAnswer, rulesWhy, writeWhy, type Provider } from "../apply/ai.ts";
-import { draftApplication, emailBody, findReadCheck, followUps, hasReadLine, withReadLine } from "../apply/compose.ts";
+import { draftApplication, emailBody, employerNames, findReadCheck, followUps, hasReadLine, unnamed, withReadLine } from "../apply/compose.ts";
 import type { Facts } from "../jobs/facts.ts";
 import { cvPdf, pdfSafe } from "../pdf/cv.ts";
 import { open, readKey, seal } from "./crypto.ts";
@@ -157,7 +157,7 @@ test("drafts the full email: subject, letter body, CV and follow-ups", () => {
   assert.match(d.subject, /Frontend Engineer/);
   assert.match(d.subject, new RegExp(facts.person.name));
   assert.match(d.body, /^(Hi|Hello) Kola Pay team,/);
-  assert.match(d.body, /My CV is attached as a PDF\.\n\n(Warm regards|Best regards|Thank you|Best),/);
+  assert.match(d.body, /My CV is attached\.\n\n(Warm regards|Best regards|Thank you|Best),/);
   assert.doesNotMatch(d.body, /\]\(/);
   assert.match(d.cv, /bryanonyenghan@gmail\.com/);
   assert.match(d.cover, /I want to bring my React work to Kola Pay/);
@@ -175,7 +175,7 @@ test("drafts the full email: subject, letter body, CV and follow-ups", () => {
 
 test("the email body drops the letterhead and keeps links readable", () => {
   const body = emailBody("<!-- kind: letter -->\n\n# Name\n\nme@x.com | [Portfolio](https://p.dev)\n\nHi Ada,\n\nSee [my work](https://p.dev/a).\n\nWarm regards,\nName\n");
-  assert.equal(body, "Hi Ada,\n\nSee my work: https://p.dev/a.\n\nMy CV is attached as a PDF.\n\nWarm regards,\nName\n");
+  assert.equal(body, "Hi Ada,\n\nSee my work: https://p.dev/a.\n\nMy CV is attached.\n\nWarm regards,\nName\n");
 });
 
 test("renders the CV to a real PDF with safe characters", async () => {
@@ -256,4 +256,15 @@ test("finds the address in posts with greetings, 'forward their CV' and the addr
 test("an apply sentence that mentions security or privacy after the address still counts", () => {
   const fluence = "How to apply\n\nEmail your portfolio, GitHub repository, and as an optional bonus, 1-2 other relevant projects to techjobs@fluencetraining.com, along with a short note on a security/privacy consideration you implemented (or would implement) in a healthcare or similar context.";
   assert.equal(findContactEmail(fluence)?.email, "techjobs@fluencetraining.com");
+});
+
+test("messages never name past employers; the CV still does", () => {
+  assert.deepEqual(employerNames(facts), ["Lotus Laboratories", "Lotus", "Bryan and Beckley International"]);
+  const why = rulesWhy(job, ["React"]);
+  const d = draftApplication(job, facts, why);
+  assert.match(d.cv, /Lotus/);
+  for (const text of [d.body, d.cover, ...followUps(facts, { role: "Frontend Engineer", company: "Kola Pay", manager: "", matched: d.matched, sentAt: new Date() })]) assert.doesNotMatch(text, /Lotus/);
+  assert.match(d.body, /Unconventional as it may seem/);
+  assert.match(d.body, /smile back at this decision/);
+  assert.equal(unnamed("Hi,\n\nAt Lotus I test with NVDA. I also build in React.\n- Lotus Shopify components\n\nBest,", facts), "Hi,\n\nI also build in React.\n\nBest,");
 });
