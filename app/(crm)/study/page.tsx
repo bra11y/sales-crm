@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PostCard } from "@/components/study/post";
 import { LessonCard } from "@/components/study/study";
 import { LINK, Page, PageHead } from "@/components/workspace/parts";
 import { dayKey } from "@/lib/motivation";
+import type { DailyPost } from "@/lib/social/post";
 import { CATEGORIES, findTopic, type Lesson, slugOf, topicsFor } from "@/lib/study/topics";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -16,6 +18,7 @@ export default async function Study({ searchParams }: { searchParams: Promise<{ 
   const shown = chosen ? [chosen] : today;
   const db = await createSupabaseServerClient();
   const { data } = await db.from("study_lessons").select("slug, lesson").in("slug", shown.map((t) => t.slug));
+  const { data: postRow } = await db.from("daily_posts").select("post").eq("day", dayKey()).maybeSingle();
   const lessons = new Map((data ?? []).map((r) => [r.slug as string, r.lesson as Lesson]));
   const todaySlugs = new Set(today.map((t) => t.slug));
 
@@ -43,6 +46,18 @@ export default async function Study({ searchParams }: { searchParams: Promise<{ 
           ))}
         </div>
       </section>
+
+      {!chosen && (
+        <section aria-labelledby="post-h" className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 id="post-h" className="text-[22px] font-semibold tracking-[-0.015em]">
+              Today&rsquo;s post for X
+            </h2>
+            <p className="text-soft text-[14px]">One idea from today&rsquo;s first topic, with a checked quote and a reference. You post it yourself.</p>
+          </div>
+          <PostCard post={(postRow?.post as DailyPost | undefined) ?? null} />
+        </section>
+      )}
 
       <section aria-labelledby="all-h" className="flex flex-col gap-4">
         <h2 id="all-h" className="text-[22px] font-semibold tracking-[-0.015em]">

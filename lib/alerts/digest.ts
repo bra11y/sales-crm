@@ -14,7 +14,7 @@ const SOON_DAYS = 5;
 export type DigestJob = { id: string; title: string; company: string; reason: string; applyUrl: string };
 export type DigestDeadline = { kind: "Conference" | "Grant" | "Scholarship"; name: string; deadline: string; href: string; extra?: string };
 export type DigestStudy = { name: string; category: string; slug: string };
-export type DigestInput = { today: string; queued: number; jobs: DigestJob[]; deadlines: DigestDeadline[]; autoOn: boolean; study?: DigestStudy[]; mindset?: { name: string; line: string; today: string } };
+export type DigestInput = { today: string; queued: number; jobs: DigestJob[]; deadlines: DigestDeadline[]; autoOn: boolean; study?: DigestStudy[]; mindset?: { name: string; line: string; today: string }; post?: string };
 
 const daysTo = (date: string, today: string) => Math.round((Date.parse(date) - Date.parse(today)) / DAY);
 const when = (d: number) => (d <= 0 ? "closes today" : d === 1 ? "closes tomorrow" : `closes in ${d} days`);
@@ -48,6 +48,7 @@ export function buildDigest(x: DigestInput): { subject: string; text: string; co
     for (const t of study) parts.push(`- ${t.name} (${t.category})`, `  ${APP_URL}/study?topic=${t.slug}`);
     parts.push("");
   }
+  if (x.post) parts.push("Today's post for X (check it, then post it yourself)", "", x.post, "", `Quote, reference and thread: ${APP_URL}/study#post-h`, "");
   parts.push(count ? "Nothing else needs you today." : "Nothing needs you today.", "", `Turn this email off in Settings: ${APP_URL}/settings`, "");
   const subject = count
     ? `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} you today${urgent.length ? `, first deadline ${urgent[0].deadline}` : ""}`
@@ -63,7 +64,7 @@ export async function gatherDigest(db: SupabaseClient, userId: string, now: Date
   const today = now.toISOString().slice(0, 10);
   const soon = new Date(now.getTime() + SOON_DAYS * DAY).toISOString().slice(0, 10);
   const since = new Date(now.getTime() - DAY).toISOString();
-  const [jobs, queued, conferences, grants, scholarships] = await Promise.all([
+  const [jobs, queued, conferences, grants, scholarships, post] = await Promise.all([
     db
       .from("job_posts")
       .select("id, title, company, apply_url, status, band, hidden_reason, eligibility, posted_at, pay_monthly_usd, matched, gaps, contact_email, contact_source, description, needs_you")
@@ -77,6 +78,7 @@ export async function gatherDigest(db: SupabaseClient, userId: string, now: Date
     db.from("conferences").select("id, name, deadline, fee, status, questions").eq("user_id", userId).in("status", ["found", "interested", "drafted"]).gte("deadline", today).lte("deadline", soon),
     db.from("grants").select("id, name, deadline").eq("user_id", userId).in("status", ["interested", "preparing"]).gte("deadline", today).lte("deadline", soon),
     db.from("scholarships").select("id, name, deadline").eq("user_id", userId).in("status", ["interested", "preparing"]).gte("deadline", today).lte("deadline", soon),
+    db.from("daily_posts").select("post").eq("day", dayKey(now)).maybeSingle(),
   ]);
   const t = now.getTime();
   const pending = (jobs.data ?? []) as JobRow[];
@@ -85,6 +87,7 @@ export async function gatherDigest(db: SupabaseClient, userId: string, now: Date
     autoOn,
     study: topicsFor(dayKey(now)).map((x) => ({ name: x.name, category: x.category, slug: x.slug })),
     mindset: mindsetFor(now),
+    post: ((post.data?.post ?? null) as { text?: string } | null)?.text,
     queued: queued.count ?? 0,
     jobs: pending
       .map((j) => ({ id: j.id, title: j.title, company: j.company, applyUrl: j.apply_url, reason: j.needs_you ?? looksAutomatic(j, t) ?? (autoOn ? "" : "auto-apply is off, so it waits for you") }))

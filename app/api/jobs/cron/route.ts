@@ -8,7 +8,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { aiProviders } from "@/lib/apply/ai";
 import { refreshMarket } from "@/lib/market/market";
 import { dayKey } from "@/lib/motivation";
-import { prepareStudy } from "@/lib/study/topics";
+import { preparePost } from "@/lib/social/post";
+import { prepareStudy, topicsFor } from "@/lib/study/topics";
 
 export const maxDuration = 300;
 
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
   // Markets first: one row for everyone, so the morning page is ready early.
   const market = await refreshMarket(admin, aiProviders(process.env, request.headers.get("x-vercel-oidc-token"))).catch((e) => ({ ok: false, error: e instanceof Error ? e.message : "failed" }));
   const study = await prepareStudy(admin as unknown as Parameters<typeof prepareStudy>[0], aiProviders(process.env, request.headers.get("x-vercel-oidc-token")), dayKey()).catch((e) => ({ error: e instanceof Error ? e.message : "failed" }));
+  const post = await preparePost(admin as unknown as Parameters<typeof preparePost>[0], aiProviders(process.env, request.headers.get("x-vercel-oidc-token")), dayKey(), topicsFor(dayKey())[0]).catch((e) => ({ error: e instanceof Error ? e.message : "failed" }));
   const { data: users } = await admin.from("job_profiles").select("user_id");
   const results = [];
   for (const { user_id } of users ?? []) {
@@ -48,5 +50,5 @@ export async function GET(request: Request) {
   // After the night's searches and sends: one email to each person listing what needs them.
   const digests = [];
   for (const { user_id } of users ?? []) digests.push(await sendDigest(admin, user_id, new Date()));
-  return Response.json({ users: results.length, market, study, results, mail, digests });
+  return Response.json({ users: results.length, market, study, post, results, mail, digests });
 }

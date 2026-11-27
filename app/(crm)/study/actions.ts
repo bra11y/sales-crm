@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { aiProviders } from "@/lib/apply/ai";
 import { firstReview } from "@/lib/learn/review";
-import { findTopic, type Lesson, writeLesson } from "@/lib/study/topics";
+import { dayKey } from "@/lib/motivation";
+import { type DailyPost, preparePost } from "@/lib/social/post";
+import { findTopic, type Lesson, topicsFor, writeLesson } from "@/lib/study/topics";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -59,4 +61,20 @@ export async function saveStudyNote(slug: string): Promise<R<{ noteId: string }>
   if (error || !note) return { ok: false, error: "The note could not be saved. Try again." };
   revalidatePath("/notes");
   return { ok: true, noteId: note.id };
+}
+
+// Writes today's X post now, when the morning run has not.
+export async function postNow(): Promise<R<{ post: DailyPost }>> {
+  const s = await signedIn();
+  if (!s) return { ok: false, error: "You are signed out. Sign in again, then try once more." };
+  const day = dayKey();
+  const { data } = await s.db.from("daily_posts").select("post").eq("day", day).maybeSingle();
+  if (data) return { ok: true, post: data.post as DailyPost };
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { ok: false, error: "The post could not be saved. Try again later." };
+  const r = await preparePost(admin as unknown as Parameters<typeof preparePost>[0], aiProviders(process.env, (await headers()).get("x-vercel-oidc-token")), day, topicsFor(day)[0]);
+  const { data: saved } = await admin.from("daily_posts").select("post").eq("day", day).maybeSingle();
+  if (!r.written || !saved) return { ok: false, error: "The post could not be written. Try again in a minute." };
+  revalidatePath("/study");
+  return { ok: true, post: saved.post as DailyPost };
 }
