@@ -70,7 +70,7 @@ export default function AuditOutreach({ prospects, suggestions }: { prospects: P
           Check a company&rsquo;s website
         </h2>
         <p className="text-soft leading-normal">
-          A quick check of the home page finds problems a machine can prove: missing alt text, unlabelled fields, blocked zoom. It writes a short email naming them into your Gmail Drafts. Nothing is
+          A quick check of the home page finds problems a machine can prove: missing alt text, unlabelled fields, blocked zoom. It writes a short email that opens with the clearest problem, in your own style, into your Gmail Drafts: an offer to fix it, or a job ask built on fixing it. Nothing is
           sent: you read it and send it yourself.
         </p>
         <form onSubmit={submit} aria-busy={pending} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -173,11 +173,11 @@ function Card({ p }: { p: Prospect }) {
   const [sure, setSure] = useState(false);
   const [pending, start] = useTransition();
 
-  function draft() {
+  function draft(kind: "client" | "job") {
     if (pending) return;
     start(async () => {
       setMsg("Writing the email…");
-      const r = await draftOutreach(p.id);
+      const r = await draftOutreach(p.id, kind);
       if (!r.ok) return setMsg(r.error);
       setMsg(r.note ?? "Drafted.");
       setText(r.text ?? "");
@@ -238,9 +238,14 @@ function Card({ p }: { p: Prospect }) {
           </select>
         </div>
         {p.findings.length > 0 && (
-          <Button type="button" variant="secondary" size="md" className="h-11 rounded-xl px-4" aria-disabled={pending} onClick={draft}>
-            Draft the email<span className="sr-only"> to {p.company}</span>
-          </Button>
+          <>
+            <Button type="button" variant="secondary" size="md" className="h-11 rounded-xl px-4" aria-disabled={pending} onClick={() => draft("client")}>
+              Offer to fix it<span className="sr-only"> for {p.company}</span>
+            </Button>
+            <Button type="button" variant="secondary" size="md" className="h-11 rounded-xl px-4" aria-disabled={pending} onClick={() => draft("job")}>
+              Ask about a job<span className="sr-only"> at {p.company}</span>
+            </Button>
+          </>
         )}
         {sure ? (
           <>

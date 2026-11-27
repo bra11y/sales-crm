@@ -26,16 +26,22 @@ test("a clean page scores 100 with nothing to report", () => {
   assert.equal(a.title, "Acme");
 });
 
-test("the pitch names real findings, stays short, and lets them opt out", () => {
-  const { subject, body } = pitch("Acme", "https://www.acme.com/shop", auditHtml(BAD).findings, { name: "Bryan", brand: "Mr Accessibility", portfolio: "https://p.dev", cpacc: "yes" }, "Ada Obi");
-  assert.equal(subject, "3 accessibility issues on acme.com");
+test("the pitch opens with the clearest problem, asks for one small fix, and lets them opt out", () => {
+  const { subject, body } = pitch("Acme", "https://www.acme.com/shop", auditHtml(BAD).findings, { name: "Bryan", brand: "Bihub Technology", portfolio: "https://p.dev" }, "Ada Obi");
+  assert.equal(subject, "acme.com: 2 images a screen reader can't describe");
   assert.match(body, /^Hi Ada,/);
-  assert.match(body, /2 images with no alt text/);
+  assert.match(body, /I looked at the code of acme\.com's home page\. 2 images have no alt text/);
+  assert.match(body, /I found 8 other issues too\./);
+  assert.match(body, /keyboard and a screen reader, then fix the code, through Bihub Technology/);
+  assert.match(body, /at a budget that works for you\. I promise you'll smile back at this decision\./);
   assert.match(body, /reply "no" and I won't write again/);
-  assert.ok(body.split(/\s+/).length < 170, `${body.split(/\s+/).length} words`);
-  const one = pitch("Acme", "acme.com", auditHtml(GOOD.replace(' lang="en"', "")).findings, { name: "B" });
-  assert.match(one.body, /one thing that stops/);
-  assert.match(one.body, /It's a quick fix, and it also lowers/);
+  assert.doesNotMatch(body, /everyone can use|attached|CV|proposal|legal risk/i);
+  assert.ok(body.split(/\s+/).length < 130, `${body.split(/\s+/).length} words`);
+  const job = pitch("Acme", "acme.com", auditHtml(GOOD.replace(' lang="en"', "")).findings, { name: "B" }, "", "job");
+  assert.equal(job.subject, "acme.com: the page doesn't say its language");
+  assert.doesNotMatch(job.body, /other issue/);
+  assert.match(job.body, /small paid task\. If you like the result, let's talk about a role on your team/);
+  assert.match(job.body, /^Hi Acme team,/);
 });
 
 test("only public https sites can be checked", async () => {

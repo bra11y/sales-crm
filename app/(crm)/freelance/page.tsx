@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import AuditOutreach, { type Prospect, type Suggestion } from "@/components/grow/audit-outreach";
 import GigList, { type GigItem } from "@/components/grow/gig-list";
+import TaskSites from "@/components/grow/task-sites";
 import { Page, PageHead, ViewTabs } from "@/components/workspace/parts";
 import { loadGigs } from "@/lib/gigs/load";
 import { gigMatch } from "@/lib/gigs/reply";
+import { TASK_SITES } from "@/lib/gigs/tasks";
 import { jobLevel } from "@/lib/jobs/level";
 import { loadProfile } from "@/lib/jobs/profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -11,7 +13,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Freelance and audits · Sales CRM", robots: { index: false } };
 
 export default async function FreelancePage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const view = (await searchParams).view === "audits" ? "audits" : "gigs";
+  const asked = (await searchParams).view;
+  const view = asked === "audits" || asked === "tasks" ? asked : "gigs";
   const supabase = await createSupabaseServerClient();
   const [{ data: jobs }, { data: prospects }, { data: replies }, profile, feed] = await Promise.all([
     supabase.from("job_posts").select("company, company_info").not("company_info", "is", null).order("score", { ascending: false }).limit(200),
@@ -38,16 +41,23 @@ export default async function FreelancePage({ searchParams }: { searchParams: Pr
   const views = [
     { href: "/freelance", label: "Gigs people posted", count: gigs.filter((g) => g.fits && g.status !== "not_for_me").length },
     { href: "/freelance?view=audits", label: "Audit outreach", count: (prospects ?? []).length },
+    { href: "/freelance?view=tasks", label: "Small paid tasks", count: TASK_SITES.filter((s) => s.open !== "no").length },
   ];
 
   return (
     <Page>
       <PageHead
         title="Freelance and audits"
-        intro="Short-term work you get by answering a person, not a job board: posts from people who need help, and companies whose websites fail basic accessibility checks."
-        views={<ViewTabs label="Freelance views" views={views} current={view === "audits" ? "/freelance?view=audits" : "/freelance"} />}
+        intro="Short-term work you get by answering a person, not a job board: posts from people who need help, companies whose websites fail basic accessibility checks, and small paid tasks open to Nigeria."
+        views={<ViewTabs label="Freelance views" views={views} current={view === "gigs" ? "/freelance" : `/freelance?view=${view}`} />}
       />
-      {view === "audits" ? <AuditOutreach prospects={(prospects ?? []) as Prospect[]} suggestions={suggestions} /> : <GigList gigs={gigs} failed={feed.failed} />}
+      {view === "audits" ? (
+        <AuditOutreach prospects={(prospects ?? []) as Prospect[]} suggestions={suggestions} />
+      ) : view === "tasks" ? (
+        <TaskSites />
+      ) : (
+        <GigList gigs={gigs} failed={feed.failed} />
+      )}
     </Page>
   );
 }

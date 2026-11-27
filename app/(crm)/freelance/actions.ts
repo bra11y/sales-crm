@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { loadLogin } from "@/lib/apply/outbox";
 import { auditHtml, type Finding } from "@/lib/audit/check";
 import { fetchPage, siteUrl } from "@/lib/audit/fetch";
-import { pitch } from "@/lib/audit/pitch";
+import { pitch, type PitchKind } from "@/lib/audit/pitch";
 import { loadGigs } from "@/lib/gigs/load";
 import { gigReply } from "@/lib/gigs/reply";
 import { currentUserId, loadProfile } from "@/lib/jobs/profile";
@@ -55,7 +55,8 @@ export async function checkSite(input: { company: string; url: string; contactNa
 }
 
 // Writes the cold email into your Gmail Drafts. Without Gmail, you get the text to copy.
-export async function draftOutreach(id: string): Promise<Result> {
+export async function draftOutreach(id: string, kind: PitchKind = "client"): Promise<Result> {
+  if (kind !== "client" && kind !== "job") return { ok: false, error: "Pick freelance work or a job." };
   const supabase = await createSupabaseServerClient();
   const { data: p } = await supabase.from("audit_prospects").select("company, url, contact_name, contact_email, findings").eq("id", id).maybeSingle();
   if (!p) return { ok: false, error: "That company was not found. Reload the page." };
@@ -66,7 +67,7 @@ export async function draftOutreach(id: string): Promise<Result> {
   const profile = await loadProfile();
   if (!userId || !admin || !profile) return { ok: false, error: "Sign in again." };
   const person = profile.facts.person;
-  const mail = pitch(p.company, p.url, findings, { name: person.name ?? "", brand: person.brand, portfolio: person.portfolio, cpacc: person.cpacc }, p.contact_name ?? "");
+  const mail = pitch(p.company, p.url, findings, { name: person.name ?? "", brand: person.brand, portfolio: person.portfolio, cpacc: person.cpacc }, p.contact_name ?? "", kind);
   const login = await loadLogin(admin, userId, person.name);
   const text = `To: ${p.contact_email ?? ""}\nSubject: ${mail.subject}\n\n${mail.body}`;
   if (!login) return { ok: true, note: "Gmail is not connected, so here is the email to copy.", text };
