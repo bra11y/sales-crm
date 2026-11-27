@@ -35,6 +35,7 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
   const [byEmail, setByEmail] = useState(false);
   const [toNote, setToNote] = useState("");
   const [searching, startSearch] = useTransition();
+  const [siteNote, setSiteNote] = useState("");
   const focusTo = (target: string) => requestAnimationFrame(() => document.getElementById(target)?.focus());
 
   function load(fresh = false) {
@@ -107,20 +108,20 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
     if (searching) return;
     startSearch(async () => {
       setProblem("");
-      setNote("Searching their website for a hiring email…");
+      setSiteNote("Searching their website for a hiring email. This can take 30 seconds.");
       const r = await findHiringContact(job.id);
       if (!r.ok) {
-        setNote("");
-        setProblem(r.error);
+        setSiteNote(r.error);
         return;
       }
       setToNote(r.note);
       if (r.email) {
         setTo(r.email);
         setByEmail(true);
+        setSiteNote("");
         setNote(`Found ${r.email}. It is in the To box. Check the email, then send it.`);
         focusTo(`${id}-to`);
-      } else setNote(r.note);
+      } else setSiteNote(r.note || "No hiring email on their website. Apply on their form, or type a recruiter's address if you have one.");
     });
   }
 
@@ -418,6 +419,11 @@ export default function ApplyPanel({ job, onApplied, onError }: Props) {
                       I have an address
                     </Button>
                   </div>
+                </Row>
+                <Row>
+                  <p role="status" aria-live="polite" className="text-[14px] leading-normal empty:hidden">
+                    {siteNote}
+                  </p>
                 </Row>
               </Group>
               {extension ? (

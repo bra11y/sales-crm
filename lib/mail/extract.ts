@@ -6,6 +6,8 @@ export type Contact = { email: string; sentence: string };
 
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
 const APPLY = /\b(apply|applying|application|applications|send (?:us |me )?(?:your |a )?(?:cv|resume|résumé|portfolio|application)|email (?:us|me|your)|submit (?:your )?(?:cv|resume|application)|reach out|get in touch|interested\?)\b/i;
+const SEND_CV = /\b(send|forward|mail|e-?mail|submit)\b[^.\n]{0,30}\b(cvs?|resumes?|résumés?|credentials|applications?|portfolios?|cover letters?)\b|\b(interested|qualified|suitable) (and qualified )?(candidates|applicants)\b/i;
+const HEADING = /^(method of application|how to apply|to apply|application process|apply now)\s*:?$/i;
 const NOT_APPLY = /\b(accommodat\w*|disabilit\w*|adjustments?|privacy|gdpr|personal data|data protection|security|vulnerabilit\w*|fraud|scam|phishing|report|complaint|unsubscribe|support for customers|press|media inquiries|assistance|questions?|help with|trouble|technical issues?)\b/i;
 const BAD_LOCAL = /^(no-?reply|do-?not-?reply|privacy|security|dpo|gdpr|legal|abuse|accommodations?|recruitingaccommodations|accessibleinterviewing|support|help|billing|press|media|webmaster|postmaster|info-?privacy)$/i;
 const BAD_DOMAIN = /(^|\.)(example\.(com|org)|sentry\.io|wixpress\.com|domain\.com|email\.com)$/i;
@@ -24,7 +26,20 @@ function usable(raw: string): string | null {
 export function findContactEmail(description: string): Contact | null {
   const parts = sentences(description);
   for (const [i, sentence] of parts.entries()) {
-    if (NOT_APPLY.test(sentence) || !APPLY.test(sentence)) continue;
+    // What an address is for is said before it: "For privacy questions, email ...". Words after
+    // it, like "with a note on a security consideration", do not make it a privacy address.
+    const at = sentence.search(EMAIL);
+    if (NOT_APPLY.test(at < 0 ? sentence : sentence.slice(0, at))) continue;
+    // "Method of Application" on its own line, and the address on one of the next lines.
+    if (HEADING.test(sentence)) {
+      for (const line of parts.slice(i + 1, i + 4)) {
+        if (NOT_APPLY.test(line)) break;
+        const email = (line.match(EMAIL) ?? []).map(usable).find(Boolean);
+        if (email) return { email, sentence: `${sentence}: ${line}`.slice(0, 300) };
+      }
+      continue;
+    }
+    if (!APPLY.test(sentence) && !SEND_CV.test(sentence)) continue;
     const found = sentence.match(EMAIL);
     for (const raw of found ?? []) {
       const email = usable(raw);

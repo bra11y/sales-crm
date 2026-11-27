@@ -241,3 +241,19 @@ test("'use the Job Title as the subject' gives the job's own title", async () =>
   assert.equal(findRequiredSubject("Use the position applied for as the subject of your mail", "IT Support Officer"), "IT Support Officer");
   assert.equal(findRequiredSubject("using the Job Title as the subject"), null);
 });
+
+test("finds the address in posts with greetings, 'forward their CV' and the address under the apply heading", () => {
+  const greet = "Season's greetings from all of us at Lumen Health!\nWe are hiring a Frontend Developer in Lagos.\n\nMethod of Application\nInterested and qualified candidates should forward their CV to: careers@lumenhealth.ng";
+  assert.equal(findContactEmail(greet)?.email, "careers@lumenhealth.ng");
+  const heading = "Merry Christmas and a happy new year.\nHow to Apply\nhr@brightpath.com.ng\nUse the job title as the subject of the mail.";
+  assert.equal(findContactEmail(heading)?.email, "hr@brightpath.com.ng");
+  assert.equal(findContactEmail("Qualified candidates should send their CVs to recruitment@okafor-partners.com")?.email, "recruitment@okafor-partners.com");
+  assert.equal(findContactEmail("Kindly mail your resume to jobs@tinkerlabs.io on or before 20 December.")?.email, "jobs@tinkerlabs.io");
+  assert.equal(findContactEmail("Method of Application\nFor questions about your data, write to privacy@lumen.ng"), null);
+  assert.equal(findContactEmail("Warm greetings! Contact hello@acme.com for anything."), null);
+});
+
+test("an apply sentence that mentions security or privacy after the address still counts", () => {
+  const fluence = "How to apply\n\nEmail your portfolio, GitHub repository, and as an optional bonus, 1-2 other relevant projects to techjobs@fluencetraining.com, along with a short note on a security/privacy consideration you implemented (or would implement) in a healthcare or similar context.";
+  assert.equal(findContactEmail(fluence)?.email, "techjobs@fluencetraining.com");
+});
